@@ -15,28 +15,23 @@ struct PhotoViewer: View {
         ZStack(alignment: .topTrailing) {
             TabView(selection: $index) {
                 ForEach(Array(photos.enumerated()), id: \.element.id) { position, photo in
-                    ZoomableImage(url: model.mediaURL(photo))
-                        .tag(position)
+                    ZoomableImage(
+                        url: model.mediaURL(photo),
+                        onPull: { pull = $0 },
+                        onPullEnd: { distance in
+                            if abs(distance) > 110 {
+                                dismiss()
+                            } else {
+                                withAnimation(Motion.settle) { pull = 0 }
+                            }
+                        }
+                    )
+                    .tag(position)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: photos.count > 1 ? .automatic : .never))
             .indexViewStyle(.page(backgroundDisplayMode: .never))
             .offset(y: pull)
-            .gesture(
-                DragGesture(minimumDistance: 20)
-                    .onChanged { value in
-                        if abs(value.translation.height) > abs(value.translation.width) {
-                            pull = value.translation.height
-                        }
-                    }
-                    .onEnded { value in
-                        if abs(value.translation.height) > 110 {
-                            dismiss()
-                        } else {
-                            withAnimation(Motion.settle) { pull = 0 }
-                        }
-                    }
-            )
 
             Button {
                 dismiss()
@@ -57,9 +52,15 @@ struct PhotoViewer: View {
     }
 }
 
+/// One photo: pinch or double-tap to zoom, drag to pan when zoomed. Unzoomed, a vertical
+/// drag is a pull to close, reported to the viewer. The pull lives here because the page's
+/// own gestures win over anything attached outside the pager.
 struct ZoomableImage: View {
     let url: URL
+    var onPull: (CGFloat) -> Void = { _ in }
+    var onPullEnd: (CGFloat) -> Void = { _ in }
     @State private var image: UIImage?
+    @State private var pulling = false
     @State private var scale: CGFloat = 1
     @State private var settledScale: CGFloat = 1
     @State private var offset: CGSize = .zero
@@ -94,12 +95,21 @@ struct ZoomableImage: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 10)
                     .onChanged { value in
-                        guard scale > 1 else { return }
-                        offset = CGSize(width: settledOffset.width + value.translation.width,
-                                        height: settledOffset.height + value.translation.height)
+                        if scale > 1 {
+                            offset = CGSize(width: settledOffset.width + value.translation.width,
+                                            height: settledOffset.height + value.translation.height)
+                        } else if pulling || abs(value.translation.height) > abs(value.translation.width) {
+                            pulling = true
+                            onPull(value.translation.height)
+                        }
                     }
-                    .onEnded { _ in
-                        settledOffset = offset
+                    .onEnded { value in
+                        if scale > 1 {
+                            settledOffset = offset
+                        } else if pulling {
+                            pulling = false
+                            onPullEnd(value.translation.height)
+                        }
                     }
             )
             .onTapGesture(count: 2) {

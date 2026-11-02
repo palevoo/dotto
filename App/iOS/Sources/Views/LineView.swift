@@ -55,7 +55,7 @@ struct LineView: View {
                 }
 
                 if editing {
-                    TextField("", text: $text, axis: .vertical)
+                    TextField(entry.text.isEmpty ? "Words for this" : "", text: $text, axis: .vertical)
                         .font(.system(size: 20, design: .serif))
                         .foregroundStyle(Theme.foreground)
                         .lineSpacing(5)
@@ -72,6 +72,18 @@ struct LineView: View {
                         .foregroundStyle(Theme.foreground)
                         .lineSpacing(5)
                         .textSelection(.enabled)
+                } else {
+                    // A photo or voice without words: the place for them is visible, not hidden behind Edit.
+                    Button {
+                        text = ""
+                        editing = true
+                        focused = true
+                    } label: {
+                        Text("Words for this")
+                            .font(.system(size: 20, design: .serif))
+                            .foregroundStyle(Theme.faint)
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
