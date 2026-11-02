@@ -116,16 +116,18 @@ final class NotebookModel {
     }
 
     /// A photo from the library keeps its own moment and place: it becomes a line on the day it
-    /// was taken. Without a date it lands in the live line like a fresh one.
-    func importPhoto(_ data: Data) async {
+    /// was taken, and its id comes back so the page can go there. Without a date it lands in
+    /// the live line like a fresh one.
+    @discardableResult
+    func importPhoto(_ data: Data) async -> ULID? {
         let metadata = await Photo.metadata(of: data)
         guard let takenAt = metadata.takenAt else {
             await addPhoto(data)
-            return
+            return nil
         }
         guard let photo = await Photo.process(data) else {
             NSLog("import failed: could not read the image")
-            return
+            return nil
         }
         do {
             let hash = try store.storeMedia(photo.jpeg, fileExtension: "jpg")
@@ -138,8 +140,10 @@ final class NotebookModel {
                 Event(id: generator.next(at: now), author: store.manifest.owner, device: device, at: now,
                       payload: .mediaAttach(.init(entry: id, hash: hash, mime: "image/jpeg", width: photo.width, height: photo.height))),
             ])
+            return id
         } catch {
             NSLog("import failed: \(error)")
+            return nil
         }
     }
 

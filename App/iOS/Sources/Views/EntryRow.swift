@@ -8,6 +8,7 @@ struct EntryRow: View {
     let entry: Entry
     @Bindable var model: NotebookModel
     let zoom: Namespace.ID
+    var revealed = false
     let onOpen: () -> Void
     let onOpenPhoto: (Int) -> Void
 
@@ -42,13 +43,23 @@ struct EntryRow: View {
                         .lineSpacing(4)
                 }
                 if !entry.notes.isEmpty {
-                    ReplyThread(notes: entry.notes, owner: model.store.manifest.owner, calendar: model.calendar, compact: true)
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(entry.notes) { note in
+                            ReplyMark(note: note, mine: note.author == model.store.manifest.owner)
+                        }
+                    }
+                    .padding(.top, 2)
                 }
             }
             .padding(.top, 4)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
+        .background {
+            Theme.square(12)
+                .fill(Theme.accent.opacity(revealed ? 0.09 : 0))
+                .padding(.horizontal, 8)
+        }
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
         .contextMenu {
@@ -58,22 +69,44 @@ struct EntryRow: View {
     }
 }
 
-/// Replies under a line. A hairline in the reader's ink runs down the left; each reply
-/// names who wrote it. The owner's own answers sit in the same thread in their ink.
+/// A reply as it sits on the page: a dot of its writer's ink, then the words, at most two
+/// lines. Who and when wait on the line's page.
+struct ReplyMark: View {
+    let note: Note
+    let mine: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Theme.square(6)
+                .fill(mine ? Theme.faint : Theme.agent.opacity(0.65))
+                .frame(width: 6, height: 6)
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] + 1 }
+            Text(note.text)
+                .font(mine ? Theme.serifSmall : Theme.sansSmall)
+                .foregroundStyle(mine ? Theme.foreground : Theme.agent)
+                .lineSpacing(2)
+                .lineLimit(2)
+                .truncationMode(.tail)
+        }
+    }
+}
+
+/// Replies under a line, opened. A hairline in the reader's ink runs down the left; each
+/// reply names who wrote it and when. The owner's own answers sit in the same thread in
+/// their ink.
 struct ReplyThread: View {
     let notes: [Note]
     let owner: Author
     let calendar: Calendar
-    var compact = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
             Theme.square(4)
                 .fill(Theme.agent.opacity(0.5))
                 .frame(width: 2)
-            VStack(alignment: .leading, spacing: compact ? 6 : 12) {
+            VStack(alignment: .leading, spacing: 12) {
                 ForEach(notes) { note in
-                    ReplyLine(note: note, mine: note.author == owner, calendar: calendar, compact: compact)
+                    ReplyLine(note: note, mine: note.author == owner, calendar: calendar)
                 }
             }
         }
@@ -81,32 +114,23 @@ struct ReplyThread: View {
     }
 }
 
-/// One reply: who and when in small type, then the words. Selectable only on the line's page,
-/// where no tap competes with it.
+/// One reply: who and when in small type, then the words, selectable.
 struct ReplyLine: View {
     let note: Note
     let mine: Bool
     let calendar: Calendar
-    let compact: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("\(mine ? "you" : note.author.rawValue) · \(Format.time(note.at, calendar: calendar))")
                 .font(Theme.mono)
                 .foregroundStyle(mine ? Theme.faint : Theme.agent.opacity(0.7))
-            if compact {
-                words.lineLimit(1).truncationMode(.tail)
-            } else {
-                words.textSelection(.enabled)
-            }
+            Text(note.text)
+                .font(mine ? Theme.serifSmall : Theme.sansSmall)
+                .foregroundStyle(mine ? Theme.foreground : Theme.agent)
+                .lineSpacing(2)
+                .textSelection(.enabled)
         }
-    }
-
-    private var words: some View {
-        Text(note.text)
-            .font(mine ? Theme.serifSmall : Theme.sansSmall)
-            .foregroundStyle(mine ? Theme.foreground : Theme.agent)
-            .lineSpacing(2)
     }
 }
 

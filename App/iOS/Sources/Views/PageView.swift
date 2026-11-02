@@ -17,6 +17,7 @@ struct PageView: View {
     @State private var picked: [PhotosPickerItem] = []
     @State private var viewing: PhotoOpening?
     @State private var filter: String?
+    @State private var revealed: ULID?
     @State private var recorder = VoiceRecorder()
     @Namespace private var zoom
     @FocusState private var liveFocused: Bool
@@ -31,61 +32,62 @@ struct PageView: View {
     var body: some View {
         NavigationStack(path: $path) {
             ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(days) { day in
-                            DaySection(
-                                day: day,
-                                model: model,
-                                isToday: filter == nil && day.key == model.today,
-                                zoom: zoom,
-                                onOpen: { id in path.append(id) },
-                                onOpenPhoto: { id, index in viewing = PhotoOpening(entry: id, index: index) }
-                            )
-                            .id(day.key)
+                VStack(spacing: 0) {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(days) { day in
+                                DaySection(
+                                    day: day,
+                                    model: model,
+                                    isToday: filter == nil && day.key == model.today,
+                                    zoom: zoom,
+                                    revealed: revealed,
+                                    onOpen: { id in open { path.append(id) } },
+                                    onOpenPhoto: { id, index in open { viewing = PhotoOpening(entry: id, index: index) } }
+                                )
+                                .id(day.key)
+                            }
+                            if days.isEmpty {
+                                Text(filter == nil ? "Nothing yet. The line below is yours." : "Nothing filed here yet.")
+                                    .font(Theme.serifSmall)
+                                    .foregroundStyle(Theme.muted)
+                                    .padding(20)
+                            }
                         }
-                        if days.isEmpty {
-                            Text(filter == nil ? "Nothing yet. The line below is yours." : "Nothing filed here yet.")
-                                .font(Theme.serifSmall)
-                                .foregroundStyle(Theme.muted)
-                                .padding(20)
-                        }
+                        .scrollTargetLayout()
+                        .padding(.bottom, 12)
+                        .contentShape(Rectangle())
+                        .onTapGesture { liveFocused = false }
                     }
-                    .scrollTargetLayout()
-                    .padding(.bottom, 12)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        // A tap on bare page puts the keyboard away. Lines keep their own taps.
-                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    .scrollPosition(id: $visibleDay, anchor: .top)
+                    .defaultScrollAnchor(.bottom)
+                    .scrollDismissesKeyboard(.interactively)
+                    .onScrollGeometryChange(for: Bool.self) { geometry in
+                        geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 2
+                    } action: { _, isAtBottom in
+                        atBottom = isAtBottom
                     }
-                }
-                .scrollPosition(id: $visibleDay, anchor: .top)
-                .defaultScrollAnchor(.bottom)
-                .scrollDismissesKeyboard(.interactively)
-                .onScrollGeometryChange(for: Bool.self) { geometry in
-                    geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 2
-                } action: { _, isAtBottom in
-                    atBottom = isAtBottom
-                }
-                .background(Theme.background.ignoresSafeArea())
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    PinnedHeader(
-                        day: visibleDay ?? model.today,
-                        today: model.today,
-                        calendar: model.calendar,
-                        filter: filter,
-                        onTap: { showCalendar = true },
-                        onClearFilter: { withAnimation(Motion.settle) { filter = nil } },
-                        onCopyDay: { copy(day: visibleDay ?? model.today) },
-                        onCopyAll: { copyAll() }
-                    )
-                }
-                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        PinnedHeader(
+                            day: visibleDay ?? model.today,
+                            today: model.today,
+                            calendar: model.calendar,
+                            filter: filter,
+                            onTap: { showCalendar = true },
+                            onClearFilter: { withAnimation(Motion.settle) { filter = nil } },
+                            onCopyDay: { copy(day: visibleDay ?? model.today) },
+                            onCopyAll: { copyAll() }
+                        )
+                    }
+
+                    // The live line is the last row of the page, a sibling of the scroll, so the
+                    // keyboard lifts it and a push and pop can never lose it.
                     LiveLine(
                         model: model,
                         focused: $liveFocused,
                         recorder: recorder,
                         picked: $picked,
+                        onReturn: { storeDraft(proxy) },
                         onCamera: { showCamera = true },
                         onHoldStart: { Task { await recorder.start() } },
                         onHoldEnd: { finishVoice() }
@@ -95,6 +97,7 @@ struct PageView: View {
                         Theme.line.frame(height: 1).opacity(atBottom ? 0 : 1)
                     }
                 }
+                .background(Theme.background.ignoresSafeArea())
                 .sheet(isPresented: $showCalendar) {
                     CalendarSheet(
                         days: model.days,
@@ -116,7 +119,6 @@ struct PageView: View {
                             showMove = true
                         }
                     )
-                    .presentationDetents([.medium, .large])
                     .presentationBackground(Theme.paper)
                 }
                 .sheet(isPresented: $showMove) {
@@ -147,27 +149,20 @@ struct PageView: View {
                 .onChange(of: picked) { _, items in
                     guard !items.isEmpty else { return }
                     Task {
+                        var last: ULID?
                         for item in items {
-                            if let data = try? await item.loadTransferable(type: Data.self) {
-                                await model.importPhoto(data)
+                            if let data = try? await item.loadTransferable(type: Data.self),
+                               let id = await model.importPhoto(data) {
+                                last = id
                             }
                         }
                         picked = []
                         Haptic.touch()
+                        if let last { reveal(last, proxy) }
                     }
                 }
                 .onChange(of: liveFocused) { _, focused in
-                    if !focused {
-                        var stored: ULID?
-                        withAnimation(Motion.settle) { stored = model.commitDraft() }
-                        if stored != nil { Haptic.store() }
-                    }
-                }
-                .onChange(of: model.notebook.eventCount) { _, _ in
-                    // A line was stored: the page settles with it instead of jumping.
-                    if filter == nil {
-                        withAnimation(Motion.settle) { proxy.scrollTo(model.today, anchor: .bottom) }
-                    }
+                    if !focused { storeDraft(proxy) }
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -176,6 +171,47 @@ struct PageView: View {
             }
         }
         .tint(Theme.accent)
+    }
+
+    /// With the keyboard up, the first tap anywhere on the page puts it away. Nothing opens
+    /// until the next tap.
+    private func open(_ action: () -> Void) {
+        if liveFocused {
+            liveFocused = false
+        } else {
+            action()
+        }
+    }
+
+    /// Stores the live line and settles the page on it, one short motion.
+    private func storeDraft(_ proxy: ScrollViewProxy) {
+        var stored: ULID?
+        withAnimation(Motion.settle) { stored = model.commitDraft() }
+        guard stored != nil else { return }
+        Haptic.store()
+        if filter == nil {
+            withAnimation(Motion.settle) { proxy.scrollTo(model.today, anchor: .bottom) }
+        }
+    }
+
+    /// A line that landed somewhere up the page, such as an old photo on the day it was
+    /// taken: the page goes to it and marks it for a moment.
+    private func reveal(_ id: ULID, _ proxy: ScrollViewProxy) {
+        guard let entry = model.notebook.entry(id) else { return }
+        let day = DayKey(entry.startedAt, calendar: model.calendar)
+        if filter != nil { filter = nil }
+        proxy.scrollTo(day, anchor: .top)
+        Task {
+            try? await Task.sleep(for: .milliseconds(80))
+            withAnimation(Motion.settle) {
+                proxy.scrollTo(id, anchor: .center)
+                revealed = id
+            }
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation(.easeOut(duration: 0.8)) {
+                if revealed == id { revealed = nil }
+            }
+        }
     }
 
     private func finishVoice() {
@@ -296,6 +332,7 @@ struct DaySection: View {
     @Bindable var model: NotebookModel
     let isToday: Bool
     let zoom: Namespace.ID
+    let revealed: ULID?
     let onOpen: (ULID) -> Void
     let onOpenPhoto: (ULID, Int) -> Void
 
@@ -309,9 +346,11 @@ struct DaySection: View {
                     entry: entry,
                     model: model,
                     zoom: zoom,
+                    revealed: revealed == entry.id,
                     onOpen: { onOpen(entry.id) },
                     onOpenPhoto: { index in onOpenPhoto(entry.id, index) }
                 )
+                .id(entry.id)
             }
         }
         .padding(.bottom, isToday ? 8 : 18)
@@ -353,6 +392,7 @@ struct LiveLine: View {
     var focused: FocusState<Bool>.Binding
     let recorder: VoiceRecorder
     @Binding var picked: [PhotosPickerItem]
+    let onReturn: () -> Void
     let onCamera: () -> Void
     let onHoldStart: () -> Void
     let onHoldEnd: () -> Void
@@ -387,9 +427,7 @@ struct LiveLine: View {
                     .onChange(of: model.draftText) { _, text in
                         guard text.contains("\n") else { return }
                         model.draftText = text.replacingOccurrences(of: "\n", with: " ")
-                        var stored: ULID?
-                        withAnimation(Motion.settle) { stored = model.commitDraft() }
-                        if stored != nil { Haptic.store() }
+                        onReturn()
                     }
             }
             if recorder.isRecording {

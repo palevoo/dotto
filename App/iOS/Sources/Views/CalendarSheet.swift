@@ -15,6 +15,7 @@ struct CalendarSheet: View {
     let onMove: () -> Void
 
     @State private var month: DateComponents
+    @State private var height: CGFloat = 480
 
     init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?, home: String,
          onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void, onMove: @escaping () -> Void) {
@@ -94,8 +95,6 @@ struct CalendarSheet: View {
                 }
             }
 
-            Spacer(minLength: 0)
-
             HStack(spacing: 6) {
                 Text(home)
                     .font(Theme.mono)
@@ -111,9 +110,15 @@ struct CalendarSheet: View {
                 .buttonStyle(.plain)
                 Spacer()
             }
+            .padding(.top, 4)
         }
         .padding(20)
-        .padding(.top, 8)
+        .padding(.top, 16)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        // The sheet is exactly as tall as the month, so nothing is cropped or centred.
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        .presentationDetents([.height(height)])
+        .presentationDragIndicator(.hidden)
     }
 
     private var isCurrentMonth: Bool {
