@@ -2,7 +2,8 @@ import Core
 import SwiftUI
 import UIKit
 
-/// One line: its time in the margin, its words, what sits behind them, and any reader's note under it.
+/// One line on the page: its time in the margin, its words, what sits behind them,
+/// and a reader's note in one quiet line. Tap the time to open the line.
 struct EntryRow: View {
     let entry: Entry
     @Bindable var model: NotebookModel
@@ -12,12 +13,16 @@ struct EntryRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(Format.time(entry.startedAt, calendar: model.calendar))
-                .font(Theme.mono)
-                .foregroundStyle(Theme.muted)
-                .frame(width: 44, alignment: .leading)
-                .monospacedDigit()
-                .padding(.top, 6)
+            NavigationLink(value: entry.id) {
+                Text(Format.time(entry.startedAt, calendar: model.calendar))
+                    .font(Theme.mono)
+                    .foregroundStyle(Theme.muted)
+                    .frame(width: 44, height: 28, alignment: .leading)
+                    .monospacedDigit()
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open this line")
             VStack(alignment: .leading, spacing: 10) {
                 if !entry.media.isEmpty {
                     HStack(spacing: 10) {
@@ -61,17 +66,16 @@ struct EntryRow: View {
                         }
                 }
                 ForEach(entry.notes) { note in
-                    NoteView(note: note, calendar: model.calendar)
-                }
-                if !entry.labels.isEmpty {
-                    Text(entry.labels.map { "#\($0)" }.joined(separator: "  "))
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.faint)
+                    NavigationLink(value: entry.id) {
+                        NoteLine(note: note)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
+            .padding(.top, 4)
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
     }
 }
 
@@ -82,10 +86,13 @@ struct MediaView: View {
 
     var body: some View {
         if media.mime.hasPrefix("image") {
-            ThumbView(hash: media.hash, original: model.mediaURL(media), side: 180)
-                .contextMenu {
-                    Button("Delete line", systemImage: "trash", role: .destructive) { model.delete(entry) }
-                }
+            NavigationLink(value: entry) {
+                ThumbView(hash: media.hash, original: model.mediaURL(media), side: 180)
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button("Delete line", systemImage: "trash", role: .destructive) { model.delete(entry) }
+            }
         } else if media.mime.hasPrefix("audio") {
             VoiceChip(hash: media.hash, duration: media.duration ?? 0, url: model.mediaURL(media))
         } else {
@@ -148,10 +155,9 @@ struct VoiceChip: View {
     }
 }
 
-/// A reader's line, in that reader's ink. weeju is purple and small.
-struct NoteView: View {
+/// A reader's note as one line on the page. The whole note lives on the line's own page.
+struct NoteLine: View {
     let note: Note
-    let calendar: Calendar
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -162,8 +168,10 @@ struct NoteView: View {
             Text(note.text)
                 .font(Theme.sansSmall)
                 .foregroundStyle(Theme.agent)
-                .lineSpacing(2)
+                .lineLimit(1)
+                .truncationMode(.tail)
         }
         .padding(.top, 2)
+        .contentShape(Rectangle())
     }
 }

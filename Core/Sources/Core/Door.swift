@@ -59,6 +59,23 @@ public struct Door: Sendable {
         self.calendar = calendar
     }
 
+    /// What a reader is told on arrival. Deliberately open about purpose, firm about manners.
+    public static func conduct(for grant: Grant) -> String {
+        """
+        This is \(grant.name)'s door into one person's notebook. The lines are theirs: written \
+        for themselves, with no audience in mind. You read with read_days or list_lines, and you \
+        may leave a note under a line or file it under a label, in the ink of \(grant.author).
+
+        What a note is for is not fixed. It may acknowledge, organise, move something forward, \
+        close something that an earlier line opened, answer a question the line asked, or simply \
+        keep company. Read what the line asks for and do that, in one short line. When nothing is \
+        asked for, say nothing: silence is the default and most lines want none. Never restate \
+        the line, never praise, never touch the owner's words. Labels are lower-case words for \
+        finding things later; file a line only when the word will be useful. Everything you do \
+        is recorded under the line with your name, where the owner can see it.
+        """
+    }
+
     public enum Tool: String, CaseIterable, Sendable {
         case readDays = "read_days"
         case listLines = "list_lines"
@@ -144,7 +161,7 @@ public struct Door: Sendable {
             "protocolVersion": version,
             "capabilities": ["tools": [:]],
             "serverInfo": ["name": Self.serverName, "version": Self.serverVersion],
-            "instructions": "This is \(grant.name)'s door into one person's notebook. Read with read_days or list_lines. Write only notes and labels, only about lines you acted on, in the ink of \(grant.author).",
+            "instructions": Self.conduct(for: grant),
         ]
     }
 

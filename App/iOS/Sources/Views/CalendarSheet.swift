@@ -1,23 +1,31 @@
 import Core
 import SwiftUI
 
-/// The date, tapped: a month with a mark under every day that has lines.
+/// The date, tapped: a month with a mark under every day that has lines, and the labels
+/// readers have filed lines under. Tap a label to see only those lines.
 struct CalendarSheet: View {
     let days: [Day]
     let today: DayKey
     let calendar: Calendar
+    let labels: [String: Int]
+    let filter: String?
     let home: String
     let onPick: (DayKey) -> Void
+    let onFilter: (String?) -> Void
     let onMove: () -> Void
 
     @State private var month: DateComponents
 
-    init(days: [Day], today: DayKey, calendar: Calendar, home: String, onPick: @escaping (DayKey) -> Void, onMove: @escaping () -> Void) {
+    init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?, home: String,
+         onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void, onMove: @escaping () -> Void) {
         self.days = days
         self.today = today
         self.calendar = calendar
+        self.labels = labels
+        self.filter = filter
         self.home = home
         self.onPick = onPick
+        self.onFilter = onFilter
         self.onMove = onMove
         _month = State(initialValue: DateComponents(year: today.year, month: today.month))
     }
@@ -73,6 +81,19 @@ struct CalendarSheet: View {
                     }
                 }
             }
+
+            if !labels.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(labels.keys.sorted(), id: \.self) { label in
+                            LabelChip(label: label, count: labels[label] ?? 0, selected: filter == label) {
+                                onFilter(filter == label ? nil : label)
+                            }
+                        }
+                    }
+                }
+            }
+
             Spacer(minLength: 0)
 
             HStack(spacing: 6) {
@@ -129,5 +150,29 @@ struct CalendarSheet: View {
         guard let date = calendar.date(from: month),
               let moved = calendar.date(byAdding: .month, value: delta, to: date) else { return }
         month = calendar.dateComponents([.year, .month], from: moved)
+    }
+}
+
+struct LabelChip: View {
+    let label: String
+    let count: Int
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text("#\(label)")
+                Text("\(count)")
+                    .foregroundStyle(selected ? Theme.background.opacity(0.7) : Theme.faint)
+            }
+            .font(Theme.mono)
+            .foregroundStyle(selected ? Theme.background : Theme.foreground)
+            .padding(.horizontal, 12)
+            .frame(height: 30)
+            .background(Theme.square(30).fill(selected ? Theme.foreground : .clear))
+            .overlay(Theme.square(30).strokeBorder(selected ? .clear : Theme.line, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 }

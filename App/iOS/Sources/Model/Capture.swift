@@ -172,6 +172,15 @@ enum Photo {
         }.value
     }
 
+    /// A stored photo at viewing size, decoded off the main thread.
+    static func load(_ url: URL, maxSide: Int = 2400) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let image = downsample(source, maxSide: maxSide) else { return nil }
+            return UIImage(cgImage: image)
+        }.value
+    }
+
     /// Decodes only as many pixels as needed. Cheap even for a 48-megapixel source.
     static func downsample(_ source: CGImageSource, maxSide: Int) -> CGImage? {
         let options: [CFString: Any] = [

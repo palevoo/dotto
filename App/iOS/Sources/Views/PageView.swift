@@ -10,10 +10,14 @@ struct PageView: View {
     @State private var showCalendar = false
     @State private var showMove = false
     @State private var showCamera = false
+    @State private var filter: String?
     @State private var recorder = VoiceRecorder()
     @FocusState private var liveFocused: Bool
 
     private var days: [Day] {
+        if let filter {
+            return model.notebook.days(labelled: filter, calendar: model.calendar)
+        }
         var days = model.days
         if days.last?.key != model.today {
             days.append(Day(key: model.today, entries: []))
@@ -22,98 +26,118 @@ struct PageView: View {
     }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(days) { day in
-                        DaySection(day: day, model: model, isToday: day.key == model.today, liveFocused: $liveFocused)
+        NavigationStack {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(days) { day in
+                            DaySection(
+                                day: day,
+                                model: model,
+                                isToday: filter == nil && day.key == model.today,
+                                liveFocused: $liveFocused,
+                                recorder: recorder,
+                                onCamera: { showCamera = true },
+                                onHoldStart: { Task { await recorder.start() } },
+                                onHoldEnd: { finishVoice() }
+                            )
                             .id(day.key)
+                        }
+                        if filter != nil, days.isEmpty {
+                            Text("Nothing filed here yet.")
+                                .font(Theme.serifSmall)
+                                .foregroundStyle(Theme.muted)
+                                .padding(20)
+                        }
+                    }
+                    .scrollTargetLayout()
+                    .padding(.bottom, 24)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        // A tap on bare page puts the keyboard away. Lines keep their own taps.
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                     }
                 }
-                .scrollTargetLayout()
-                .padding(.bottom, 8)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    // A tap on bare page puts the keyboard away. Lines keep their own taps.
-                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                .scrollPosition(id: $visibleDay, anchor: .top)
+                .defaultScrollAnchor(.bottom)
+                .scrollDismissesKeyboard(.interactively)
+                .background(Theme.background.ignoresSafeArea())
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    PinnedHeader(
+                        day: visibleDay ?? model.today,
+                        today: model.today,
+                        calendar: model.calendar,
+                        filter: filter,
+                        onTap: { showCalendar = true },
+                        onClearFilter: { withAnimation(Motion.settle) { filter = nil } },
+                        onCopyDay: { copy(day: visibleDay ?? model.today) },
+                        onCopyAll: { copyAll() }
+                    )
                 }
-            }
-            .scrollPosition(id: $visibleDay, anchor: .top)
-            .defaultScrollAnchor(.bottom)
-            .scrollDismissesKeyboard(.interactively)
-            .background(Theme.background.ignoresSafeArea())
-            .safeAreaInset(edge: .top, spacing: 0) {
-                PinnedHeader(
-                    day: visibleDay ?? model.today,
-                    today: model.today,
-                    calendar: model.calendar,
-                    onTap: { showCalendar = true },
-                    onCopyDay: { copy(day: visibleDay ?? model.today) },
-                    onCopyAll: { copyAll() }
-                )
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                CaptureStrip(
-                    recorder: recorder,
-                    onCamera: { showCamera = true },
-                    onHoldStart: { Task { await recorder.start() } },
-                    onHoldEnd: { finishVoice() }
-                )
-            }
-            .sheet(isPresented: $showCalendar) {
-                CalendarSheet(
-                    days: model.days,
-                    today: model.today,
-                    calendar: model.calendar,
-                    home: Library.describe(model.store),
-                    onPick: { key in
-                        showCalendar = false
-                        withAnimation { proxy.scrollTo(key, anchor: .top) }
-                    },
-                    onMove: {
-                        showCalendar = false
-                        showMove = true
+                .sheet(isPresented: $showCalendar) {
+                    CalendarSheet(
+                        days: model.days,
+                        today: model.today,
+                        calendar: model.calendar,
+                        labels: model.notebook.labelCounts,
+                        filter: filter,
+                        home: Library.describe(model.store),
+                        onPick: { key in
+                            showCalendar = false
+                            withAnimation(Motion.settle) { proxy.scrollTo(key, anchor: .top) }
+                        },
+                        onFilter: { label in
+                            showCalendar = false
+                            withAnimation(Motion.settle) { filter = label }
+                        },
+                        onMove: {
+                            showCalendar = false
+                            showMove = true
+                        }
+                    )
+                    .presentationDetents([.medium, .large])
+                    .presentationBackground(Theme.paper)
+                }
+                .sheet(isPresented: $showMove) {
+                    FolderPicker { url in
+                        showMove = false
+                        if let url { onRelocate(url) }
                     }
-                )
-                .presentationDetents([.medium, .large])
-                .presentationBackground(Theme.paper)
-            }
-            .sheet(isPresented: $showMove) {
-                FolderPicker { url in
-                    showMove = false
-                    if let url { onRelocate(url) }
+                    .ignoresSafeArea()
                 }
-                .ignoresSafeArea()
-            }
-            .fullScreenCover(isPresented: $showCamera) {
-                CameraView { data in
-                    showCamera = false
-                    guard let data else { return }
-                    Task {
-                        await model.addPhoto(data)
-                        Haptic.touch()
-                        liveFocused = true
+                .fullScreenCover(isPresented: $showCamera) {
+                    CameraView { data in
+                        showCamera = false
+                        guard let data else { return }
+                        Task {
+                            await model.addPhoto(data)
+                            Haptic.touch()
+                            liveFocused = true
+                        }
                     }
                 }
-            }
-            .onChange(of: liveFocused) { _, focused in
-                if focused {
-                    followLiveLine(proxy)
-                } else {
-                    var stored: ULID?
-                    withAnimation(Motion.settle) { stored = model.commitDraft() }
-                    if stored != nil { Haptic.store() }
+                .onChange(of: liveFocused) { _, focused in
+                    if focused {
+                        followLiveLine(proxy)
+                    } else {
+                        var stored: ULID?
+                        withAnimation(Motion.settle) { stored = model.commitDraft() }
+                        if stored != nil { Haptic.store() }
+                    }
+                }
+                .onChange(of: model.draftText) { _, _ in
+                    if liveFocused { followLiveLine(proxy) }
+                }
+                .onChange(of: model.notebook.eventCount) { _, _ in
+                    if liveFocused { followLiveLine(proxy) }
                 }
             }
-            .onChange(of: model.draftText) { _, _ in
-                // The line grows under the keyboard; keep it in view.
-                if liveFocused { followLiveLine(proxy) }
-            }
-            .onChange(of: model.notebook.eventCount) { _, _ in
-                // A line was stored: the page settles with it instead of jumping.
-                if liveFocused { followLiveLine(proxy) }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: ULID.self) { id in
+                LineView(entryID: id, model: model)
             }
         }
+        .tint(Theme.accent)
     }
 
     private func followLiveLine(_ proxy: ScrollViewProxy) {
@@ -143,12 +167,24 @@ struct PageView: View {
     }
 }
 
+enum PageAnchor: Hashable {
+    case live
+}
+
+enum Motion {
+    /// One short, calm curve for everything that moves on the page.
+    static let settle: Animation = .snappy(duration: 0.28, extraBounce: 0)
+}
+
 /// The date, pinned. Tap it for the calendar; hold it to copy the day as text.
+/// When the page is filtered by a label, the label sits here with its x.
 struct PinnedHeader: View {
     let day: DayKey
     let today: DayKey
     let calendar: Calendar
+    let filter: String?
     let onTap: () -> Void
+    let onClearFilter: () -> Void
     let onCopyDay: () -> Void
     let onCopyAll: () -> Void
 
@@ -170,7 +206,21 @@ struct PinnedHeader: View {
                 Button("Copy every day", systemImage: "doc.on.doc.fill", action: onCopyAll)
             }
             Spacer()
-            if day != today {
+            if let filter {
+                Button(action: onClearFilter) {
+                    HStack(spacing: 6) {
+                        Text("#\(filter)")
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .font(Theme.mono)
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal, 10)
+                    .frame(height: 28)
+                    .background(Theme.square(28).fill(Theme.accent.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+            } else if day != today {
                 Text(relative)
                     .font(Theme.mono)
                     .foregroundStyle(Theme.muted)
@@ -210,6 +260,10 @@ struct DaySection: View {
     @Bindable var model: NotebookModel
     let isToday: Bool
     var liveFocused: FocusState<Bool>.Binding
+    let recorder: VoiceRecorder
+    let onCamera: () -> Void
+    let onHoldStart: () -> Void
+    let onHoldEnd: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -220,21 +274,19 @@ struct DaySection: View {
                 EntryRow(entry: entry, model: model)
             }
             if isToday {
-                LiveLine(model: model, focused: liveFocused)
-                    .id(PageAnchor.live)
+                LiveLine(
+                    model: model,
+                    focused: liveFocused,
+                    recorder: recorder,
+                    onCamera: onCamera,
+                    onHoldStart: onHoldStart,
+                    onHoldEnd: onHoldEnd
+                )
+                .id(PageAnchor.live)
             }
         }
         .padding(.bottom, isToday ? 0 : 18)
     }
-}
-
-enum PageAnchor: Hashable {
-    case live
-}
-
-enum Motion {
-    /// One short, calm curve for everything that moves on the page.
-    static let settle: Animation = .snappy(duration: 0.28, extraBounce: 0)
 }
 
 /// A quiet rule with the date, between days when scrolling up.
@@ -264,12 +316,16 @@ struct DayDivider: View {
     }
 }
 
-/// The last row of today: the page itself is the composer.
-/// The margin shows the current minute until the first thing lands, then keeps that moment.
-/// Return stores the line. Tapping anywhere on it begins.
+/// The last row of today: the page itself is the composer, and everything that can land
+/// on it lands here. The margin breathes the current minute until the first thing arrives,
+/// then keeps that moment. Return stores the line. Camera and mic sit at its end.
 struct LiveLine: View {
     @Bindable var model: NotebookModel
     var focused: FocusState<Bool>.Binding
+    let recorder: VoiceRecorder
+    let onCamera: () -> Void
+    let onHoldStart: () -> Void
+    let onHoldEnd: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -280,6 +336,11 @@ struct LiveLine: View {
                     .frame(width: 44, alignment: .leading)
                     .monospacedDigit()
                     .padding(.top, 6)
+                    .phaseAnimator([1.0, 0.4]) { view, phase in
+                        view.opacity(model.draftStartedAt == nil ? phase : 1)
+                    } animation: { _ in
+                        .easeInOut(duration: 1.8)
+                    }
             }
             VStack(alignment: .leading, spacing: 10) {
                 if !model.draftMedia.isEmpty {
@@ -300,8 +361,34 @@ struct LiveLine: View {
                         if stored != nil { Haptic.store() }
                     }
             }
+            if recorder.isRecording {
+                HStack(spacing: 8) {
+                    Theme.square(10)
+                        .fill(Theme.recording)
+                        .frame(width: 10, height: 10)
+                    Text(Format.duration(recorder.elapsed))
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.foreground)
+                        .monospacedDigit()
+                }
+                .frame(height: 36)
+                .padding(.trailing, 4)
+            } else {
+                HStack(spacing: 0) {
+                    Button(action: onCamera) {
+                        Image(systemName: "camera")
+                            .font(.system(size: 17, weight: .light))
+                            .foregroundStyle(Theme.faint)
+                            .frame(width: 36, height: 36)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Photo")
+                    HoldButton(symbol: "mic", label: "Hold to speak", size: 36, onStart: onHoldStart, onEnd: onHoldEnd)
+                }
+            }
         }
-        .padding(.horizontal, 20)
+        .padding(.leading, 20)
+        .padding(.trailing, 8)
         .padding(.vertical, 10)
         .frame(minHeight: 140, alignment: .top)
         .contentShape(Rectangle())
@@ -330,72 +417,20 @@ struct DraftMediaRow: View {
     }
 }
 
-/// Camera and mic. Rides above the keyboard.
-struct CaptureStrip: View {
-    let recorder: VoiceRecorder
-    let onCamera: () -> Void
-    let onHoldStart: () -> Void
-    let onHoldEnd: () -> Void
-
-    var body: some View {
-        HStack(spacing: 4) {
-            if recorder.isRecording {
-                HStack(spacing: 10) {
-                    Theme.square(10)
-                        .fill(Theme.recording)
-                        .frame(width: 10, height: 10)
-                    Text(Format.duration(recorder.elapsed))
-                        .font(.system(size: 15, design: .monospaced))
-                        .foregroundStyle(Theme.foreground)
-                        .monospacedDigit()
-                    Text("Release to keep")
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.muted)
-                }
-                .padding(.leading, 16)
-            } else {
-                StripButton(symbol: "camera", label: "Photo", action: onCamera)
-            }
-            Spacer()
-            HoldButton(symbol: "mic", label: "Hold to speak", onStart: onHoldStart, onEnd: onHoldEnd)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Theme.background.opacity(0.96))
-        .overlay(alignment: .top) { Theme.line.frame(height: 1) }
-    }
-}
-
-struct StripButton: View {
-    let symbol: String
-    let label: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 20, weight: .light))
-                .foregroundStyle(Theme.muted)
-                .frame(width: 44, height: 44)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-    }
-}
-
 struct HoldButton: View {
     let symbol: String
     let label: String
+    var size: CGFloat = 44
     let onStart: () -> Void
     let onEnd: () -> Void
     @State private var holding = false
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: 20, weight: .light))
-            .foregroundStyle(holding ? Theme.recording : Theme.muted)
-            .frame(width: 44, height: 44)
-            .background(Theme.square(44).fill(holding ? Theme.recording.opacity(0.12) : .clear))
+            .font(.system(size: size > 40 ? 20 : 17, weight: .light))
+            .foregroundStyle(holding ? Theme.recording : Theme.faint)
+            .frame(width: size, height: size)
+            .background(Theme.square(size).fill(holding ? Theme.recording.opacity(0.12) : .clear))
             .contentShape(Rectangle())
             .onLongPressGesture(minimumDuration: 0.25, maximumDistance: 60) {
             } onPressingChanged: { pressing in
@@ -421,5 +456,14 @@ enum Format {
     static func duration(_ seconds: TimeInterval) -> String {
         let whole = Int(seconds.rounded(.down))
         return String(format: "%d:%02d", whole / 60, whole % 60)
+    }
+
+    static func day(_ key: DayKey, calendar: Calendar, withYear: Bool = true) -> String {
+        guard let date = key.date(in: calendar) else { return key.description }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = calendar.locale
+        formatter.setLocalizedDateFormatFromTemplate(withYear ? "EEEE d MMMM yyyy" : "EEEE d MMMM")
+        return formatter.string(from: date)
     }
 }

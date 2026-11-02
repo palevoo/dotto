@@ -115,6 +115,22 @@ final class FoldTests: XCTestCase {
         XCTAssertEqual(notebook.days(labelled: "margin", calendar: utc), [])
     }
 
+    func testActivityRecordsWhoDidWhat() {
+        let id = ULID()
+        var notebook = Notebook(owner: me)
+        notebook.apply(event(.entryCreate(.init(entry: id, text: "Voice recording doesn’t play", startedAt: clock))))
+        notebook.apply(event(.labelAttach(.init(entry: id, label: "bug")), author: .weeju, device: "claude-code"))
+        notebook.apply(event(.noteAdd(.init(entry: id, note: ULID(), text: "Playback made stricter.")), author: .weeju, device: "claude-code"))
+        notebook.apply(event(.entryEdit(.init(entry: id, text: "Voice recording does not play"))))
+        notebook.apply(event(.labelDetach(.init(entry: id, label: "bug")), author: .weeju, device: "claude-code"))
+
+        let activity = notebook.entry(id)!.activity
+        XCTAssertEqual(activity.map(\.what), ["filed under #bug", "left a note", "changed the words", "took #bug off"])
+        XCTAssertEqual(activity.map(\.author), [.weeju, .weeju, me, .weeju])
+        XCTAssertEqual(activity.first?.device, "claude-code")
+        XCTAssertEqual(notebook.entry(id)?.labels, [])
+    }
+
     func testDuplicateEventsAreIgnored() {
         let id = ULID()
         let create = event(.entryCreate(.init(entry: id, text: "line", startedAt: clock)))

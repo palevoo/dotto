@@ -38,6 +38,10 @@ public struct Entry: Hashable, Sendable, Identifiable {
         labelMarks.filter { $0.value.on }.keys.sorted()
     }
 
+    /// Everything anyone did to this line after it was written, oldest first.
+    /// The accountability trail: who, from where, when, what.
+    public var activity: [Activity] = []
+
     /// The id of the event that last set `text`, so an older edit arriving late cannot win.
     var lastTextEvent: ULID
 
@@ -47,7 +51,18 @@ public struct Entry: Hashable, Sendable, Identifiable {
     struct LabelMark: Hashable, Sendable {
         var id: ULID
         var on: Bool
+        var author: Author
+        var at: Date
     }
+}
+
+/// One thing done to a line, by someone, from somewhere, at some time.
+public struct Activity: Hashable, Sendable, Identifiable {
+    public let id: ULID
+    public let author: Author
+    public let device: DeviceID
+    public let at: Date
+    public let what: String
 }
 
 /// A calendar day in the notebook's time zone.
@@ -169,10 +184,17 @@ public struct Notebook: Sendable {
 
         case .noteRemove(let p):
             removedNotes.insert(p.note)
-            if let entryID = noteToEntry[p.note] {
-                table[entryID]?.notes.removeAll { $0.id == p.note }
+            if let entryID = noteToEntry[p.note], var entry = table[entryID] {
+                entry.notes.removeAll { $0.id == p.note }
+                note(&entry, event, "took a note back")
+                table[entryID] = entry
             }
         }
+    }
+
+    private func note(_ entry: inout Entry, _ event: Event, _ what: String) {
+        entry.activity.append(Activity(id: event.id, author: event.author, device: event.device, at: event.at, what: what))
+        entry.activity.sort { $0.id < $1.id }
     }
 
     private mutating func applyOrWait(_ event: Event, entry: ULID) {
@@ -193,6 +215,7 @@ public struct Notebook: Sendable {
             entry.text = p.text
             entry.editedAt = event.at
             entry.lastTextEvent = event.id
+            note(&entry, event, "changed the words")
 
         case .entryDelete:
             entry.isDeleted = true
@@ -201,29 +224,39 @@ public struct Notebook: Sendable {
             guard !entry.media.contains(where: { $0.hash == p.hash }) else { return }
             entry.media.append(Media(hash: p.hash, mime: p.mime, width: p.width, height: p.height, duration: p.duration, at: event.at))
             entry.media.sort { ($0.at, $0.hash) < ($1.at, $1.hash) }
+            if event.id > entry.id {
+                note(&entry, event, p.mime.hasPrefix("audio") ? "added a voice note" : "added a photo")
+            }
 
         case .noteAdd(let p):
             noteToEntry[p.note] = entryID
             guard !removedNotes.contains(p.note), !entry.notes.contains(where: { $0.id == p.note }) else { return }
             entry.notes.append(Note(id: p.note, entry: entryID, author: event.author, text: p.text, at: event.at))
             entry.notes.sort { $0.id < $1.id }
+            note(&entry, event, "left a note")
 
         case .labelAttach(let p):
-            mark(&entry, label: p.label, on: true, by: event.id)
+            if let label = mark(&entry, label: p.label, on: true, by: event) {
+                note(&entry, event, "filed under #\(label)")
+            }
 
         case .labelDetach(let p):
-            mark(&entry, label: p.label, on: false, by: event.id)
+            if let label = mark(&entry, label: p.label, on: false, by: event) {
+                note(&entry, event, "took #\(label) off")
+            }
 
         case .entryCreate, .noteRemove:
             break
         }
     }
 
-    private func mark(_ entry: inout Entry, label raw: String, on: Bool, by id: ULID) {
+    /// Returns the normalised label when the mark was applied, nil when an older event lost.
+    private func mark(_ entry: inout Entry, label raw: String, on: Bool, by event: Event) -> String? {
         let label = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !label.isEmpty else { return }
-        if let existing = entry.labelMarks[label], existing.id > id { return }
-        entry.labelMarks[label] = Entry.LabelMark(id: id, on: on)
+        guard !label.isEmpty else { return nil }
+        if let existing = entry.labelMarks[label], existing.id > event.id { return label }
+        entry.labelMarks[label] = Entry.LabelMark(id: event.id, on: on, author: event.author, at: event.at)
+        return label
     }
 
     // MARK: - Reading

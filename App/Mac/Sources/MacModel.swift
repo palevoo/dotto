@@ -107,10 +107,12 @@ final class MacModel {
     }
 
     /// Every reader writes as weeju for now. A second ink arrives with the second kind of reader.
+    /// The grant's name travels on its events as the device, so the history under a line can say
+    /// "weeju, via claude-code".
     func addGrant(name: String) {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanName.isEmpty else { return }
-        grants.append(Grant(name: cleanName, author: .weeju, device: "mac-door"))
+        grants.append(Grant(name: cleanName, author: .weeju, device: Self.device(for: cleanName)))
         saveGrants()
     }
 
@@ -127,7 +129,20 @@ final class MacModel {
     private func loadGrants() {
         guard let data = try? Data(contentsOf: grantsURL),
               let loaded = try? JSONLines.decoder().decode([Grant].self, from: data) else { return }
-        grants = loaded
+        grants = loaded.map { grant in
+            // Grants made before the name travelled as the device.
+            guard grant.device == "mac-door" else { return grant }
+            var fixed = grant
+            fixed.device = Self.device(for: grant.name)
+            return fixed
+        }
+        if grants != loaded { saveGrants() }
+    }
+
+    static func device(for name: String) -> DeviceID {
+        let slug = name.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "-" }
+        let joined = String(slug).split(separator: "-", omittingEmptySubsequences: true).joined(separator: "-")
+        return DeviceID(rawValue: joined.isEmpty ? "reader" : joined)
     }
 
     private func saveGrants() {
