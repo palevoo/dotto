@@ -1,0 +1,14 @@
+# Generated from App/project.yml; run `xcodegen generate` in App/
+App/Margin.xcodeproj/
+
+# Swift Package Manager
+Core/.build/
+Core/.swiftpm/
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+
+# macOS
+.DS_Store

@@ -1,0 +1,81 @@
+name: Margin
+options:
+  bundleIdPrefix: social.interface
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+packages:
+  Core:
+    path: ../Core
+
+settingGroups:
+  signing:
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: DX6JVUPRA4
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: true
+
+targets:
+  Margin:
+    type: application
+    platform: iOS
+    sources:
+      - path: iOS/Sources
+    dependencies:
+      - package: Core
+        product: Core
+    info:
+      path: iOS/Sources/Info.plist
+      properties:
+        CFBundleDisplayName: Margin
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        NSCameraUsageDescription: To put a photo on the page.
+        NSMicrophoneUsageDescription: To keep a voice note behind the words.
+        NSSpeechRecognitionUsageDescription: To turn a voice note into words, on this device.
+        NSLocationWhenInUseUsageDescription: To remember where a line was written. Named later, never asked.
+    settings:
+      groups: [signing]
+      base:
+        # Kept from the first install so the notebook stored on the phone stays reachable.
+        # Changes to social.interface.margin once the notebook lives in iCloud Drive.
+        PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  MarginMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: Mac/Sources
+    dependencies:
+      - package: Core
+        product: Core
+    info:
+      path: Mac/Info.plist
+      properties:
+        CFBundleDisplayName: Margin
+        LSApplicationCategoryType: public.app-category.productivity
+        NSHumanReadableCopyright: ""
+    entitlements:
+      path: Mac/Margin.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+        com.apple.security.files.bookmarks.app-scope: true
+        com.apple.security.network.server: true
+    settings:
+      groups: [signing]
+      base:
+        PRODUCT_NAME: Margin
+        PRODUCT_BUNDLE_IDENTIFIER: social.interface.margin.mac
+        ENABLE_HARDENED_RUNTIME: false

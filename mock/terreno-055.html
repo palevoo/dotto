@@ -1,0 +1,430 @@
+<title>terreno 0.55</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+  /* Layout: one narrow column. A line to talk to. A short Now. An index of the world. One list at a time, rows closed until tapped. */
+  :root {
+    --bg: #f1f1ec; --fg: #1d221a; --muted: #767e70; --faint: #b9bfb2; --line: #dcdfd5; --field: #fafaf7;
+    --accent: #3f5d26; --warn: #a3741e; --miss: #a8463a; --agent: #5c4766;
+    --display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+    --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #171b14; --fg: #e4e6dc; --muted: #8e9686; --faint: #4d5547; --line: #2c3327; --field: #1d2219; --accent: #a5c06f; --warn: #d5a84a; --miss: #e08073; --agent: #c6a9cc; color-scheme: dark; } }
+  :root[data-theme="dark"] { --bg: #171b14; --fg: #e4e6dc; --muted: #8e9686; --faint: #4d5547; --line: #2c3327; --field: #1d2219; --accent: #a5c06f; --warn: #d5a84a; --miss: #e08073; --agent: #c6a9cc; color-scheme: dark; }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.55; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+  button, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--warn); outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  .wrap { max-width: 640px; margin: 0 auto; padding-block: 28px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+  .top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 28px; }
+  .top h1 { font-family: var(--display); font-weight: 600; font-size: 22px; letter-spacing: -0.02em; margin: 0; }
+  .top h1 a { color: inherit; text-decoration: none; }
+  .top .when { font-size: 14px; color: var(--muted); }
+
+  /* Composer */
+  .say { display: flex; align-items: flex-end; gap: 10px; border-bottom: 1px solid var(--fg); padding-bottom: 6px; }
+  .say textarea { flex: 1; min-width: 0; border: 0; background: transparent; resize: none; padding: 4px 0; line-height: 1.5; min-height: 32px; }
+  .say textarea::placeholder { color: var(--muted); }
+  .say button { border: 0; background: transparent; padding: 4px; cursor: pointer; color: var(--muted); display: inline-flex; }
+  .say button:hover { color: var(--fg); }
+  .say svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .try { font-size: 13px; color: var(--muted); margin: 8px 0 0; line-height: 1.8; }
+  .try button { border: 0; background: transparent; padding: 0; cursor: pointer; color: var(--muted); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+  .try button:hover { color: var(--fg); }
+
+  .preview { margin-top: 20px; padding: 16px 18px; background: var(--field); border: 1px solid var(--line); border-radius: 8px; }
+  .preview .said { color: var(--muted); font-size: 14px; margin: 0 0 8px; }
+  .preview .reply { margin: 0 0 14px; }
+  .preview .reply.hint { color: var(--muted); font-size: 15px; }
+  .atoms { margin: 0; padding: 0; list-style: none; font-size: 15px; display: grid; gap: 4px; }
+  .atoms li { display: grid; grid-template-columns: 1.4em 6.5em 1fr; gap: 8px; align-items: baseline; }
+  .atoms .op { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .atoms .op.new { color: var(--accent); }
+  .atoms .op.upd { color: var(--warn); }
+  .atoms .op.close { color: var(--agent); }
+  .atoms .ty { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+  .atoms .m { color: var(--muted); }
+  .options { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .options li { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .options small { display: block; color: var(--muted); }
+  .acts { display: flex; gap: 14px; margin-top: 16px; align-items: baseline; flex-wrap: wrap; }
+  .lnk { border: 0; background: transparent; padding: 0; cursor: pointer; color: var(--accent); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; font-size: 15px; white-space: nowrap; }
+  .lnk.quiet { color: var(--muted); }
+  .lnk[disabled] { color: var(--muted); text-decoration: none; cursor: default; }
+
+  /* Blocks */
+  section { margin-top: 44px; }
+  h2 { font-family: var(--display); font-weight: 600; font-size: 15px; letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+  .now p { margin: 0 0 6px; max-width: 60ch; }
+  .now p .lnk { margin-left: 6px; }
+  .index { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px 20px; }
+  .index a { color: inherit; text-decoration: none; display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .index a:hover { color: var(--accent); }
+  .index a span { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+
+  /* Lists */
+  .page-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+  .page-head h2 { margin: 0; }
+  .page-head p { margin: 0; color: var(--muted); font-size: 14px; }
+  .list { margin: 0; }
+  .group { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); padding: 18px 0 4px; }
+  details { border-bottom: 1px solid var(--line); }
+  summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: baseline; padding: 10px 0; }
+  summary::-webkit-details-marker { display: none; }
+  summary:hover { color: var(--accent); }
+  summary .d { font-family: var(--mono); font-size: 13px; color: var(--muted); margin-right: 10px; }
+  summary .r { font-family: var(--mono); font-size: 14px; color: var(--muted); white-space: nowrap; }
+  summary .r.miss { color: var(--miss); }
+  .body { padding: 2px 0 16px; color: var(--muted); font-size: 15px; max-width: 60ch; }
+  .body p { margin: 0 0 6px; }
+  .body .acts { margin-top: 10px; }
+  .tag { font-size: 12px; color: var(--muted); }
+  .tag.assumed { color: var(--warn); }
+  .tag.miss { color: var(--miss); }
+  .tag.agent { color: var(--agent); }
+
+  /* Fill-in */
+  .fill { display: inline-flex; align-items: baseline; gap: 4px; }
+  .fill input { width: 5.5ch; border: 0; border-bottom: 1px dotted var(--miss); background: transparent; padding: 0 2px; font-family: var(--mono); font-size: 15px; color: var(--fg); text-align: center; }
+  .fill input.wide { width: 11ch; }
+  .fill input::placeholder { color: var(--miss); }
+  .fill .u { font-size: 13px; color: var(--muted); }
+  .known { font-family: var(--mono); font-size: 15px; }
+
+  /* Photos, map */
+  label.up { cursor: pointer; color: var(--accent); text-decoration: underline; text-decoration-color: var(--faint); text-underline-offset: 3px; }
+  label.up input { display: none; }
+  .thumbs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .thumbs img { width: 64px; height: 64px; object-fit: cover; border-radius: 4px; }
+  .map { position: relative; width: 100%; aspect-ratio: 4 / 3; max-width: 100%; background: var(--field); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: crosshair; margin: 4px 0 8px; }
+  .map img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .map .hint { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--muted); font-size: 14px; padding: 24px; pointer-events: none; }
+  .pin { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--warn); border: 2px solid var(--bg); transform: translate(-50%, -50%); }
+  .pin::after { content: attr(data-n); position: absolute; left: 12px; top: -4px; font-family: var(--mono); font-size: 11px; color: var(--fg); background: var(--bg); padding: 0 4px; border-radius: 3px; white-space: nowrap; }
+  .maprow { display: flex; gap: 16px; flex-wrap: wrap; align-items: baseline; font-size: 14px; color: var(--muted); margin-bottom: 20px; }
+  .maprow input { border: 0; border-bottom: 1px solid var(--line); background: transparent; font-family: var(--mono); font-size: 14px; width: 20ch; max-width: 100%; padding: 2px 0; }
+  .dims { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-top: 6px; }
+  pre.charter { font-family: var(--body); white-space: pre-wrap; margin: 0; max-width: 60ch; }
+  .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 7px 14px; border-radius: 6px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 20; max-width: calc(100% - 32px); }
+  .toast.on { opacity: 1; }
+  footer { margin-top: 64px; font-size: 13px; color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+
+<div class="wrap">
+  <div class="top"><h1><a href="#now" id="home">terreno 0.55</a></h1><span class="when" id="when"></span></div>
+
+  <div class="say">
+    <textarea id="say" rows="1" placeholder="Tell the terreno what happened, or ask it something."></textarea>
+    <button type="button" id="send" aria-label="Send"><svg viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button>
+  </div>
+  <p class="try" id="try"></p>
+  <div class="preview" id="preview" hidden></div>
+
+  <section id="home-now" class="now"><h2>Now</h2><div id="now"></div></section>
+  <section id="home-index"><h2>The world</h2><div class="index" id="index"></div></section>
+
+  <section id="page" hidden>
+    <div class="page-head"><h2 id="page-title"></h2><p id="page-note"></p></div>
+    <div id="page-top"></div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <footer id="foot">mock 0.3 · dotted numbers are from the last visit and still missing · <span class="tag assumed">assumed</span> is the agent guessing</footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ WORLD ============ */
+const W = {
+  places: [
+    { id: 'plot', name: 'terreno 0.55', kind: 'plot', note: 'Off-grid. Region not set.' },
+    { id: 'grove', name: 'Olive grove', kind: 'zone', note: 'Upper and lower parts. The lower edge still has cut grass.' },
+    { id: 'grove-upper', name: 'Upper grove', kind: 'zone', note: 'Driest part. Trees dried out here this summer.' },
+    { id: 'vines', name: 'Vine terrace', kind: 'zone', note: 'Around 150 old vines.' },
+    { id: 'orchard', name: 'Orchard corner', kind: 'zone', note: 'Figs, apples, nut trees. Mulched on the last visit.' },
+    { id: 'house', name: 'House', kind: 'building', note: 'Measured on the last visit.' },
+    { id: 'wall', name: 'Entrance wall', kind: 'structure', note: 'Photographed for repair and finishing.' },
+    { id: 'well', name: 'Well', kind: 'water', note: 'Throughput measured on the last visit.' },
+    { id: 'garden', name: 'Garden', kind: 'planned', note: 'Not marked out yet.' },
+    { id: 'boundary', name: 'Cactus boundary', kind: 'zone', note: 'Prickly pear hedge.' },
+  ],
+  beings: [
+    { id: 'olives', name: 'Olive grove', species: 'Olea europaea', count: 62, place: 'grove', note: 'A population. Trees get split out when they become notable.', yields: [{ y: 2026, r: 1, kg: null }] },
+    { id: 'olives-dry', name: 'Dried-out olives', species: 'Olea europaea', count: null, place: 'grove-upper', parent: 'olives', note: 'Watered on the last visit.' },
+    { id: 'vines', name: 'Old vines', species: 'Vitis vinifera, variety unknown', count: 150, approx: true, place: 'vines', prov: 'assumed', note: 'Count is a guess.' },
+    { id: 'figs', name: 'Figs', species: 'Ficus carica', count: null, place: 'orchard', note: 'Mulched.' },
+    { id: 'apples', name: 'Apples', species: 'Malus domestica', count: null, place: 'orchard', note: 'Mulched.' },
+    { id: 'nuts', name: 'Nut trees', species: 'unverified', count: 'a few', place: 'orchard', prov: 'assumed', note: 'Almond or walnut. A leaf or nut photo settles it.' },
+    { id: 'cactus', name: 'Prickly pear', species: 'Opuntia', count: null, place: 'boundary', note: '' },
+  ],
+  things: [
+    { id: 'crates', name: 'Harvest crates', flavour: 'stock', qty: 10, unit: '', note: 'Bought last visit.' },
+    { id: 'mulch', name: 'Mulch', flavour: 'stock', qty: null, unit: 'm³', note: 'Spread in the orchard. How much is left?' },
+    { id: 'nets', name: 'Olive nets', flavour: 'stock', qty: 0, unit: '', note: 'Needed for round 2.' },
+    { id: 'saw', name: 'Pruning saw', flavour: 'equipment', qty: 1, prov: 'assumed', note: 'example' },
+    { id: 'loppers', name: 'Loppers', flavour: 'equipment', qty: 1, prov: 'assumed', note: 'example' },
+    { id: 'cutter', name: 'Brush cutter', flavour: 'equipment', qty: 1, prov: 'assumed', note: 'example' },
+    { id: 'barrow', name: 'Wheelbarrow', flavour: 'equipment', qty: 1, prov: 'assumed', note: 'example' },
+    { id: 'well-inf', name: 'Well and pump', flavour: 'infrastructure', qty: 1, note: 'Pump type?' },
+    { id: 'house-inf', name: 'House', flavour: 'infrastructure', qty: 1, note: 'Renovation pending.' },
+  ],
+  people: [
+    { id: 'me', name: 'You', role: 'owner' },
+    { id: 'partner', name: 'Partner', role: 'owner' },
+    { id: 'friends', name: 'Friends', role: 'help on work days, buy oil' },
+    { id: 'mill', name: 'Olive mill', role: 'service. Which one?' },
+  ],
+  events: [
+    { id: 'e-sys', d: '2026-10-29', t: 'terreno 0.55 started. Atoms drafted from your description.' },
+    { id: 'e-visit', d: '2026-10', t: 'Visit.', fill: [{ k: 'dates', label: 'dates', unit: '', wide: true }] },
+    { id: 'e-harvest', d: '2026-10', t: 'Olive harvest, round 1, partial.', fill: [{ k: 'kg', label: 'weight', unit: 'kg' }], links: 'olives, batch' },
+    { id: 'e-crates', d: '2026-10', t: 'Bought 10 harvest crates.', fill: [{ k: 'amt', label: 'bill', unit: '€' }], photos: true },
+    { id: 'e-mulch', d: '2026-10', t: 'Spread mulch around the figs and apples.' },
+    { id: 'e-water', d: '2026-10', t: 'Watered the dried-out olives in the upper grove.', fill: [{ k: 'n', label: 'trees', unit: '' }, { k: 'l', label: 'each', unit: 'L' }] },
+    { id: 'e-well', d: '2026-10', t: 'Measured the well throughput.', fill: [{ k: 'lh', label: '', unit: 'L/h' }] },
+    { id: 'e-house', d: '2026-10', t: 'Measured the house.', fill: [{ k: 'dims', label: 'L × W × H', unit: 'm', wide: true }] },
+    { id: 'e-wall', d: '2026-10', t: 'Photographed the entrance wall for repairs and finishing.', photos: true },
+    { id: 'e-prune', d: '2026-10', t: 'Started pruning the olives. Cleared cut grass from part of the grove.' },
+    { id: 'e-buy', d: '2026-10', t: 'Bought the plot.' },
+  ],
+  works: [
+    { id: 'w-wall', name: 'Entrance wall, repair and finish', status: 'planning', goal: 'Done before spring', visit: true, next: 'Fill in the wall dimensions. Materials follow.', dims: { w: null, h: null },
+      base: ['Facing bricks, about 30', 'Mortar, 2 bags', 'Wire brush', 'Mixing paddle', 'Gate hinge set'], have: ['Trowel', 'Bucket'] },
+    { id: 'w-harvest2', name: 'Olive harvest, round 2', status: 'ready', goal: 'Press the whole crop', visit: true, next: 'Buy 2 nets and a rake. Book the mill.' },
+    { id: 'w-prune', name: 'Olive pruning', status: 'in progress', goal: 'Open the canopy on all 62', visit: true, next: 'Finish the upper rows. Decide what to do with suckers.' },
+    { id: 'w-clean', name: 'Land clean-up', status: 'in progress', goal: 'Fire-safe and walkable', visit: true, next: 'Clear the lower edge of the grove.' },
+    { id: 'w-water', name: 'Water to the upper grove', status: 'proposed', goal: 'No tree dries out next summer', visit: false, next: 'Waits on the well throughput and the tree count.', by: 'agent' },
+    { id: 'w-house', name: 'House renovation', status: 'scoping', goal: 'Habitable off-grid house', visit: false, next: 'Room by room photos next visit.' },
+    { id: 'w-solar', name: 'Solar and storage', status: 'planned', goal: 'Off-grid power with monitoring', visit: false, next: 'List every load.' },
+    { id: 'w-garden', name: 'Garden beds', status: 'planned', goal: 'First summer crop 2027', visit: false, next: 'Mark out beds. Garlic and strawberries go in once beds exist.' },
+  ],
+  batches: [ { id: 'b1', name: 'Olives 2026, round 1', qty: null, unit: 'kg', state: 'weight and mill to fill' } ],
+  money: [
+    { id: 'm-crates', d: '2026-10', what: 'Harvest crates, 10', amt: null, kind: 'cost' },
+    { id: 'm-equip', d: '2026-10', what: 'First tools', amt: 473, kind: 'cost', prov: 'assumed' },
+    { id: 'm-mill', d: '2026-11', what: 'Mill fee, round 1', amt: null, kind: 'cost' },
+    { id: 'm-oil', d: '2026-12', what: 'Olive oil, first press', amt: null, kind: 'revenue' },
+  ],
+  knowledge: [
+    { id: 'k-well', t: 'Well throughput', v: null, unit: 'L/h', s: 'Decides drip irrigation for the upper grove.' },
+    { id: 'k-olive-harvest', t: 'Olive harvest window', v: 'October to December', prov: 'assumed', s: 'Generic Mediterranean. Moves when a real date is logged.' },
+    { id: 'k-olive-prune', t: 'Olive pruning window', v: 'February to April, after frost risk', s: 'Light pruning after harvest is fine too.' },
+    { id: 'k-vine-prune', t: 'Vine pruning window', v: 'January to February, fully dormant' },
+    { id: 'k-plant-now', t: 'Plant outside now', v: 'garlic, broad beans, onion sets, bare-root strawberries', prov: 'assumed', s: 'Late October, generic Mediterranean.' },
+    { id: 'k-mulch', t: 'Mulch depth for fruit trees', v: '5 to 10 cm, kept off the trunk' },
+  ],
+  questions: [
+    { id: 'q-region', t: 'Where is the terreno? Region and rough altitude.', blocks: 'every calendar window', open: true },
+    { id: 'q-well', t: 'What was the well throughput?', blocks: 'irrigation, pump sizing', open: true },
+    { id: 'q-kg', t: 'How many kg in harvest round 1, and which mill?', blocks: 'the first oil batch', open: true },
+    { id: 'q-dry', t: 'How many olives dried out?', blocks: 'the watering plan', open: true },
+    { id: 'q-wall', t: 'Wall dimensions?', blocks: 'paint and render quantities', open: true },
+    { id: 'q-house', t: 'House dimensions?', blocks: 'renovation scoping', open: true },
+    { id: 'q-vine', t: 'What variety are the vines?', blocks: 'the vine calendar', open: true },
+    { id: 'q-crates', t: 'What did the crates cost?', blocks: 'the ledger', open: true },
+  ],
+  charter: `This is terreno 0.55. One plot, off-grid, cared for in visits.
+
+The atoms are the truth. Views are disposable. Never lose history.
+Everything said becomes atoms, shown before they are kept.
+
+Mark the source of every value. A number from the field beats a number from the web.
+
+In the field: one line back. Queue the rest for the debrief.
+At the desk: go deep.
+While they are away: watch, draft, never send.
+
+Populations before individuals. Split a tree out only when it matters.
+Money always attaches to something.
+
+Friends see what is ripe, what is for sale and when to come.`,
+};
+
+const PAGES = {
+  places: ['Places', 'Where things are.'], beings: ['Beings', 'What grows.'], things: ['Things', 'Stock, equipment, infrastructure.'], people: ['People', 'Who is involved and what they see.'],
+  works: ['Works', 'What you intend.'], events: ['Events', 'What happened.'], batches: ['Batches', 'What came out.'], money: ['Money', 'Always attached to something.'],
+  knowledge: ['Knowledge', 'What is known, and how well.'], questions: ['Questions', 'What is not known, and what it blocks.'], charter: ['Charter', 'Only you write this.'],
+};
+
+/* ============ HELPERS ============ */
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const today = new Date();
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const byId = (a, id) => a.find(x => x.id === id);
+const pname = id => (byId(W.places, id) || {}).name || '';
+const tag = (p, txt) => p ? ` <span class="tag ${p}">${txt || p}</span>` : '';
+const money = n => n == null ? '' : new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n) + ' €';
+const iso = () => today.toISOString().slice(0, 10);
+function part() { const d = today.getDate(); return d <= 10 ? 'early' : d <= 20 ? 'mid' : 'late'; }
+let tt; function toast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('on'), 2000); }
+function fillBox(owner, f) { return `<span class="fill">${f.label ? `<span class="u">${esc(f.label)}</span>` : ''}<input type="text" class="${f.wide ? 'wide' : ''}" data-fill="${owner}" data-key="${f.k}" placeholder="?" aria-label="${esc(f.label || f.unit)}"><span class="u">${esc(f.unit)}</span></span>`; }
+const known = (v, u) => `<span class="known">${esc(v)}${u ? ' ' + esc(u) : ''}</span>`;
+function row(title, right, body, opts = {}) { return `<details${opts.open ? ' open' : ''}><summary><span>${opts.date ? `<span class="d">${esc(opts.date)}</span>` : ''}${title}</span><span class="r ${opts.miss ? 'miss' : ''}">${right || ''}</span></summary><div class="body">${body || ''}</div></details>`; }
+function missing() { return W.events.reduce((a, e) => a + (e.fill || []).filter(f => !(e.filled && e.filled[f.k])).length, 0); }
+function closeQ(id) { const q = byId(W.questions, id); if (q) q.open = false; }
+function addEvent(e) { e.id = 'e' + Math.random().toString(36).slice(2, 7); W.events.unshift(e); }
+
+/* ============ HOME ============ */
+function renderHome() {
+  const kp = byId(W.knowledge, 'k-plant-now');
+  const miss = missing(), vw = W.works.filter(w => w.visit).length, oq = W.questions.filter(q => q.open).length;
+  document.getElementById('now').innerHTML = `
+    <p>${part()} ${MONTHS[today.getMonth()]}. Olive window open, round 2 on the next visit.</p>
+    <p>Plant outside now: ${esc(kp.v)}.${tag(kp.prov)}<button class="lnk quiet" data-say="What else could we plant now, outside or inside?">what else?</button></p>
+    ${miss ? `<p>${miss} numbers from the last visit still missing.<a class="lnk" href="#events">fill in</a></p>` : '<p>Everything from the last visit is filled in.</p>'}
+    <p>${vw} works for the next visit.<a class="lnk" href="#works">see</a></p>
+    <p>${oq} open questions.<a class="lnk" href="#questions">see</a></p>`;
+  const n = { places: W.places.length, beings: W.beings.length, things: W.things.length, people: W.people.length, works: W.works.length, events: W.events.length, batches: W.batches.length, money: W.money.length, knowledge: W.knowledge.length, questions: oq, charter: '' };
+  document.getElementById('index').innerHTML = Object.keys(PAGES).map(k => `<a href="#${k}">${PAGES[k][0]}<span>${n[k]}</span></a>`).join('');
+}
+
+/* ============ PAGES ============ */
+function renderPage(k) {
+  const [title, note] = PAGES[k];
+  document.getElementById('page-title').textContent = title; document.getElementById('page-note').textContent = note;
+  const top = document.getElementById('page-top'); top.innerHTML = ''; let html = '';
+  if (k === 'places') { top.innerHTML = mapHtml(); html = W.places.map(p => row(esc(p.name), p.kind === 'planned' ? 'planned' : '', `<p>${esc(p.note)}</p>`)).join(''); }
+  if (k === 'beings') html = W.beings.map(b => {
+    const cnt = b.count == null ? '?' : (b.approx ? '~' : '') + b.count;
+    const yields = (b.yields || []).map(y => `<p>${y.y} harvest, round ${y.r}: ${y.kg == null ? fillBox('e-harvest', { k: 'kg', unit: 'kg' }) : known(y.kg, 'kg')}</p>`).join('');
+    const acts = [`<label class="up">add photos<input type="file" accept="image/*" multiple data-photos="${b.id}"></label>`];
+    if (b.id === 'olives') acts.push(`<button class="lnk" data-split="1">split one tree out</button>`, `<button class="lnk" data-say="Kept 20 suckers from the pruning to root as new trees">propagate suckers</button>`);
+    return row(esc(b.name) + (b.parent ? ' <span class="tag">in ' + esc(byId(W.beings, b.parent).name) + '</span>' : ''), cnt, `<p>${esc(b.species)} · ${esc(pname(b.place))}</p><p>${esc(b.note)}${tag(b.prov)}</p>${yields}${b.photos ? `<div class="thumbs">${b.photos.map(s => `<img src="${s}" alt="">`).join('')}</div>` : ''}<div class="acts">${acts.join('')}</div>`, { miss: b.count == null });
+  }).join('');
+  if (k === 'things') ['stock', 'equipment', 'infrastructure'].forEach(fl => { html += `<div class="group">${fl}</div>` + W.things.filter(t => t.flavour === fl).map(t => row(esc(t.name), t.qty == null ? '?' : t.qty + (t.unit ? ' ' + t.unit : ''), `<p>${esc(t.note)}${tag(t.prov)}</p>`, { miss: t.qty == null })).join(''); });
+  if (k === 'people') html = W.people.map(p => row(esc(p.name), '', `<p>${esc(p.role)}</p>`)).join('');
+  if (k === 'works') {
+    const g = [['next visit', W.works.filter(w => w.visit)], ['later', W.works.filter(w => !w.visit)]];
+    g.forEach(([lbl, ws]) => { html += `<div class="group">${lbl}</div>` + ws.map(w => row(esc(w.name) + (w.by ? tag('agent', 'proposed by the agent') : ''), w.status, workBody(w))).join(''); });
+  }
+  if (k === 'events') html = W.events.map(e => {
+    const fills = (e.fill || []).map(f => (e.filled && e.filled[f.k]) ? `${f.label ? `<span class="u">${esc(f.label)}</span> ` : ''}${known(e.filled[f.k], f.unit)}` : fillBox(e.id, f)).join(' &nbsp; ');
+    const open = (e.fill || []).some(f => !(e.filled && e.filled[f.k]));
+    return row(esc(e.t), open ? 'fill' : '', `${fills ? `<p>${fills}</p>` : ''}${e.links ? `<p>touches: ${esc(e.links)}</p>` : ''}${e.photos ? `<p><label class="up">attach photos<input type="file" accept="image/*" multiple data-ephotos="${e.id}"></label></p>` : ''}${e.photoData ? `<div class="thumbs">${e.photoData.map(s => `<img src="${s}" alt="">`).join('')}</div>` : ''}`, { date: e.d, miss: open, open });
+  }).join('');
+  if (k === 'batches') html = W.batches.map(b => row(esc(b.name), b.qty == null ? '?' : b.qty + ' ' + b.unit, `<p>${esc(b.state)}</p>`, { miss: b.qty == null })).join('');
+  if (k === 'money') { const tot = W.money.filter(m => m.kind === 'cost' && m.amt).reduce((a, m) => a + m.amt, 0); html = W.money.map(m => row(esc(m.what) + (m.kind === 'revenue' ? ' <span class="tag">revenue</span>' : ''), m.amt == null ? '?' : money(m.amt), `<p>${m.prov ? 'example figure' : m.amt == null ? 'amount still missing' : 'from the field'}</p>`, { date: m.d, miss: m.amt == null })).join('') + `<p class="body" style="padding-top:12px">Known costs so far: ${money(tot)}.</p>`; }
+  if (k === 'knowledge') html = W.knowledge.map(x => row(esc(x.t), x.v == null ? '?' : '', `<p>${x.v == null ? 'not yet measured' : esc(x.v) + (x.unit ? ' ' + x.unit : '')}${tag(x.prov)}</p>${x.s ? `<p>${esc(x.s)}</p>` : ''}`, { miss: x.v == null })).join('');
+  if (k === 'questions') { const o = W.questions.filter(q => q.open), c = W.questions.filter(q => !q.open); html = o.map(q => row(esc(q.t), '', `<p>Blocks ${esc(q.blocks)}.</p>`)).join('') + (c.length ? `<div class="group">answered</div>` + c.map(q => row(`<span class="tag">${esc(q.t)}</span>`, '', '')).join('') : ''); }
+  if (k === 'charter') html = `<pre class="charter">${esc(W.charter)}</pre>`;
+  document.getElementById('list').innerHTML = html;
+  if (k === 'places') initMap();
+}
+function workBody(w) {
+  let h = `<p>Next: ${esc(w.next)}</p><p>Goal: ${esc(w.goal)}</p>`;
+  if (w.dims) {
+    const ok = w.dims.w && w.dims.h;
+    h += `<div class="dims">${ok ? known(w.dims.w + ' × ' + w.dims.h, 'm') : `<span class="fill"><input type="text" id="dw" placeholder="?" aria-label="width"><span class="u">×</span><input type="text" id="dh" placeholder="?" aria-label="height"><span class="u">m</span></span><button class="lnk quiet" id="dkeep">keep</button>`}</div>`;
+    if (ok) { const a = w.dims.w * w.dims.h; h += `<p>${a.toFixed(1)} m² face. Render about ${Math.ceil(a * 1.1)} m², primer ${Math.ceil(a * 2 / 10)} L, paint ${Math.ceil(a * 4 / 10)} L for two coats both sides.${tag('assumed', 'assumed coverage')}</p>`; }
+    h += `<p>To buy: ${w.base.join(', ')}. Have: ${w.have.join(', ')}.</p>`;
+  }
+  h += `<p><label class="up">add photos<input type="file" accept="image/*" multiple data-wphotos="${w.id}"></label></p>${w.photoData ? `<div class="thumbs">${w.photoData.map(s => `<img src="${s}" alt="">`).join('')}</div>` : ''}`;
+  return h;
+}
+
+/* ============ MAP ============ */
+let pins = [], mapImg = null;
+try { pins = JSON.parse(localStorage.getItem('t055.pins') || '[]'); mapImg = localStorage.getItem('t055.map') || null; } catch (e) {}
+function mapHtml() {
+  let coords = ''; try { coords = localStorage.getItem('t055.coords') || ''; } catch (e) {}
+  return `<div class="map" id="map">${mapImg ? `<img src="${mapImg}" alt="Plot screenshot">` : '<div class="hint">A satellite screenshot of the plot goes here. Tap to pin a tree, a wall, the well.</div>'}${pins.map((p, i) => `<div class="pin" style="left:${p.x * 100}%;top:${p.y * 100}%" data-n="${esc(p.name || 'pin ' + (i + 1))}"></div>`).join('')}</div>
+    <div class="maprow"><label class="up">${mapImg ? 'replace screenshot' : 'add screenshot'}<input type="file" id="mapfile" accept="image/*"></label><input type="text" id="coords" value="${esc(coords)}" placeholder="lat, lon" aria-label="Plot coordinates">${pins.length ? `<button class="lnk quiet" id="clearpins">clear pins</button>` : ''}</div>
+    ${pins.length ? `<div class="list">${pins.map((p, i) => `<details><summary><span>${esc(p.name || 'pin ' + (i + 1))}</span><span class="r">${(p.x * 100).toFixed(0)}, ${(p.y * 100).toFixed(0)}</span></summary><div class="body"><span class="fill"><input type="text" class="wide" data-pinname="${i}" value="${esc(p.name || '')}" placeholder="name it" aria-label="Pin name" style="text-align:left;border-bottom-style:solid;border-color:var(--line)"></span></div></details>`).join('')}</div>` : ''}`;
+}
+function initMap() {
+  const m = document.getElementById('map');
+  m.addEventListener('click', e => { const r = m.getBoundingClientRect(); pins.push({ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height, name: '' }); save(); renderPage('places'); toast('Pinned. Name it below.'); });
+  document.getElementById('mapfile').addEventListener('change', e => { const f = e.target.files[0]; if (!f) return; const rd = new FileReader(); rd.onload = () => { mapImg = rd.result; try { localStorage.setItem('t055.map', mapImg); } catch (err) {} renderPage('places'); toast('Screenshot kept in this browser.'); }; rd.readAsDataURL(f); });
+  document.getElementById('coords').addEventListener('change', e => { try { localStorage.setItem('t055.coords', e.target.value.trim()); } catch (err) {} toast('Coordinates kept.'); });
+  const c = document.getElementById('clearpins'); if (c) c.addEventListener('click', () => { pins = []; save(); renderPage('places'); });
+  document.querySelectorAll('[data-pinname]').forEach(i => i.addEventListener('change', () => { pins[+i.dataset.pinname].name = i.value; save(); renderPage('places'); }));
+  function save() { try { localStorage.setItem('t055.pins', JSON.stringify(pins)); } catch (e) {} }
+}
+
+/* ============ FILL-INS ============ */
+function applyFill(ownerId, k, v) {
+  const e = byId(W.events, ownerId); if (!e) return; e.filled = e.filled || {}; e.filled[k] = v; const n = parseFloat(v);
+  if (ownerId === 'e-harvest') { byId(W.beings, 'olives').yields[0].kg = n; byId(W.batches, 'b1').qty = n; byId(W.batches, 'b1').state = 'weighed, mill to fill'; closeQ('q-kg'); }
+  if (ownerId === 'e-crates') { byId(W.money, 'm-crates').amt = n; closeQ('q-crates'); }
+  if (ownerId === 'e-well') { const kn = byId(W.knowledge, 'k-well'); kn.v = v; closeQ('q-well'); byId(W.works, 'w-water').next = `Well gives ${v} L/h. Size a drip line for the upper grove from that.`; }
+  if (ownerId === 'e-water' && k === 'n') { byId(W.beings, 'olives-dry').count = n; closeQ('q-dry'); }
+  if (ownerId === 'e-house') { closeQ('q-house'); byId(W.works, 'w-house').next = `Measured ${v} m. Room by room photos next visit.`; }
+}
+
+/* ============ COMPOSER ============ */
+const EX = [
+  { say: 'Harvest round 1 was 180 kg, pressed at the mill in the village', reply: 'Logged. The first batch has a weight now. Litres come when the mill tells you.',
+    atoms: [['upd', 'event', 'Olive harvest, round 1 · 180 kg'], ['upd', 'batch', 'Olives 2026, round 1 · 180 kg, at the village mill'], ['upd', 'person', 'Village mill'], ['close', 'question', 'How many kg in round 1?'], ['new', 'question', 'How many litres came back, and the fee?']],
+    apply() { applyFill('e-harvest', 'kg', '180'); byId(W.batches, 'b1').state = 'at the village mill'; byId(W.people, 'mill').name = 'Village mill'; byId(W.people, 'mill').role = 'presses the olives. Fee?'; W.questions.push({ id: 'q-oil', t: 'How many litres came back from the mill, and at what fee?', blocks: 'the oil batch, the ledger', open: true }); } },
+  { say: 'Well gives about 600 litres an hour, measured with a bucket', reply: 'Kept. Enough for a drip line on the upper grove. The water work has a next step now.',
+    atoms: [['upd', 'knowledge', 'Well throughput · 600 L/h'], ['upd', 'event', 'Measured the well · 600 L/h'], ['close', 'question', 'What was the well throughput?'], ['upd', 'work', 'Water to the upper grove · size a drip line']],
+    apply() { applyFill('e-well', 'lh', '600'); } },
+  { say: 'Wall is 6.2 by 2.1 metres, render outside and paint both sides', reply: 'Measured. Quantities are derived in the work, marked assumed until you read the tin.',
+    atoms: [['upd', 'work', 'Entrance wall · 6.2 × 2.1 m'], ['new', 'event', 'Entrance wall measured'], ['close', 'question', 'Wall dimensions?']],
+    apply() { const w = byId(W.works, 'w-wall'); w.dims = { w: 6.2, h: 2.1 }; w.next = 'Buy materials before the visit.'; closeQ('q-wall'); addEvent({ d: iso(), t: 'Entrance wall measured, 6.2 × 2.1 m.' }); } },
+  { say: 'Kept 20 suckers from the pruning to root as new trees', reply: 'A new being, child of the grove. One thing to check first: if the old trees are grafted, suckers from below the graft are rootstock, not the fruiting variety. A look at the base of a trunk answers it.',
+    atoms: [['new', 'being', 'Olive cuttings 2026 · 20, in pots'], ['new', 'event', 'Took 20 suckers during pruning'], ['new', 'work', 'Root the cuttings · pot, shade, keep moist'], ['new', 'knowledge', 'Rooting olive suckers'], ['new', 'question', 'Are the old olives grafted or own-rooted?']],
+    apply() { W.beings.push({ id: 'cuttings', name: 'Olive cuttings 2026', species: 'Olea europaea, from the grove', count: 20, place: 'house', parent: 'olives', note: 'Suckers taken during pruning. In pots.' }); addEvent({ d: iso(), t: 'Took 20 suckers from the pruning to root as new trees.' }); W.works.push({ id: 'w-cut', name: 'Root the cuttings', status: 'in progress', goal: '20 new trees by 2028', visit: true, next: 'Pot, shade, keep moist. Check for roots in spring.' }); W.knowledge.push({ id: 'k-suck', t: 'Rooting olive suckers', v: 'take with some root attached, autumn or spring, shade, keep moist', s: 'Suckers from below a graft are rootstock, not the fruiting variety.' }); W.questions.push({ id: 'q-graft', t: 'Are the old olives grafted or own-rooted?', blocks: 'whether the cuttings are true to type', open: true }); } },
+  { say: 'What else could we plant now, outside or inside?', learn: true, reply: 'Late October, region unset, so this is the generic Mediterranean answer. Pick any and it becomes a work for the next visit.',
+    options: [['Peas, outside', 'sow direct, harvest in spring'], ['Onion and shallot sets, outside', 'overwinter, harvest early summer'], ['Chard and spinach under fleece', 'cut and come again through winter'], ['A lemon and a pomegranate, bare root', 'planting season starts now, lemon wants shelter'], ['Lettuce, rocket, coriander under cover', 'fast, in a cold frame'], ['Ginger in pots, from February', 'experiment, noted for then']] },
+  { say: 'Watered the 4 dried-out olives at the top, about 30 litres each', reply: 'Four trees are a tagged group inside the grove now, with their own history.',
+    atoms: [['upd', 'being', 'Dried-out olives · 4'], ['upd', 'event', 'Watered · 4 trees, 30 L each'], ['close', 'question', 'How many olives dried out?']],
+    apply() { applyFill('e-water', 'n', '4'); applyFill('e-water', 'l', '30'); } },
+];
+function renderTry() { document.getElementById('try').innerHTML = 'try: ' + EX.map((e, i) => `<button type="button" data-ex="${i}">${esc(e.say.split(',')[0].toLowerCase())}</button>`).join(' · '); }
+function preview(i) {
+  const ex = EX[i], pv = document.getElementById('preview'); pv.hidden = false;
+  if (ex.learn) {
+    pv.innerHTML = `<p class="said">${esc(ex.say)}</p><p class="reply">${esc(ex.reply)}</p><ul class="options">${ex.options.map((o, j) => `<li><span>${esc(o[0])}<small>${esc(o[1])}</small></span><button class="lnk" data-opt="${j}">add</button></li>`).join('')}</ul><div class="acts"><button class="lnk quiet" id="pvclose">done</button></div>`;
+    pv.querySelectorAll('[data-opt]').forEach(b => b.addEventListener('click', () => { const o = ex.options[+b.dataset.opt]; W.works.push({ id: 'w' + Math.random().toString(36).slice(2, 6), name: 'Plant: ' + o[0], status: 'planned', goal: o[1], visit: true, next: o[1] }); W.knowledge.push({ id: 'k' + Math.random().toString(36).slice(2, 6), t: o[0], v: o[1], prov: 'assumed', s: 'From a planting conversation, region unset.' }); b.disabled = true; b.textContent = 'added'; refresh(); }));
+  } else {
+    pv.innerHTML = `<p class="said">${esc(ex.say)}</p><p class="reply">${esc(ex.reply)}</p><ul class="atoms">${ex.atoms.map(a => `<li><span class="op ${a[0]}">${a[0] === 'new' ? '+' : a[0] === 'upd' ? '~' : '✓'}</span><span class="ty">${a[1]}</span><span>${esc(a[2])}</span></li>`).join('')}</ul><div class="acts"><button class="lnk" id="pvkeep">keep</button><button class="lnk quiet" id="pvclose">not that</button></div>`;
+    document.getElementById('pvkeep').addEventListener('click', () => { if (!ex.applied) { ex.apply(); ex.applied = true; } pv.hidden = true; document.getElementById('say').value = ''; refresh(); toast('Kept.'); });
+  }
+  document.getElementById('pvclose').addEventListener('click', () => { pv.hidden = true; document.getElementById('say').value = ''; });
+}
+function send() {
+  const v = document.getElementById('say').value.trim(); if (!v) return;
+  const i = EX.findIndex(e => e.say.toLowerCase() === v.toLowerCase()); if (i >= 0) { preview(i); return; }
+  const pv = document.getElementById('preview'); pv.hidden = false;
+  pv.innerHTML = `<p class="said">${esc(v)}</p><p class="reply hint">In the real system this goes to the agent, which reads it against the world and comes back with the atoms it would touch. The mock only knows the lines under "try".</p><div class="acts"><button class="lnk quiet" id="pvclose">ok</button></div>`;
+  document.getElementById('pvclose').addEventListener('click', () => { pv.hidden = true; });
+}
+
+/* ============ ROUTING, EVENTS ============ */
+let page = null;
+function route() {
+  const h = location.hash.replace('#', '');
+  page = PAGES[h] ? h : null;
+  document.getElementById('home-now').hidden = !!page; document.getElementById('home-index').hidden = !!page; document.getElementById('page').hidden = !page;
+  refresh();
+  if (page) window.scrollTo({ top: 0 });
+}
+function refresh() { if (page) renderPage(page); else renderHome(); }
+document.addEventListener('click', e => {
+  const ex = e.target.closest('[data-ex]'); if (ex) { document.getElementById('say').value = EX[+ex.dataset.ex].say; preview(+ex.dataset.ex); return; }
+  const say = e.target.closest('[data-say]'); if (say) { document.getElementById('say').value = say.dataset.say; const i = EX.findIndex(x => x.say === say.dataset.say); if (i >= 0) preview(i); if (page) { location.hash = 'now'; } window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  if (e.target.closest('[data-split]')) { const n = W.beings.filter(b => b.tag).length + 1; W.beings.push({ id: 'ot' + n, name: 'Olive, tagged #' + n, species: 'Olea europaea', count: 1, place: 'grove', parent: 'olives', tag: true, note: 'Split out of the grove. Say why: disease, size, a photo.' }); refresh(); toast('One tree split out.'); return; }
+  if (e.target.id === 'dkeep') { const a = parseFloat(document.getElementById('dw').value), b = parseFloat(document.getElementById('dh').value); if (!(a > 0 && b > 0)) { toast('Both numbers, in metres.'); return; } const w = byId(W.works, 'w-wall'); w.dims = { w: a, h: b }; w.next = 'Buy materials before the visit.'; closeQ('q-wall'); addEvent({ d: iso(), t: `Entrance wall measured, ${a} × ${b} m.` }); refresh(); toast('Kept. Materials derived.'); }
+});
+document.addEventListener('keydown', e => {
+  const f = e.target.closest('[data-fill]'); if (f && e.key === 'Enter') { e.preventDefault(); const v = f.value.trim(); if (!v) return; applyFill(f.dataset.fill, f.dataset.key, v); refresh(); toast('Kept.'); }
+});
+document.addEventListener('change', e => {
+  const rd = (files, max) => Promise.all(Array.from(files).slice(0, max).map(f => new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(f); })));
+  const b = e.target.closest('[data-photos]'); if (b) rd(b.files, 4).then(d => { byId(W.beings, b.dataset.photos).photos = d; refresh(); toast('Photos attached, this browser only.'); });
+  const w = e.target.closest('[data-wphotos]'); if (w) rd(w.files, 6).then(d => { byId(W.works, w.dataset.wphotos).photoData = d; refresh(); toast('Photos attached.'); });
+  const ev = e.target.closest('[data-ephotos]'); if (ev) rd(ev.files, 6).then(d => { byId(W.events, ev.dataset.ephotos).photoData = d; refresh(); toast('Photos attached.'); });
+});
+document.getElementById('send').addEventListener('click', send);
+document.getElementById('say').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+window.addEventListener('hashchange', route);
+document.getElementById('when').textContent = `${part()} ${MONTHS[today.getMonth()]} ${today.getFullYear()}`;
+renderTry(); route();
+</script>
