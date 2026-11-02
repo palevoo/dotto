@@ -43,6 +43,13 @@ struct LineView: View {
                         .font(Theme.title)
                         .foregroundStyle(Theme.foreground)
                         .monospacedDigit()
+                    if let place = entry.location {
+                        // Where, as the line knows it. A name for it comes later, from a reader.
+                        Text(Format.place(place))
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.faint)
+                            .padding(.top, 2)
+                    }
                 }
 
                 ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in

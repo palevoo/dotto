@@ -25,13 +25,17 @@ struct EntryRow: View {
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 10) {
                 if !photos.isEmpty {
-                    HStack(spacing: 10) {
-                        ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                            ThumbView(hash: photo.hash, original: model.mediaURL(photo), side: 180)
-                                .matchedTransitionSource(id: photo.hash, in: zoom)
-                                .onTapGesture { onOpenPhoto(index) }
+                    // Several photos run past the edge; the row scrolls sideways.
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                                ThumbView(hash: photo.hash, original: model.mediaURL(photo), side: 180)
+                                    .matchedTransitionSource(id: photo.hash, in: zoom)
+                                    .onTapGesture { onOpenPhoto(index) }
+                            }
                         }
                     }
+                    .scrollClipDisabled()
                 }
                 ForEach(voices) { voice in
                     VoiceChip(hash: voice.hash, duration: voice.duration ?? 0, url: model.mediaURL(voice))

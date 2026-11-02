@@ -569,6 +569,13 @@ enum Format {
         return String(format: "%d:%02d", whole / 60, whole % 60)
     }
 
+    /// "41.1496° N · 8.6109° W".
+    static func place(_ location: Location) -> String {
+        String(format: "%.4f° %@ · %.4f° %@",
+               abs(location.latitude), location.latitude >= 0 ? "N" : "S",
+               abs(location.longitude), location.longitude >= 0 ? "E" : "W")
+    }
+
     /// "17 Oct", for the margin.
     static func shortDay(_ date: Date, calendar: Calendar) -> String {
         let formatter = DateFormatter()
