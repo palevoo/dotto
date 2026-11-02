@@ -115,6 +115,44 @@ final class NotebookModel {
         }
     }
 
+    /// A photo from the library keeps its own moment and place: it becomes a line on the day it
+    /// was taken. Without a date it lands in the live line like a fresh one.
+    func importPhoto(_ data: Data) async {
+        let metadata = await Photo.metadata(of: data)
+        guard let takenAt = metadata.takenAt else {
+            await addPhoto(data)
+            return
+        }
+        guard let photo = await Photo.process(data) else {
+            NSLog("import failed: could not read the image")
+            return
+        }
+        do {
+            let hash = try store.storeMedia(photo.jpeg, fileExtension: "jpg")
+            Thumbs.save(photo.thumbnail, hash: hash)
+            let id = generator.next(at: takenAt)
+            let now = Date()
+            record([
+                Event(id: id, author: store.manifest.owner, device: device, at: takenAt,
+                      payload: .entryCreate(.init(entry: id, text: "", startedAt: takenAt, location: metadata.location))),
+                Event(id: generator.next(at: now), author: store.manifest.owner, device: device, at: now,
+                      payload: .mediaAttach(.init(entry: id, hash: hash, mime: "image/jpeg", width: photo.width, height: photo.height))),
+            ])
+        } catch {
+            NSLog("import failed: \(error)")
+        }
+    }
+
+    /// Your answer under a reader's note, in your own ink.
+    func reply(to entry: ULID, text: String) {
+        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty, notebook.entry(entry) != nil else { return }
+        let now = Date()
+        let id = generator.next(at: now)
+        record([Event(id: id, author: store.manifest.owner, device: device, at: now,
+                      payload: .noteAdd(.init(entry: entry, note: id, text: words)))])
+    }
+
     /// A voice note lands in the live line: its words as text you can fix, the audio behind them.
     func addVoice(fileURL: URL, duration: TimeInterval, transcript: String, startedAt: Date) {
         do {

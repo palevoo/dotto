@@ -2,104 +2,111 @@ import Core
 import SwiftUI
 import UIKit
 
-/// One line on the page: its time in the margin, its words, what sits behind them,
-/// and a reader's note in one quiet line. Tap the time to open the line.
+/// One line on the page: its time in the margin, its words, what sits behind them, and the
+/// thread of replies under it. Tap anywhere to open the line; tap a photo to see it.
 struct EntryRow: View {
     let entry: Entry
     @Bindable var model: NotebookModel
-    @State private var editing = false
-    @State private var text = ""
-    @FocusState private var focused: Bool
+    let zoom: Namespace.ID
+    let onOpen: () -> Void
+    let onOpenPhoto: (Int) -> Void
+
+    private var photos: [Media] { entry.media.filter { $0.mime.hasPrefix("image") } }
+    private var voices: [Media] { entry.media.filter { $0.mime.hasPrefix("audio") } }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            NavigationLink(value: entry.id) {
-                Text(Format.time(entry.startedAt, calendar: model.calendar))
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.muted)
-                    .frame(width: 44, height: 28, alignment: .leading)
-                    .monospacedDigit()
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open this line")
+            Text(Format.time(entry.startedAt, calendar: model.calendar))
+                .font(Theme.mono)
+                .foregroundStyle(Theme.muted)
+                .frame(width: 44, alignment: .leading)
+                .monospacedDigit()
+                .padding(.top, 6)
             VStack(alignment: .leading, spacing: 10) {
-                if !entry.media.isEmpty {
+                if !photos.isEmpty {
                     HStack(spacing: 10) {
-                        ForEach(entry.media) { media in
-                            MediaView(media: media, entry: entry.id, model: model)
+                        ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                            ThumbView(hash: photo.hash, original: model.mediaURL(photo), side: 180)
+                                .matchedTransitionSource(id: photo.hash, in: zoom)
+                                .onTapGesture { onOpenPhoto(index) }
                         }
                     }
                 }
-                if editing {
-                    TextField("", text: $text, axis: .vertical)
-                        .font(Theme.serif)
-                        .foregroundStyle(Theme.foreground)
-                        .lineSpacing(4)
-                        .focused($focused)
-                        .submitLabel(.done)
-                        .onChange(of: text) { _, value in
-                            guard value.contains("\n") else { return }
-                            text = value.replacingOccurrences(of: "\n", with: " ")
-                            focused = false
-                        }
-                        .onChange(of: focused) { _, isFocused in
-                            if !isFocused {
-                                editing = false
-                                model.edit(entry.id, text: text)
-                            }
-                        }
-                } else if !entry.text.isEmpty {
+                ForEach(voices) { voice in
+                    VoiceChip(hash: voice.hash, duration: voice.duration ?? 0, url: model.mediaURL(voice))
+                }
+                if !entry.text.isEmpty {
                     Text(entry.text)
                         .font(Theme.serif)
                         .foregroundStyle(Theme.foreground)
                         .lineSpacing(4)
-                        .onTapGesture {
-                            text = entry.text
-                            editing = true
-                            focused = true
-                        }
-                        .contextMenu {
-                            Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
-                            Button("Edit", systemImage: "pencil") { text = entry.text; editing = true; focused = true }
-                            Button("Delete", systemImage: "trash", role: .destructive) { model.delete(entry.id) }
-                        }
                 }
-                ForEach(entry.notes) { note in
-                    NavigationLink(value: entry.id) {
-                        NoteLine(note: note)
-                    }
-                    .buttonStyle(.plain)
+                if !entry.notes.isEmpty {
+                    ReplyThread(notes: entry.notes, owner: model.store.manifest.owner, calendar: model.calendar, compact: true)
                 }
             }
             .padding(.top, 4)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpen)
+        .contextMenu {
+            Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
+            Button("Delete", systemImage: "trash", role: .destructive) { model.delete(entry.id) }
+        }
     }
 }
 
-struct MediaView: View {
-    let media: Media
-    let entry: ULID
-    let model: NotebookModel
+/// Replies under a line. A hairline in the reader's ink runs down the left; each reply
+/// names who wrote it. The owner's own answers sit in the same thread in their ink.
+struct ReplyThread: View {
+    let notes: [Note]
+    let owner: Author
+    let calendar: Calendar
+    var compact = false
 
     var body: some View {
-        if media.mime.hasPrefix("image") {
-            NavigationLink(value: entry) {
-                ThumbView(hash: media.hash, original: model.mediaURL(media), side: 180)
+        HStack(alignment: .top, spacing: 10) {
+            Theme.square(4)
+                .fill(Theme.agent.opacity(0.5))
+                .frame(width: 2)
+            VStack(alignment: .leading, spacing: compact ? 6 : 12) {
+                ForEach(notes) { note in
+                    ReplyLine(note: note, mine: note.author == owner, calendar: calendar, compact: compact)
+                }
             }
-            .buttonStyle(.plain)
-            .contextMenu {
-                Button("Delete line", systemImage: "trash", role: .destructive) { model.delete(entry) }
-            }
-        } else if media.mime.hasPrefix("audio") {
-            VoiceChip(hash: media.hash, duration: media.duration ?? 0, url: model.mediaURL(media))
-        } else {
-            Text(media.mime)
-                .font(Theme.mono)
-                .foregroundStyle(Theme.muted)
         }
+        .padding(.top, 2)
+    }
+}
+
+/// One reply: who and when in small type, then the words. Selectable only on the line's page,
+/// where no tap competes with it.
+struct ReplyLine: View {
+    let note: Note
+    let mine: Bool
+    let calendar: Calendar
+    let compact: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("\(mine ? "you" : note.author.rawValue) · \(Format.time(note.at, calendar: calendar))")
+                .font(Theme.mono)
+                .foregroundStyle(mine ? Theme.faint : Theme.agent.opacity(0.7))
+            if compact {
+                words.lineLimit(1).truncationMode(.tail)
+            } else {
+                words.textSelection(.enabled)
+            }
+        }
+    }
+
+    private var words: some View {
+        Text(note.text)
+            .font(mine ? Theme.serifSmall : Theme.sansSmall)
+            .foregroundStyle(mine ? Theme.foreground : Theme.agent)
+            .lineSpacing(2)
     }
 }
 
@@ -123,6 +130,7 @@ struct ThumbView: View {
         .frame(width: side, height: side)
         .clipShape(Theme.square(side))
         .overlay(Theme.square(side).strokeBorder(Theme.line, lineWidth: 1))
+        .contentShape(Theme.square(side))
         .task(id: hash) {
             image = await Thumbs.image(hash: hash, original: original)
         }
@@ -152,26 +160,5 @@ struct VoiceChip: View {
             .overlay(Theme.square(32).strokeBorder(Theme.line, lineWidth: 1))
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// A reader's note as one line on the page. The whole note lives on the line's own page.
-struct NoteLine: View {
-    let note: Note
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Theme.square(8)
-                .fill(Theme.agent)
-                .frame(width: 8, height: 8)
-                .offset(y: -1)
-            Text(note.text)
-                .font(Theme.sansSmall)
-                .foregroundStyle(Theme.agent)
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
-        .padding(.top, 2)
-        .contentShape(Rectangle())
     }
 }

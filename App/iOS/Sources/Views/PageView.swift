@@ -1,32 +1,35 @@
 import Core
+import PhotosUI
 import SwiftUI
 import UIKit
 
-/// The page. Days scroll up into the past; today ends in the live line; the date is pinned above.
+/// The page. Days scroll up into the past; the live line waits at the bottom, always;
+/// the date is pinned above. Tap a line to open it, tap a photo to see it.
 struct PageView: View {
     @Bindable var model: NotebookModel
     let onRelocate: (URL) -> Void
+    @State private var path = NavigationPath()
     @State private var visibleDay: DayKey?
+    @State private var atBottom = true
     @State private var showCalendar = false
     @State private var showMove = false
     @State private var showCamera = false
+    @State private var picked: [PhotosPickerItem] = []
+    @State private var viewing: PhotoOpening?
     @State private var filter: String?
     @State private var recorder = VoiceRecorder()
+    @Namespace private var zoom
     @FocusState private var liveFocused: Bool
 
     private var days: [Day] {
         if let filter {
             return model.notebook.days(labelled: filter, calendar: model.calendar)
         }
-        var days = model.days
-        if days.last?.key != model.today {
-            days.append(Day(key: model.today, entries: []))
-        }
-        return days
+        return model.days
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
@@ -35,23 +38,21 @@ struct PageView: View {
                                 day: day,
                                 model: model,
                                 isToday: filter == nil && day.key == model.today,
-                                liveFocused: $liveFocused,
-                                recorder: recorder,
-                                onCamera: { showCamera = true },
-                                onHoldStart: { Task { await recorder.start() } },
-                                onHoldEnd: { finishVoice() }
+                                zoom: zoom,
+                                onOpen: { id in path.append(id) },
+                                onOpenPhoto: { id, index in viewing = PhotoOpening(entry: id, index: index) }
                             )
                             .id(day.key)
                         }
-                        if filter != nil, days.isEmpty {
-                            Text("Nothing filed here yet.")
+                        if days.isEmpty {
+                            Text(filter == nil ? "Nothing yet. The line below is yours." : "Nothing filed here yet.")
                                 .font(Theme.serifSmall)
                                 .foregroundStyle(Theme.muted)
                                 .padding(20)
                         }
                     }
                     .scrollTargetLayout()
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 12)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         // A tap on bare page puts the keyboard away. Lines keep their own taps.
@@ -61,6 +62,11 @@ struct PageView: View {
                 .scrollPosition(id: $visibleDay, anchor: .top)
                 .defaultScrollAnchor(.bottom)
                 .scrollDismissesKeyboard(.interactively)
+                .onScrollGeometryChange(for: Bool.self) { geometry in
+                    geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 2
+                } action: { _, isAtBottom in
+                    atBottom = isAtBottom
+                }
                 .background(Theme.background.ignoresSafeArea())
                 .safeAreaInset(edge: .top, spacing: 0) {
                     PinnedHeader(
@@ -73,6 +79,21 @@ struct PageView: View {
                         onCopyDay: { copy(day: visibleDay ?? model.today) },
                         onCopyAll: { copyAll() }
                     )
+                }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    LiveLine(
+                        model: model,
+                        focused: $liveFocused,
+                        recorder: recorder,
+                        picked: $picked,
+                        onCamera: { showCamera = true },
+                        onHoldStart: { Task { await recorder.start() } },
+                        onHoldEnd: { finishVoice() }
+                    )
+                    .background(Theme.background)
+                    .overlay(alignment: .top) {
+                        Theme.line.frame(height: 1).opacity(atBottom ? 0 : 1)
+                    }
                 }
                 .sheet(isPresented: $showCalendar) {
                     CalendarSheet(
@@ -116,20 +137,37 @@ struct PageView: View {
                         }
                     }
                 }
+                .fullScreenCover(item: $viewing) { opening in
+                    if let entry = model.notebook.entry(opening.entry) {
+                        let photos = entry.media.filter { $0.mime.hasPrefix("image") }
+                        PhotoViewer(photos: photos, index: min(opening.index, photos.count - 1), model: model)
+                            .navigationTransition(.zoom(sourceID: photos[min(opening.index, photos.count - 1)].hash, in: zoom))
+                    }
+                }
+                .onChange(of: picked) { _, items in
+                    guard !items.isEmpty else { return }
+                    Task {
+                        for item in items {
+                            if let data = try? await item.loadTransferable(type: Data.self) {
+                                await model.importPhoto(data)
+                            }
+                        }
+                        picked = []
+                        Haptic.touch()
+                    }
+                }
                 .onChange(of: liveFocused) { _, focused in
-                    if focused {
-                        followLiveLine(proxy)
-                    } else {
+                    if !focused {
                         var stored: ULID?
                         withAnimation(Motion.settle) { stored = model.commitDraft() }
                         if stored != nil { Haptic.store() }
                     }
                 }
-                .onChange(of: model.draftText) { _, _ in
-                    if liveFocused { followLiveLine(proxy) }
-                }
                 .onChange(of: model.notebook.eventCount) { _, _ in
-                    if liveFocused { followLiveLine(proxy) }
+                    // A line was stored: the page settles with it instead of jumping.
+                    if filter == nil {
+                        withAnimation(Motion.settle) { proxy.scrollTo(model.today, anchor: .bottom) }
+                    }
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -138,10 +176,6 @@ struct PageView: View {
             }
         }
         .tint(Theme.accent)
-    }
-
-    private func followLiveLine(_ proxy: ScrollViewProxy) {
-        withAnimation(Motion.settle) { proxy.scrollTo(PageAnchor.live, anchor: .bottom) }
     }
 
     private func finishVoice() {
@@ -167,8 +201,10 @@ struct PageView: View {
     }
 }
 
-enum PageAnchor: Hashable {
-    case live
+struct PhotoOpening: Identifiable {
+    let entry: ULID
+    let index: Int
+    var id: String { "\(entry)-\(index)" }
 }
 
 enum Motion {
@@ -254,16 +290,14 @@ struct PinnedHeader: View {
     }
 }
 
-/// One day: its entries and, for today, the live line.
+/// One day and its lines.
 struct DaySection: View {
     let day: Day
     @Bindable var model: NotebookModel
     let isToday: Bool
-    var liveFocused: FocusState<Bool>.Binding
-    let recorder: VoiceRecorder
-    let onCamera: () -> Void
-    let onHoldStart: () -> Void
-    let onHoldEnd: () -> Void
+    let zoom: Namespace.ID
+    let onOpen: (ULID) -> Void
+    let onOpenPhoto: (ULID, Int) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -271,21 +305,16 @@ struct DaySection: View {
                 DayDivider(day: day.key, calendar: model.calendar)
             }
             ForEach(day.entries) { entry in
-                EntryRow(entry: entry, model: model)
-            }
-            if isToday {
-                LiveLine(
+                EntryRow(
+                    entry: entry,
                     model: model,
-                    focused: liveFocused,
-                    recorder: recorder,
-                    onCamera: onCamera,
-                    onHoldStart: onHoldStart,
-                    onHoldEnd: onHoldEnd
+                    zoom: zoom,
+                    onOpen: { onOpen(entry.id) },
+                    onOpenPhoto: { index in onOpenPhoto(entry.id, index) }
                 )
-                .id(PageAnchor.live)
             }
         }
-        .padding(.bottom, isToday ? 0 : 18)
+        .padding(.bottom, isToday ? 8 : 18)
     }
 }
 
@@ -316,13 +345,14 @@ struct DayDivider: View {
     }
 }
 
-/// The last row of today: the page itself is the composer, and everything that can land
-/// on it lands here. The margin breathes the current minute until the first thing arrives,
-/// then keeps that moment. Return stores the line. Camera and mic sit at its end.
+/// The last row of the page, always in reach: the composer. The margin breathes the
+/// current minute until the first thing arrives, then keeps that moment. Return stores
+/// the line. Camera, library and mic sit at its end.
 struct LiveLine: View {
     @Bindable var model: NotebookModel
     var focused: FocusState<Bool>.Binding
     let recorder: VoiceRecorder
+    @Binding var picked: [PhotosPickerItem]
     let onCamera: () -> Void
     let onHoldStart: () -> Void
     let onHoldEnd: () -> Void
@@ -350,6 +380,7 @@ struct LiveLine: View {
                     .font(Theme.serif)
                     .foregroundStyle(Theme.foreground)
                     .lineSpacing(4)
+                    .lineLimit(1...8)
                     .focused(focused)
                     .textInputAutocapitalization(.sentences)
                     .submitLabel(.done)
@@ -383,14 +414,22 @@ struct LiveLine: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Photo")
+                    PhotosPicker(selection: $picked, maxSelectionCount: 20, matching: .images) {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 17, weight: .light))
+                            .foregroundStyle(Theme.faint)
+                            .frame(width: 36, height: 36)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("From the library")
                     HoldButton(symbol: "mic", label: "Hold to speak", size: 36, onStart: onHoldStart, onEnd: onHoldEnd)
                 }
             }
         }
         .padding(.leading, 20)
         .padding(.trailing, 8)
-        .padding(.vertical, 10)
-        .frame(minHeight: 140, alignment: .top)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
         .contentShape(Rectangle())
         .onTapGesture {
             guard !focused.wrappedValue else { return }
@@ -408,7 +447,7 @@ struct DraftMediaRow: View {
         HStack(spacing: 10) {
             ForEach(model.draftMedia) { item in
                 if item.mime.hasPrefix("image") {
-                    ThumbView(hash: item.hash, original: model.mediaURL(item), side: 120)
+                    ThumbView(hash: item.hash, original: model.mediaURL(item), side: 96)
                 } else {
                     VoiceChip(hash: item.hash, duration: item.duration ?? 0, url: model.mediaURL(item))
                 }

@@ -42,6 +42,7 @@ targets:
         NSMicrophoneUsageDescription: To keep a voice note behind the words.
         NSSpeechRecognitionUsageDescription: To turn a voice note into words, on this device.
         NSLocationWhenInUseUsageDescription: To remember where a line was written. Named later, never asked.
+        NSPhotoLibraryUsageDescription: To bring older photos onto the page, on the day they were taken.
     settings:
       groups: [signing]
       base:

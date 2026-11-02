@@ -28,6 +28,8 @@
 	<string>To remember where a line was written. Named later, never asked.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>To keep a voice note behind the words.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>To bring older photos onto the page, on the day they were taken.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>To turn a voice note into words, on this device.</string>
 	<key>UIApplicationSceneManifest</key>

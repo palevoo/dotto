@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 /// Photos of one line, full screen. Swipe sideways between them, pinch or double-tap to
-/// zoom, pull down to close.
+/// zoom, pull up or down to close.
 struct PhotoViewer: View {
     let photos: [Media]
     @State var index: Int
@@ -25,12 +25,12 @@ struct PhotoViewer: View {
             .gesture(
                 DragGesture(minimumDistance: 20)
                     .onChanged { value in
-                        if value.translation.height > 0, abs(value.translation.height) > abs(value.translation.width) {
+                        if abs(value.translation.height) > abs(value.translation.width) {
                             pull = value.translation.height
                         }
                     }
                     .onEnded { value in
-                        if value.translation.height > 110 {
+                        if abs(value.translation.height) > 110 {
                             dismiss()
                         } else {
                             withAnimation(Motion.settle) { pull = 0 }
@@ -52,7 +52,7 @@ struct PhotoViewer: View {
             .padding(.top, 8)
             .accessibilityLabel("Close")
         }
-        .background(Color.black.opacity(1 - min(pull / 400, 0.6)).ignoresSafeArea())
+        .background(Color.black.opacity(1 - min(abs(pull) / 400, 0.6)).ignoresSafeArea())
         .statusBarHidden()
     }
 }

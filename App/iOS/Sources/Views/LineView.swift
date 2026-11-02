@@ -3,16 +3,19 @@ import SwiftUI
 import UIKit
 
 /// One line, opened: the words at full width and selectable, the photos large, the voice,
-/// every reader's note in full, the labels, and the history of who did what to it.
+/// the thread of replies with a place to answer, the labels, and the history of who did
+/// what to it.
 struct LineView: View {
     let entryID: ULID
     @Bindable var model: NotebookModel
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
     @State private var text = ""
+    @State private var replyText = ""
     @State private var viewing: PhotoSelection?
     @Namespace private var zoom
     @FocusState private var focused: Bool
+    @FocusState private var replying: Bool
 
     var body: some View {
         if let entry = model.notebook.entry(entryID) {
@@ -28,6 +31,7 @@ struct LineView: View {
 
     private func content(_ entry: Entry) -> some View {
         let photos = entry.media.filter { $0.mime.hasPrefix("image") }
+        let owner = model.store.manifest.owner
         return ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -41,13 +45,9 @@ struct LineView: View {
                 }
 
                 ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                    Button {
-                        viewing = PhotoSelection(index: index)
-                    } label: {
-                        LargePhoto(media: photo, url: model.mediaURL(photo))
-                    }
-                    .buttonStyle(.plain)
-                    .matchedTransitionSource(id: photo.hash, in: zoom)
+                    LargePhoto(media: photo, url: model.mediaURL(photo))
+                        .matchedTransitionSource(id: photo.hash, in: zoom)
+                        .onTapGesture { viewing = PhotoSelection(index: index) }
                 }
 
                 ForEach(entry.media.filter { $0.mime.hasPrefix("audio") }) { voice in
@@ -74,27 +74,28 @@ struct LineView: View {
                         .textSelection(.enabled)
                 }
 
-                if !entry.notes.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(entry.notes) { note in
-                            HStack(alignment: .top, spacing: 8) {
-                                Theme.square(8)
-                                    .fill(Theme.agent)
-                                    .frame(width: 8, height: 8)
-                                    .padding(.top, 5)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(note.text)
-                                        .font(Theme.sansSmall)
-                                        .foregroundStyle(Theme.agent)
-                                        .lineSpacing(2)
-                                        .textSelection(.enabled)
-                                    Text("\(note.author.rawValue) · \(Format.time(note.at, calendar: model.calendar))")
-                                        .font(Theme.mono)
-                                        .foregroundStyle(Theme.faint)
-                                }
-                            }
-                        }
+                VStack(alignment: .leading, spacing: 12) {
+                    if !entry.notes.isEmpty {
+                        ReplyThread(notes: entry.notes, owner: owner, calendar: model.calendar)
                     }
+                    HStack(alignment: .top, spacing: 10) {
+                        Theme.square(4)
+                            .fill(replying || !replyText.isEmpty ? Theme.foreground.opacity(0.4) : Theme.line)
+                            .frame(width: 2)
+                        TextField("Reply", text: $replyText, axis: .vertical)
+                            .font(Theme.serifSmall)
+                            .foregroundStyle(Theme.foreground)
+                            .focused($replying)
+                            .submitLabel(.send)
+                            .onChange(of: replyText) { _, value in
+                                guard value.contains("\n") else { return }
+                                let words = value.replacingOccurrences(of: "\n", with: " ")
+                                replyText = ""
+                                withAnimation(Motion.settle) { model.reply(to: entry.id, text: words) }
+                                Haptic.store()
+                            }
+                    }
+                    .padding(.top, entry.notes.isEmpty ? 0 : 4)
                 }
 
                 if !entry.labels.isEmpty {
@@ -122,7 +123,7 @@ struct LineView: View {
                                     .font(Theme.mono)
                                     .foregroundStyle(Theme.faint)
                                     .frame(width: 44, alignment: .leading)
-                                Text(describe(item, owner: model.store.manifest.owner))
+                                Text(describe(item, owner: owner))
                                     .font(Theme.mono)
                                     .foregroundStyle(Theme.muted)
                             }
@@ -148,6 +149,7 @@ struct LineView: View {
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Theme.background.ignoresSafeArea())
         .toolbarBackground(Theme.background, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
@@ -161,8 +163,7 @@ struct LineView: View {
         if item.author == owner {
             return "you \(item.what)"
         }
-        let via = item.device.rawValue
-        return "\(item.author.rawValue) \(item.what), via \(via)"
+        return "\(item.author.rawValue) \(item.what), via \(item.device.rawValue)"
     }
 }
 
@@ -196,6 +197,7 @@ struct LargePhoto: View {
         .frame(maxWidth: .infinity)
         .clipShape(Theme.square(96))
         .overlay(Theme.square(96).strokeBorder(Theme.line, lineWidth: 1))
+        .contentShape(Theme.square(96))
         .task(id: media.hash) {
             image = await Photo.load(url, maxSide: 1600)
         }
