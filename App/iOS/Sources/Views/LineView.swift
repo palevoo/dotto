@@ -32,7 +32,8 @@ struct LineView: View {
     private func content(_ entry: Entry) -> some View {
         let photos = entry.media.filter { $0.mime.hasPrefix("image") }
         let owner = model.store.manifest.owner
-        return ScrollView {
+        return ScrollViewReader { proxy in
+            ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(Format.day(DayKey(entry.startedAt, calendar: model.calendar), calendar: model.calendar))
@@ -55,17 +56,17 @@ struct LineView: View {
                 }
 
                 if editing {
-                    TextField(entry.text.isEmpty ? "Words for this" : "", text: $text, axis: .vertical)
-                        .font(.system(size: 20, design: .serif))
-                        .foregroundStyle(Theme.foreground)
-                        .lineSpacing(5)
-                        .focused($focused)
-                        .onChange(of: focused) { _, isFocused in
-                            if !isFocused {
-                                editing = false
-                                model.edit(entry.id, text: text)
-                            }
+                    WordsField(placeholder: "Words for this", text: $text, font: .system(size: 20, design: .serif),
+                               color: Theme.foreground, focused: $focused) {
+                        focused = false
+                    }
+                    .id("words")
+                    .onChange(of: focused) { _, isFocused in
+                        if !isFocused {
+                            editing = false
+                            model.edit(entry.id, text: text)
                         }
+                    }
                 } else if !entry.text.isEmpty {
                     Text(entry.text)
                         .font(.system(size: 20, design: .serif))
@@ -94,20 +95,16 @@ struct LineView: View {
                         Theme.square(4)
                             .fill(replying || !replyText.isEmpty ? Theme.foreground.opacity(0.4) : Theme.line)
                             .frame(width: 2)
-                        TextField("Reply", text: $replyText, axis: .vertical)
-                            .font(Theme.serifSmall)
-                            .foregroundStyle(Theme.foreground)
-                            .focused($replying)
-                            .submitLabel(.send)
-                            .onChange(of: replyText) { _, value in
-                                guard value.contains("\n") else { return }
-                                let words = value.replacingOccurrences(of: "\n", with: " ")
-                                replyText = ""
-                                withAnimation(Motion.settle) { model.reply(to: entry.id, text: words) }
-                                Haptic.store()
-                            }
+                        WordsField(placeholder: "Reply", text: $replyText, font: Theme.serifSmall,
+                                   color: Theme.foreground, focused: $replying) {
+                            let words = replyText
+                            replyText = ""
+                            withAnimation(Motion.settle) { model.reply(to: entry.id, text: words) }
+                            Haptic.store()
+                        }
                     }
                     .padding(.top, entry.notes.isEmpty ? 0 : 4)
+                    .id("reply")
                 }
 
                 if !entry.labels.isEmpty {
@@ -160,14 +157,25 @@ struct LineView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            // The field being written in stays above the keyboard.
+            .onChange(of: focused) { _, isFocused in if isFocused { show("words", proxy) } }
+            .onChange(of: replying) { _, isReplying in if isReplying { show("reply", proxy) } }
         }
-        .scrollDismissesKeyboard(.interactively)
         .background(Theme.background.ignoresSafeArea())
         .toolbarBackground(Theme.background, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(item: $viewing) { selection in
-            PhotoViewer(photos: photos, index: selection.index, model: model)
+            PhotoViewer(entryID: entry.id, index: selection.index, model: model)
                 .navigationTransition(.zoom(sourceID: photos[selection.index].hash, in: zoom))
+        }
+    }
+
+    private func show(_ id: String, _ proxy: ScrollViewProxy) {
+        Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            withAnimation(Motion.settle) { proxy.scrollTo(id, anchor: .center) }
         }
     }
 

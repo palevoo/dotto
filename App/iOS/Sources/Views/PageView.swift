@@ -14,6 +14,7 @@ struct PageView: View {
     @State private var showCalendar = false
     @State private var showMove = false
     @State private var showCamera = false
+    @State private var showLibrary = false
     @State private var picked: [PhotosPickerItem] = []
     @State private var viewing: PhotoOpening?
     @State private var filter: String?
@@ -86,9 +87,14 @@ struct PageView: View {
                         model: model,
                         focused: $liveFocused,
                         recorder: recorder,
-                        picked: $picked,
                         onReturn: { storeDraft(proxy) },
                         onCamera: { showCamera = true },
+                        onLibrary: {
+                            Task {
+                                await PhotoLibrary.ask()
+                                showLibrary = true
+                            }
+                        },
                         onHoldStart: { Task { await recorder.start() } },
                         onHoldEnd: { finishVoice() }
                     )
@@ -142,23 +148,25 @@ struct PageView: View {
                 .fullScreenCover(item: $viewing) { opening in
                     if let entry = model.notebook.entry(opening.entry) {
                         let photos = entry.media.filter { $0.mime.hasPrefix("image") }
-                        PhotoViewer(photos: photos, index: min(opening.index, photos.count - 1), model: model)
-                            .navigationTransition(.zoom(sourceID: photos[min(opening.index, photos.count - 1)].hash, in: zoom))
+                        let index = min(opening.index, photos.count - 1)
+                        PhotoViewer(entryID: entry.id, index: index, model: model)
+                            .navigationTransition(.zoom(sourceID: photos[index].hash, in: zoom))
                     }
                 }
+                .photosPicker(isPresented: $showLibrary, selection: $picked, maxSelectionCount: 20,
+                              matching: .images, photoLibrary: .shared())
                 .onChange(of: picked) { _, items in
                     guard !items.isEmpty else { return }
                     Task {
-                        var last: ULID?
+                        // Into the live line, like the camera: the words come next, Return stores.
                         for item in items {
-                            if let data = try? await item.loadTransferable(type: Data.self),
-                               let id = await model.importPhoto(data) {
-                                last = id
+                            if let photo = await PhotoLibrary.load(item) {
+                                await model.importPhoto(photo.data, takenAt: photo.takenAt, location: photo.location)
                             }
                         }
                         picked = []
                         Haptic.touch()
-                        if let last { reveal(last, proxy) }
+                        liveFocused = true
                     }
                 }
                 .onChange(of: liveFocused) { _, focused in
@@ -183,30 +191,29 @@ struct PageView: View {
         }
     }
 
-    /// Stores the live line and settles the page on it, one short motion.
+    /// Stores the live line and settles the page on it, one short motion. A line stored on an
+    /// earlier day, from a photo's own moment, is shown where it landed.
     private func storeDraft(_ proxy: ScrollViewProxy) {
         var stored: ULID?
         withAnimation(Motion.settle) { stored = model.commitDraft() }
-        guard stored != nil else { return }
+        guard let stored else { return }
         Haptic.store()
-        if filter == nil {
+        guard filter == nil else { return }
+        let day = model.notebook.entry(stored).map { DayKey($0.startedAt, calendar: model.calendar) } ?? model.today
+        if day == model.today {
             withAnimation(Motion.settle) { proxy.scrollTo(model.today, anchor: .bottom) }
+        } else {
+            reveal(stored, on: day, proxy)
         }
     }
 
-    /// A line that landed somewhere up the page, such as an old photo on the day it was
-    /// taken: the page goes to it and marks it for a moment.
-    private func reveal(_ id: ULID, _ proxy: ScrollViewProxy) {
-        guard let entry = model.notebook.entry(id) else { return }
-        let day = DayKey(entry.startedAt, calendar: model.calendar)
-        if filter != nil { filter = nil }
-        proxy.scrollTo(day, anchor: .top)
+    /// The page goes to the day in one motion and marks the line for a moment.
+    private func reveal(_ id: ULID, on day: DayKey, _ proxy: ScrollViewProxy) {
+        withAnimation(Motion.settle) {
+            proxy.scrollTo(day, anchor: .top)
+            revealed = id
+        }
         Task {
-            try? await Task.sleep(for: .milliseconds(80))
-            withAnimation(Motion.settle) {
-                proxy.scrollTo(id, anchor: .center)
-                revealed = id
-            }
             try? await Task.sleep(for: .seconds(2))
             withAnimation(.easeOut(duration: 0.8)) {
                 if revealed == id { revealed = nil }
@@ -385,32 +392,49 @@ struct DayDivider: View {
 }
 
 /// The last row of the page, always in reach: the composer. The margin breathes the
-/// current minute until the first thing arrives, then keeps that moment. Return stores
-/// the line. Camera, library and mic sit at its end.
+/// current minute until the first thing arrives, then keeps that moment. Photos from
+/// before offer their own moment there; tap it to choose between then and now. Return
+/// stores the line. Camera, library and mic sit at its end.
 struct LiveLine: View {
     @Bindable var model: NotebookModel
     var focused: FocusState<Bool>.Binding
     let recorder: VoiceRecorder
-    @Binding var picked: [PhotosPickerItem]
     let onReturn: () -> Void
     let onCamera: () -> Void
+    let onLibrary: () -> Void
     let onHoldStart: () -> Void
     let onHoldEnd: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             TimelineView(.everyMinute) { context in
-                Text(Format.time(model.draftStartedAt ?? context.date, calendar: model.calendar))
-                    .font(Theme.mono)
-                    .foregroundStyle(model.draftStartedAt == nil ? Theme.faint : Theme.muted)
-                    .frame(width: 44, alignment: .leading)
-                    .monospacedDigit()
-                    .padding(.top, 6)
-                    .phaseAnimator([1.0, 0.4]) { view, phase in
-                        view.opacity(model.draftStartedAt == nil ? phase : 1)
-                    } animation: { _ in
-                        .easeInOut(duration: 1.8)
+                let moment = model.draftMoment ?? context.date
+                let offersMoment = model.draftPhotoMoment != nil
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(Format.time(moment, calendar: model.calendar))
+                        .font(Theme.mono)
+                        .foregroundStyle(model.draftStartedAt == nil ? Theme.faint : Theme.muted)
+                        .monospacedDigit()
+                        .phaseAnimator([1.0, 0.4]) { view, phase in
+                            view.opacity(model.draftStartedAt == nil ? phase : 1)
+                        } animation: { _ in
+                            .easeInOut(duration: 1.8)
+                        }
+                    if offersMoment {
+                        Text(model.draftKeepsPhotoMoment ? Format.shortDay(moment, calendar: model.calendar) : "today")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(model.draftKeepsPhotoMoment ? Theme.accent : Theme.faint)
+                            .transition(.opacity)
                     }
+                }
+                .frame(width: 44, alignment: .leading)
+                .padding(.top, 6)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard offersMoment else { return }
+                    Haptic.touch()
+                    withAnimation(Motion.settle) { model.draftKeepsPhotoMoment.toggle() }
+                }
             }
             VStack(alignment: .leading, spacing: 10) {
                 if !model.draftMedia.isEmpty {
@@ -452,7 +476,7 @@ struct LiveLine: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Photo")
-                    PhotosPicker(selection: $picked, maxSelectionCount: 20, matching: .images) {
+                    Button(action: onLibrary) {
                         Image(systemName: "photo.on.rectangle")
                             .font(.system(size: 17, weight: .light))
                             .foregroundStyle(Theme.faint)
@@ -477,20 +501,30 @@ struct LiveLine: View {
     }
 }
 
-/// What has landed in the live line before its words.
+/// What has landed in the live line before its words. Hold one to take it out again.
 struct DraftMediaRow: View {
     let model: NotebookModel
 
     var body: some View {
-        HStack(spacing: 10) {
-            ForEach(model.draftMedia) { item in
-                if item.mime.hasPrefix("image") {
-                    ThumbView(hash: item.hash, original: model.mediaURL(item), side: 96)
-                } else {
-                    VoiceChip(hash: item.hash, duration: item.duration ?? 0, url: model.mediaURL(item))
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(model.draftMedia) { item in
+                    Group {
+                        if item.mime.hasPrefix("image") {
+                            ThumbView(hash: item.hash, original: model.mediaURL(item), side: 96)
+                        } else {
+                            VoiceChip(hash: item.hash, duration: item.duration ?? 0, url: model.mediaURL(item))
+                        }
+                    }
+                    .contextMenu {
+                        Button("Take out", systemImage: "minus.circle", role: .destructive) {
+                            withAnimation(Motion.settle) { model.removeDraftMedia(item) }
+                        }
+                    }
                 }
             }
         }
+        .scrollClipDisabled()
     }
 }
 
@@ -533,6 +567,15 @@ enum Format {
     static func duration(_ seconds: TimeInterval) -> String {
         let whole = Int(seconds.rounded(.down))
         return String(format: "%d:%02d", whole / 60, whole % 60)
+    }
+
+    /// "17 Oct", for the margin.
+    static func shortDay(_ date: Date, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = calendar.locale
+        formatter.setLocalizedDateFormatFromTemplate("d MMM")
+        return formatter.string(from: date)
     }
 
     static func day(_ key: DayKey, calendar: Calendar, withYear: Bool = true) -> String {

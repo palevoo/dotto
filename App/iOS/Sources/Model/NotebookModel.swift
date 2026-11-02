@@ -10,7 +10,12 @@ struct DraftMedia: Identifiable, Hashable {
     let width: Int?
     let height: Int?
     let duration: Double?
+    /// When it happened: the shutter, or the start of the recording.
     let at: Date
+    /// Where, if the photo knows.
+    var location: Location?
+    /// True for a photo brought in from the library rather than made here.
+    var fromBefore = false
 
     var id: String { hash }
 }
@@ -32,6 +37,8 @@ final class NotebookModel {
     }
     private(set) var draftMedia: [DraftMedia] = []
     private(set) var draftStartedAt: Date?
+    /// Photos from before bring their own moment. The line can take it or keep now.
+    var draftKeepsPhotoMoment = false
 
     private let generator = ULIDGenerator()
     private let location = LocationSpy()
@@ -55,6 +62,23 @@ final class NotebookModel {
     var today: DayKey { DayKey(Date(), calendar: calendar) }
 
     var draftIsEmpty: Bool { draftText.isEmpty && draftMedia.isEmpty }
+
+    /// The moment the photos in the live line were taken, when they all come from one earlier
+    /// day. The earliest of them. Nil when nothing in the line is from before, or when the photos
+    /// are from different days.
+    var draftPhotoMoment: Date? {
+        let earlier = draftMedia.filter(\.fromBefore).map(\.at)
+        guard !earlier.isEmpty, let first = earlier.min() else { return nil }
+        let day = DayKey(first, calendar: calendar)
+        guard day != today, earlier.allSatisfy({ DayKey($0, calendar: calendar) == day }) else { return nil }
+        return first
+    }
+
+    /// The moment the line will be stored at: the photos' own, if chosen, else when writing began.
+    var draftMoment: Date? {
+        if draftKeepsPhotoMoment, let moment = draftPhotoMoment { return moment }
+        return draftStartedAt
+    }
 
     // MARK: - Reading
 
@@ -98,9 +122,11 @@ final class NotebookModel {
         }
     }
 
-    /// A photo lands in the live line. Heavy work happens off the main thread.
-    func addPhoto(_ data: Data) async {
-        let takenAt = Date()
+    /// A photo lands in the live line. From the camera it is of this moment; from the library it
+    /// brings its own moment and place. Heavy work happens off the main thread.
+    func addPhoto(_ data: Data, takenAt: Date? = nil, location: Location? = nil) async {
+        let fromBefore = takenAt != nil
+        let at = takenAt ?? Date()
         guard let photo = await Photo.process(data) else {
             NSLog("photo failed: could not read the image")
             return
@@ -108,43 +134,34 @@ final class NotebookModel {
         do {
             let hash = try store.storeMedia(photo.jpeg, fileExtension: "jpg")
             Thumbs.save(photo.thumbnail, hash: hash)
-            draftMedia.append(DraftMedia(hash: hash, mime: "image/jpeg", width: photo.width, height: photo.height, duration: nil, at: takenAt))
-            touchDraft(at: takenAt)
+            let hadMoment = draftPhotoMoment != nil
+            draftMedia.append(DraftMedia(hash: hash, mime: "image/jpeg", width: photo.width, height: photo.height,
+                                         duration: nil, at: at, location: location, fromBefore: fromBefore))
+            touchDraft()
+            // The first photo from before offers its moment; the line takes it until told otherwise.
+            if !hadMoment, draftPhotoMoment != nil { draftKeepsPhotoMoment = true }
         } catch {
             NSLog("photo failed: \(error)")
         }
     }
 
-    /// A photo from the library keeps its own moment and place: it becomes a line on the day it
-    /// was taken, and its id comes back so the page can go there. Without a date it lands in
-    /// the live line like a fresh one.
-    @discardableResult
-    func importPhoto(_ data: Data) async -> ULID? {
-        let metadata = await Photo.metadata(of: data)
-        guard let takenAt = metadata.takenAt else {
-            await addPhoto(data)
-            return nil
+    /// A photo from the library, with what it knows about itself: the original file through
+    /// PhotoKit when the library allows, else the picker's copy and whatever is left in it.
+    func importPhoto(_ data: Data, takenAt: Date?, location: Location?) async {
+        var takenAt = takenAt
+        var location = location
+        if takenAt == nil || location == nil {
+            let metadata = await Photo.metadata(of: data)
+            takenAt = takenAt ?? metadata.takenAt
+            location = location ?? metadata.location
         }
-        guard let photo = await Photo.process(data) else {
-            NSLog("import failed: could not read the image")
-            return nil
-        }
-        do {
-            let hash = try store.storeMedia(photo.jpeg, fileExtension: "jpg")
-            Thumbs.save(photo.thumbnail, hash: hash)
-            let id = generator.next(at: takenAt)
-            let now = Date()
-            record([
-                Event(id: id, author: store.manifest.owner, device: device, at: takenAt,
-                      payload: .entryCreate(.init(entry: id, text: "", startedAt: takenAt, location: metadata.location))),
-                Event(id: generator.next(at: now), author: store.manifest.owner, device: device, at: now,
-                      payload: .mediaAttach(.init(entry: id, hash: hash, mime: "image/jpeg", width: photo.width, height: photo.height))),
-            ])
-            return id
-        } catch {
-            NSLog("import failed: \(error)")
-            return nil
-        }
+        await addPhoto(data, takenAt: takenAt, location: location)
+    }
+
+    func removeDraftMedia(_ item: DraftMedia) {
+        draftMedia.removeAll { $0.id == item.id }
+        touchDraft()
+        if draftPhotoMoment == nil { draftKeepsPhotoMoment = false }
     }
 
     /// Your answer under a reader's note, in your own ink.
@@ -179,19 +196,23 @@ final class NotebookModel {
     func commitDraft() -> ULID? {
         let text = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
         let media = draftMedia
-        guard let startedAt = draftStartedAt, !text.isEmpty || !media.isEmpty else {
+        guard let startedAt = draftMoment, !text.isEmpty || !media.isEmpty else {
             draftText = ""
             draftMedia = []
+            draftKeepsPhotoMoment = false
             return nil
         }
+        let fromBefore = draftKeepsPhotoMoment && draftPhotoMoment != nil
+        let place = fromBefore ? media.first(where: { $0.fromBefore && $0.location != nil })?.location : location.last
         let id = generator.next(at: startedAt)
+        let now = Date()
         var events = [
-            Event(id: id, author: store.manifest.owner, device: device, at: startedAt,
-                  payload: .entryCreate(.init(entry: id, text: text, startedAt: startedAt, location: location.last))),
+            Event(id: id, author: store.manifest.owner, device: device, at: now,
+                  payload: .entryCreate(.init(entry: id, text: text, startedAt: startedAt, location: place))),
         ]
         for item in media {
             events.append(Event(
-                id: generator.next(at: item.at), author: store.manifest.owner, device: device, at: item.at,
+                id: generator.next(at: now), author: store.manifest.owner, device: device, at: now,
                 payload: .mediaAttach(.init(entry: id, hash: item.hash, mime: item.mime, width: item.width, height: item.height, duration: item.duration))
             ))
         }
@@ -199,6 +220,7 @@ final class NotebookModel {
         draftText = ""
         draftMedia = []
         draftStartedAt = nil
+        draftKeepsPhotoMoment = false
         return id
     }
 

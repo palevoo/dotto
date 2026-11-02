@@ -2,9 +2,58 @@ import AVFoundation
 import Core
 import Foundation
 import ImageIO
+import Photos
+import PhotosUI
 import Speech
+import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
+
+/// The library, through PhotoKit when the library allows it: the original file with the
+/// moment and place the photo knows. Otherwise the picker's copy, which keeps the date but
+/// not the place.
+enum PhotoLibrary {
+    struct Picked: Sendable {
+        let data: Data
+        let takenAt: Date?
+        let location: Location?
+    }
+
+    /// Asked once, on the first visit. Whatever the answer, the picker still opens.
+    static func ask() async {
+        guard PHPhotoLibrary.authorizationStatus(for: .readWrite) == .notDetermined else { return }
+        _ = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+    }
+
+    static func load(_ item: PhotosPickerItem) async -> Picked? {
+        if let id = item.itemIdentifier,
+           let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject,
+           let data = await originalData(of: asset) {
+            let place = asset.location.map {
+                Location(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude, accuracy: $0.horizontalAccuracy)
+            }
+            return Picked(data: data, takenAt: asset.creationDate, location: place)
+        }
+        guard let data = try? await item.loadTransferable(type: Data.self) else { return nil }
+        return Picked(data: data, takenAt: nil, location: nil)
+    }
+
+    private static func originalData(of asset: PHAsset) async -> Data? {
+        let options = PHImageRequestOptions()
+        options.isNetworkAccessAllowed = true
+        options.deliveryMode = .highQualityFormat
+        options.version = .current
+        final class Once: @unchecked Sendable { var done = false }
+        let once = Once()
+        return await withCheckedContinuation { continuation in
+            PHImageManager.default().requestImageDataAndOrientation(for: asset, options: options) { data, _, _, _ in
+                guard !once.done else { return }
+                once.done = true
+                continuation.resume(returning: data)
+            }
+        }
+    }
+}
 
 /// Hold to speak. The audio is kept; the words are made on this device.
 @MainActor
@@ -261,6 +310,11 @@ enum Thumbs {
     static func save(_ data: Data, hash: String) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try? data.write(to: url(hash), options: .atomic)
+    }
+
+    /// What is already in memory, for a first frame with no wait.
+    static func cached(_ hash: String) -> UIImage? {
+        memory.object(forKey: hash as NSString)
     }
 
     /// From memory, else from the cache folder, else made from the original and kept.
