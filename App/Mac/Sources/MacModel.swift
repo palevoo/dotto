@@ -23,6 +23,9 @@ final class MacModel {
     private let ownerKey = "margin.owner"
     private let shared = DoorState()
     private var server: DoorServer?
+    private var watcher: FolderWatcher?
+    private var freshenTask: Task<Void, Never>?
+    private var summaryTask: Task<Void, Never>?
 
     init() {
         loadGrants()
@@ -72,9 +75,35 @@ final class MacModel {
             self.store = store
             problem = nil
             shared.update(store: store, grants: grants)
+            keepFresh(store)
             refreshSummary()
         } catch {
             problem = "Could not open the notebook in \(url.lastPathComponent): \(error)"
+        }
+    }
+
+    /// The folder is watched, so a line the phone writes shows here on its own. When the
+    /// folder is in iCloud Drive the newest copies are also asked for every so often, since
+    /// the Mac does not pull them down until something asks.
+    private func keepFresh(_ store: FileStore) {
+        watcher = FolderWatcher(directory: store.eventsDirectory) { [weak self] in
+            self?.refreshSummarySoon()
+        }
+        freshenTask?.cancel()
+        freshenTask = Task.detached(priority: .utility) {
+            while !Task.isCancelled {
+                store.freshen()
+                try? await Task.sleep(for: .seconds(20))
+            }
+        }
+    }
+
+    private func refreshSummarySoon() {
+        summaryTask?.cancel()
+        summaryTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            self?.refreshSummary()
         }
     }
 

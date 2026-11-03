@@ -50,11 +50,8 @@ struct GrantsView: View {
                             .foregroundStyle(MacTheme.muted)
                     }
                 }
-                HStack {
-                    Button("Change Folder…") { model.chooseFolder() }
-                    Button("Refresh") { model.refreshSummary() }
-                }
-                .controlSize(.small)
+                Button("Change Folder…") { model.chooseFolder() }
+                    .controlSize(.small)
             } else {
                 Text("Pick the folder that holds your notebook. Margin can see that folder and nothing else.")
                     .font(MacTheme.body)
