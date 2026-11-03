@@ -25,6 +25,28 @@ enum PhotoLibrary {
         _ = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
     }
 
+    /// The newest photo, small, for the corner of the camera. Only when the library is
+    /// already open to us; this never asks.
+    static func latestThumbnail(side: CGFloat) async -> UIImage? {
+        let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+        guard status == .authorized || status == .limited else { return nil }
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        options.fetchLimit = 1
+        guard let asset = PHAsset.fetchAssets(with: .image, options: options).firstObject else { return nil }
+        let request = PHImageRequestOptions()
+        request.deliveryMode = .highQualityFormat   // one call back, never a degraded one first
+        request.resizeMode = .fast
+        request.isNetworkAccessAllowed = false
+        let scale = await UIScreen.main.scale
+        let size = CGSize(width: side * scale, height: side * scale)
+        return await withCheckedContinuation { continuation in
+            PHImageManager.default().requestImage(for: asset, targetSize: size, contentMode: .aspectFill, options: request) { image, _ in
+                continuation.resume(returning: image)
+            }
+        }
+    }
+
     static func load(_ item: PhotosPickerItem) async -> Picked? {
         if let id = item.itemIdentifier,
            let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject,

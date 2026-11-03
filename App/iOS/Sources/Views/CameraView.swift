@@ -1,17 +1,38 @@
 @preconcurrency import AVFoundation
+import Photos
+import PhotosUI
 import SwiftUI
 import UIKit
 
-/// Our own camera: the live picture in the app's rounded square, one shutter, nothing else.
-/// Tap the picture to focus there, pinch to zoom; the lenses switch on their own, macro included.
+/// Our own camera: the live picture in the app's rounded square, one shutter, the library
+/// in the corner. Tap the picture to focus there, pinch to zoom; the lenses switch on their
+/// own, macro included.
 struct CameraView: View {
+    @Binding var picked: [PhotosPickerItem]
     let onCapture: (Data?) -> Void
     @State private var camera = CameraController()
+    @State private var showLibrary = false
+    @State private var latest: UIImage?
 
     var body: some View {
         GeometryReader { geometry in
             let side = geometry.size.width - 32
             VStack(spacing: 0) {
+                HStack {
+                    Button {
+                        onCapture(nil)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 17, weight: .light))
+                            .foregroundStyle(Color.white.opacity(0.7))
+                            .frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
                 Spacer(minLength: 0)
                 ZStack {
                     CameraPreview(camera: camera)
@@ -52,14 +73,29 @@ struct CameraView: View {
                 Spacer(minLength: 0)
                 HStack {
                     Button {
-                        onCapture(nil)
+                        Task {
+                            await PhotoLibrary.ask()
+                            showLibrary = true
+                        }
                     } label: {
-                        Text("Cancel")
-                            .font(Theme.mono)
-                            .foregroundStyle(Color.white.opacity(0.7))
-                            .frame(width: 72, height: 44)
+                        Group {
+                            if let latest {
+                                Image(uiImage: latest)
+                                    .resizable()
+                                    .scaledToFill()
+                            } else {
+                                Image(systemName: "photo.on.rectangle")
+                                    .font(.system(size: 20, weight: .light))
+                                    .foregroundStyle(Color.white.opacity(0.7))
+                            }
+                        }
+                        .frame(width: 44, height: 44)
+                        .clipShape(Theme.square(44))
+                        .overlay(Theme.square(44).strokeBorder(Color.white.opacity(latest == nil ? 0 : 0.5), lineWidth: 1))
+                        .frame(width: 72, height: 44)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("From the library")
                     Spacer()
                     Button {
                         camera.capture { data in onCapture(data) }
@@ -90,7 +126,10 @@ struct CameraView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Color(white: 0.08))
+        .photosPicker(isPresented: $showLibrary, selection: $picked, maxSelectionCount: 20,
+                      matching: .images, photoLibrary: .shared())
         .task { await camera.start() }
+        .task { latest = await PhotoLibrary.latestThumbnail(side: 88) }
         .onDisappear { camera.stop() }
     }
 }

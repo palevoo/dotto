@@ -14,12 +14,10 @@ struct PageView: View {
     @State private var showCalendar = false
     @State private var showMove = false
     @State private var showCamera = false
-    @State private var showLibrary = false
     @State private var picked: [PhotosPickerItem] = []
     @State private var viewing: PhotoOpening?
     @State private var filter: String?
     @State private var revealed: ULID?
-    @State private var recorder = VoiceRecorder()
     @Namespace private var zoom
     @FocusState private var liveFocused: Bool
 
@@ -86,17 +84,8 @@ struct PageView: View {
                     LiveLine(
                         model: model,
                         focused: $liveFocused,
-                        recorder: recorder,
                         onReturn: { storeDraft(proxy) },
-                        onCamera: { showCamera = true },
-                        onLibrary: {
-                            Task {
-                                await PhotoLibrary.ask()
-                                showLibrary = true
-                            }
-                        },
-                        onHoldStart: { Task { await recorder.start() } },
-                        onHoldEnd: { finishVoice() }
+                        onCamera: { showCamera = true }
                     )
                     .background(Theme.background)
                     .overlay(alignment: .top) {
@@ -135,7 +124,7 @@ struct PageView: View {
                     .ignoresSafeArea()
                 }
                 .fullScreenCover(isPresented: $showCamera) {
-                    CameraView { data in
+                    CameraView(picked: $picked) { data in
                         showCamera = false
                         guard let data else { return }
                         Task {
@@ -153,10 +142,9 @@ struct PageView: View {
                             .navigationTransition(.zoom(sourceID: photos[index].hash, in: zoom))
                     }
                 }
-                .photosPicker(isPresented: $showLibrary, selection: $picked, maxSelectionCount: 20,
-                              matching: .images, photoLibrary: .shared())
                 .onChange(of: picked) { _, items in
                     guard !items.isEmpty else { return }
+                    showCamera = false
                     Task {
                         // Into the live line, like the camera: the words come next, Return stores.
                         for item in items {
@@ -218,16 +206,6 @@ struct PageView: View {
             withAnimation(.easeOut(duration: 0.8)) {
                 if revealed == id { revealed = nil }
             }
-        }
-    }
-
-    private func finishVoice() {
-        guard let take = recorder.stop() else { return }
-        Task {
-            let transcript = await Transcriber.transcribe(take.fileURL)
-            model.addVoice(fileURL: take.fileURL, duration: take.duration, transcript: transcript, startedAt: take.startedAt)
-            Haptic.touch()
-            liveFocused = true
         }
     }
 
@@ -394,32 +372,26 @@ struct DayDivider: View {
 /// The last row of the page, always in reach: the composer. The margin breathes the
 /// current minute until the first thing arrives, then keeps that moment. Photos from
 /// before offer their own moment there; tap it to choose between then and now. Return
-/// stores the line. Camera (hold it for the library) and mic sit at its end while it is empty.
+/// stores the line. The camera waits at its end while it is empty.
 struct LiveLine: View {
     @Bindable var model: NotebookModel
     var focused: FocusState<Bool>.Binding
-    let recorder: VoiceRecorder
     let onReturn: () -> Void
     let onCamera: () -> Void
-    let onLibrary: () -> Void
-    let onHoldStart: () -> Void
-    let onHoldEnd: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             TimelineView(.everyMinute) { context in
                 let moment = model.draftMoment ?? context.date
                 let offersMoment = model.draftPhotoMoment != nil
+                let waiting = model.draftStartedAt == nil
                 VStack(alignment: .leading, spacing: 3) {
                     Text(Format.time(moment, calendar: model.calendar))
                         .font(Theme.mono)
-                        .foregroundStyle(model.draftStartedAt == nil ? Theme.faint : Theme.muted)
+                        .foregroundStyle(waiting ? Theme.faint : Theme.muted)
                         .monospacedDigit()
-                        .phaseAnimator([1.0, 0.4]) { view, phase in
-                            view.opacity(model.draftStartedAt == nil ? phase : 1)
-                        } animation: { _ in
-                            .easeInOut(duration: 1.8)
-                        }
+                        .modifier(Breathing(active: waiting))
+                        .animation(nil, value: waiting)
                     if offersMoment {
                         Text(model.draftKeepsPhotoMoment ? Format.shortDay(moment, calendar: model.calendar) : "today")
                             .font(.system(size: 10, design: .monospaced))
@@ -454,42 +426,23 @@ struct LiveLine: View {
                         onReturn()
                     }
             }
-            if recorder.isRecording {
-                HStack(spacing: 8) {
-                    Theme.square(10)
-                        .fill(Theme.recording)
-                        .frame(width: 10, height: 10)
-                    Text(Format.duration(recorder.elapsed))
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.foreground)
-                        .monospacedDigit()
-                }
-                .frame(height: 36)
-                .padding(.trailing, 4)
-            } else if model.draftText.isEmpty {
-                // Camera and mic wait at the end of an empty line and step aside once words
+            if model.draftText.isEmpty {
+                // The camera waits at the end of an empty line and steps aside once words
                 // start, so the words get the same width as every line above.
-                HStack(spacing: 0) {
+                Button(action: onCamera) {
                     Image(systemName: "camera")
                         .font(.system(size: 17, weight: .light))
                         .foregroundStyle(Theme.faint)
                         .frame(width: 36, height: 36)
-                        .contentShape(Rectangle())
-                        .onTapGesture(perform: onCamera)
-                        .onLongPressGesture(minimumDuration: 0.4) {
-                            Haptic.touch()
-                            onLibrary()
-                        }
-                        .accessibilityLabel("Photo")
-                        .accessibilityHint("Hold for the library")
-                    HoldButton(symbol: "mic", label: "Hold to speak", size: 36, onStart: onHoldStart, onEnd: onHoldEnd)
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Photo")
                 .transition(.opacity)
             }
         }
         .animation(Motion.settle, value: model.draftText.isEmpty)
         .padding(.leading, 20)
-        .padding(.trailing, 8)
+        .padding(.trailing, 12)
         .padding(.top, 10)
         .padding(.bottom, 8)
         .contentShape(Rectangle())
@@ -528,33 +481,21 @@ struct DraftMediaRow: View {
     }
 }
 
-struct HoldButton: View {
-    let symbol: String
-    let label: String
-    var size: CGFloat = 44
-    let onStart: () -> Void
-    let onEnd: () -> Void
-    @State private var holding = false
+/// A slow pulse while nothing has been written yet. Off, the view is simply itself, so
+/// switching has no fade of its own.
+struct Breathing: ViewModifier {
+    let active: Bool
 
-    var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: size > 40 ? 20 : 17, weight: .light))
-            .foregroundStyle(holding ? Theme.recording : Theme.faint)
-            .frame(width: size, height: size)
-            .background(Theme.square(size).fill(holding ? Theme.recording.opacity(0.12) : .clear))
-            .contentShape(Rectangle())
-            .onLongPressGesture(minimumDuration: 0.25, maximumDistance: 60) {
-            } onPressingChanged: { pressing in
-                if pressing {
-                    holding = true
-                    Haptic.touch()
-                    onStart()
-                } else if holding {
-                    holding = false
-                    onEnd()
-                }
+    func body(content: Content) -> some View {
+        if active {
+            content.phaseAnimator([1.0, 0.4]) { view, phase in
+                view.opacity(phase)
+            } animation: { _ in
+                .easeInOut(duration: 1.8)
             }
-            .accessibilityLabel(label)
+        } else {
+            content
+        }
     }
 }
 
