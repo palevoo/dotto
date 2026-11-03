@@ -1,16 +1,31 @@
 # Margin
 
-A notebook that is yours first. One page, days scrolling up into the past, the time in the
-margin the moment you start a line. Everything lives in a folder of plain files you own.
-Readers, weeju among them, are grants added later and write in their own ink, in the margin.
+You write things down. Something reads them and helps.
 
-    spec/architecture.md    the stance and the plan; §0 is what is being built now
+Three things are fixed:
+
+1. Writing costs nothing. One gesture, no categories, no decisions, no audience.
+2. Your words are yours. Only you write them. Anyone else, weeju included, writes beside
+   them and can be removed.
+3. Meaning comes later. What a line is, what it connects to, what it should trigger, is
+   decided after it is written, and only once it has earned it.
+
+Everything below is where we are now, not what Margin is. It changes as we use it.
+
+## Now (November 2026)
+
+An iPhone app with one page: days scrolling up into the past, a live line at the bottom
+with the time, a camera and a mic. A Mac app that holds the grants and opens the door.
+A folder of plain files that both write into. weeju is a Claude Code session with a grant.
+
+    spec/architecture.md    §0 is what is built; the rest is a sketch
+    spec/weeju.md           how weeju behaves
     Core/                   Swift package: events, fold, file store, projector, the door, CLI, tests
     App/project.yml         both apps, generated with XcodeGen into App/Margin.xcodeproj
-    App/iOS/                iPhone app: the page
-    App/Mac/                Mac app: the grant holder, sandboxed, opens the door on localhost
+    App/iOS/                iPhone app
+    App/Mac/                Mac app
     App/Design/icon.swift   draws the app icon into the asset catalog
-    mock/                   the web prototype the app is modelled on
+    mock/                   the web prototype the app was modelled on
 
 Identity canvas: https://claude.ai/artifact/21R7emDXUxPL4GJcizqLdn
 
@@ -32,26 +47,26 @@ The icon: `swift App/Design/icon.swift App/Sources/Assets.xcassets/AppIcon.appic
       days/YYYY-MM-DD.md              derived pages, regenerated after every change
 
 Anyone with the folder can take part by appending to a file of their own. The `notebook`
-command in the Core package is that door from a terminal:
+command in the Core package does that from a terminal:
 
     cd Core && swift build --product notebook
     .build/debug/notebook list <folder>                       every line with its id
-    .build/debug/notebook list <folder> --label margin        the lines filed under a label
-    .build/debug/notebook label <folder> <entry-id> margin    file a line (as weeju)
+    .build/debug/notebook list <folder> --label margin        the lines under a label
+    .build/debug/notebook label <folder> <entry-id> margin    label a line (as weeju)
     .build/debug/notebook note <folder> <entry-id> "shipped"  a line under yours (as weeju)
     .build/debug/notebook show <folder>                       the fold, as day pages
 
 ## The door
 
-The Mac app is sandboxed: it sees exactly the folder you pick and nothing else. It serves
-the Model Context Protocol on `127.0.0.1:27830/mcp`, behind a key per grant. A grant is a
+The Mac app is sandboxed: it sees the folder you pick and nothing else. It serves the
+Model Context Protocol on `127.0.0.1:27830/mcp`, behind a key per grant. A grant is a
 row in its window: who, which ink they write in, what they may do. Tools: `read_days`,
 `list_lines`, `add_note`, `set_label`. Writes land in the grant's own event file; no grant
 can touch your lines. Revoke the row and the key is gone.
 
-## The loop that builds Margin with Margin
+## Building Margin with Margin
 
 Write about the app in the app, like anything else. A Claude Code session in this
-repository reaches the notebook through the door, files those lines under `margin` (and
-`bug` where it is one), fixes what it can, and leaves a note under each line when it
-ships. Nothing in the app knows this is happening; it is a reader with a grant.
+repository reads the notebook through the door, labels those lines `margin` (and `bug`
+where it is one), fixes what it can, and says what shipped in the chat. Nothing in the
+app knows this is happening; it is a reader with a grant.

@@ -1,11 +1,12 @@
 # Architecture
 
-Native SwiftUI on iPhone and Mac. The notebook is yours first: the canonical copy lives
-on your devices, every other reader is a grant, and weeju is one of those readers.
+Native SwiftUI on iPhone and Mac. The copy that counts lives on your devices. Every
+other reader is a grant, and weeju is one of those readers.
 
-Decided 2026-11-02. App first; the agent loop is designed later against real entries.
+§0 is what is built, as of November 2026. §1 to §8 are a sketch of where it could grow,
+written before any of it was used. Treat them as ideas, not decisions.
 
-## 0. Iteration one (what we build first)
+## 0. Iteration one (what is built)
 
 A folder you own, an app that writes into it, nothing else.
 
@@ -30,7 +31,7 @@ custom encryption. All later readers of the same files.
 Risk: iCloud Drive on iOS can be slow to pull files. If it bites, the same event lines
 move to CloudKit records with the fold unchanged.
 
-Sections 1 to 8 below describe where this grows; only §0 is being built now.
+Everything below this line is a sketch.
 
 ## 1. The one data structure
 
@@ -76,7 +77,7 @@ wins. The live line alone can become a text CRDT later if it ever matters.
 
     device      the event log, materialised views, media, FTS         SQLite via GRDB
     sync        the same log, encrypted, between one person's devices  CloudKit private db
-    folder      plain files folded from the log, the fifty-year layer  iCloud Drive
+    folder      plain files folded from the log, readable without us  iCloud Drive
     relay       encrypted projections passed between people            Railway, later
 
 **Device.** SQLite through GRDB in an App Group container, so the Share Extension,

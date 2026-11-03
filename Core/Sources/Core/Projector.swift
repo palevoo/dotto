@@ -1,7 +1,7 @@
 import Foundation
 
 /// Folds days into plain markdown files. Deterministic: the same events make the same bytes.
-/// This is the fifty-year layer, what someone opens without the app.
+/// What someone opens without the app.
 public enum Projector {
     /// One day as markdown.
     ///

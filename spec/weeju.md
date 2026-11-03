@@ -24,7 +24,7 @@ by doing them and watching whether the owner's writing changes. The first ones t
 themselves on day one: filing lines about the app, noting when a fix shipped, and a to-do
 that closed itself across two lines ("need to plant this into a pot", "planted").
 
-When a behaviour proves itself three times, it may be written down here. Not before.
+When a behaviour has clearly proved itself, it may be written down here. Not before.
 
 ## Where this text lives
 
