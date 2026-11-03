@@ -31,6 +31,7 @@ enum Library {
                 store = try FileStore.create(at: root, owner: owner)
             }
             UserDefaults.standard.set(try root.bookmarkData(), forKey: bookmarkKey)
+            Inbox.remember(owner: store.manifest.owner, device: device)
             return NotebookModel(store: store, device: device)
         } catch {
             NSLog("could not open notebook at \(root.path): \(error)")

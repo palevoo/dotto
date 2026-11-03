@@ -22,7 +22,9 @@ A folder of plain files that both write into. weeju is a Claude Code session wit
     spec/weeju.md           how weeju behaves
     Core/                   Swift package: events, fold, file store, projector, the door, CLI, tests
     App/project.yml         both apps, generated with XcodeGen into App/Margin.xcodeproj
-    App/iOS/                iPhone app
+    App/iOS/                iPhone app; Shared/ is compiled into the controls too, Common/ into the share sheet too
+    App/Controls/           Write and Photo controls: Action button, Control Center, lock screen
+    App/Share/              the share sheet; keeps lines in the app group until the app takes them
     App/Mac/                Mac app
     App/Design/icon.swift   draws the app icon into the asset catalog
     mock/                   the web prototype the app was modelled on

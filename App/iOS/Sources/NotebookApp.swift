@@ -25,7 +25,9 @@ struct NotebookApp: App {
             .background(Theme.background.ignoresSafeArea())
             .onChange(of: scenePhase) { _, phase in
                 switch phase {
-                case .active: model?.reload()
+                case .active:
+                    model?.reload()
+                    model?.takeInbox()
                 case .background, .inactive: model?.commitDraft()
                 @unknown default: break
                 }

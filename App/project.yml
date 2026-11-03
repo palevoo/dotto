@@ -25,10 +25,17 @@ targets:
     sources:
       - path: iOS/Sources
       - path: iOS/Shared
+      - path: iOS/Common
     dependencies:
       - package: Core
         product: Core
       - target: MarginControls
+      - target: MarginShare
+    entitlements:
+      path: iOS/Margin.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.social.interface.notebook
     info:
       path: iOS/Sources/Info.plist
       properties:
@@ -73,6 +80,42 @@ targets:
       groups: [signing]
       base:
         PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook.controls
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: true
+
+  # The share sheet. Keeps what was shared in the app group; the app takes it into the
+  # notebook next time it is open. Theme, photo code and the inbox live in iOS/Common.
+  MarginShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Share/Sources
+      - path: iOS/Common
+    dependencies:
+      - package: Core
+        product: Core
+    info:
+      path: Share/Info.plist
+      properties:
+        CFBundleDisplayName: Margin
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsText: true
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsWebPageWithMaxCount: 1
+              NSExtensionActivationSupportsImageWithMaxCount: 10
+    entitlements:
+      path: Share/Margin.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.social.interface.notebook
+    settings:
+      groups: [signing]
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook.share
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: true
 

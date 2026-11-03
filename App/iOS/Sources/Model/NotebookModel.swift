@@ -54,8 +54,22 @@ final class NotebookModel {
         self.calendar = calendar
         self.notebook = Notebook(owner: store.manifest.owner)
         reload()
+        takeInbox()
         watcher = FolderWatcher(directory: store.eventsDirectory) { [weak self] in
             self?.reloadSoon()
+        }
+    }
+
+    /// Lines kept from the share sheet while the app was away go into the notebook now.
+    func takeInbox() {
+        do {
+            let events = try Inbox.take(into: store)
+            guard !events.isEmpty else { return }
+            for event in events { notebook.apply(event) }
+            days = notebook.days(calendar: calendar)
+            projectSoon()
+        } catch {
+            NSLog("inbox failed: \(error)")
         }
     }
 
