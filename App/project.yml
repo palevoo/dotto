@@ -36,6 +36,8 @@ targets:
       properties:
         com.apple.security.application-groups:
           - group.social.interface.notebook
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.background-delivery: true
     info:
       path: iOS/Sources/Info.plist
       properties:
@@ -52,6 +54,7 @@ targets:
         NSSpeechRecognitionUsageDescription: To turn a voice note into words, on this device.
         NSLocationWhenInUseUsageDescription: To remember where a line was written. Named later, never asked.
         NSPhotoLibraryUsageDescription: To bring older photos onto the page, on the day they were taken.
+        NSHealthShareUsageDescription: To put a walk on the page as a line, with its distance and time.
     settings:
       groups: [signing]
       base:

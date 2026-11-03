@@ -42,6 +42,7 @@ final class NotebookModel {
 
     private let generator = ULIDGenerator()
     private let location = LocationSpy()
+    let walks = Walks()
     private var watcher: FolderWatcher?
     private var cloud: CloudWatcher?
     private var reloadTask: Task<Void, Never>?
@@ -62,6 +63,23 @@ final class NotebookModel {
         cloud = CloudWatcher(store: store) { [weak self] in
             self?.reloadSoon()
         }
+        walks.resume { [weak self] walks in self?.add(walks) }
+    }
+
+    /// Walks from Health, switched on from the calendar. From then on each one is a line.
+    func turnOnWalks() {
+        Task { await walks.turnOn { [weak self] walks in self?.add(walks) } }
+    }
+
+    /// Each walk is a line at the moment it began, in your ink: it is your walk.
+    private func add(_ walks: [Walks.Walk]) {
+        let events = walks.map { walk in
+            let id = generator.next(at: walk.start)
+            return Event(id: id, author: store.manifest.owner, device: device, at: Date(),
+                         payload: .entryCreate(.init(entry: id, text: Walks.sentence(for: walk, locale: calendar.locale ?? .current),
+                                                     startedAt: walk.start)))
+        }
+        record(events)
     }
 
     /// Lines kept from the share sheet while the app was away go into the notebook now.

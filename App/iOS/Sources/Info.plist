@@ -24,6 +24,8 @@
 	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>To put a photo on the page.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>To put a walk on the page as a line, with its distance and time.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>To remember where a line was written. Named later, never asked.</string>
 	<key>NSMicrophoneUsageDescription</key>

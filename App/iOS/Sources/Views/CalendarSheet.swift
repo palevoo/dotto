@@ -10,25 +10,33 @@ struct CalendarSheet: View {
     let labels: [String: Int]
     let filter: String?
     let home: String
+    let walksOn: Bool
+    let walksAvailable: Bool
     let onPick: (DayKey) -> Void
     let onFilter: (String?) -> Void
     let onMove: () -> Void
+    let onWalks: () -> Void
 
     @State private var month: DateComponents
     @State private var height: CGFloat = 480
     @State private var showsPresses = false
 
     init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?, home: String,
-         onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void, onMove: @escaping () -> Void) {
+         walksOn: Bool, walksAvailable: Bool,
+         onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void, onMove: @escaping () -> Void,
+         onWalks: @escaping () -> Void) {
         self.days = days
         self.today = today
         self.calendar = calendar
         self.labels = labels
         self.filter = filter
         self.home = home
+        self.walksOn = walksOn
+        self.walksAvailable = walksAvailable
         self.onPick = onPick
         self.onFilter = onFilter
         self.onMove = onMove
+        self.onWalks = onWalks
         _month = State(initialValue: DateComponents(year: today.year, month: today.month))
     }
 
@@ -136,6 +144,22 @@ struct CalendarSheet: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Walks from Health, once you say so. A line per walk, from then on.
+            if walksAvailable {
+                if walksOn {
+                    Text("Walks from Health arrive as lines")
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.muted)
+                } else {
+                    Button(action: onWalks) {
+                        Text("Bring walks from Health")
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
         .padding(20)
         .padding(.top, 16)
