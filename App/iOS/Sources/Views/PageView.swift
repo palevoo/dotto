@@ -394,7 +394,7 @@ struct DayDivider: View {
 /// The last row of the page, always in reach: the composer. The margin breathes the
 /// current minute until the first thing arrives, then keeps that moment. Photos from
 /// before offer their own moment there; tap it to choose between then and now. Return
-/// stores the line. Camera, library and mic sit at its end.
+/// stores the line. Camera (hold it for the library) and mic sit at its end while it is empty.
 struct LiveLine: View {
     @Bindable var model: NotebookModel
     var focused: FocusState<Bool>.Binding
@@ -466,28 +466,28 @@ struct LiveLine: View {
                 }
                 .frame(height: 36)
                 .padding(.trailing, 4)
-            } else {
+            } else if model.draftText.isEmpty {
+                // Camera and mic wait at the end of an empty line and step aside once words
+                // start, so the words get the same width as every line above.
                 HStack(spacing: 0) {
-                    Button(action: onCamera) {
-                        Image(systemName: "camera")
-                            .font(.system(size: 17, weight: .light))
-                            .foregroundStyle(Theme.faint)
-                            .frame(width: 36, height: 36)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Photo")
-                    Button(action: onLibrary) {
-                        Image(systemName: "photo.on.rectangle")
-                            .font(.system(size: 17, weight: .light))
-                            .foregroundStyle(Theme.faint)
-                            .frame(width: 36, height: 36)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("From the library")
+                    Image(systemName: "camera")
+                        .font(.system(size: 17, weight: .light))
+                        .foregroundStyle(Theme.faint)
+                        .frame(width: 36, height: 36)
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: onCamera)
+                        .onLongPressGesture(minimumDuration: 0.4) {
+                            Haptic.touch()
+                            onLibrary()
+                        }
+                        .accessibilityLabel("Photo")
+                        .accessibilityHint("Hold for the library")
                     HoldButton(symbol: "mic", label: "Hold to speak", size: 36, onStart: onHoldStart, onEnd: onHoldEnd)
                 }
+                .transition(.opacity)
             }
         }
+        .animation(Motion.settle, value: model.draftText.isEmpty)
         .padding(.leading, 20)
         .padding(.trailing, 8)
         .padding(.top, 10)
