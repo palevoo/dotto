@@ -569,6 +569,13 @@ enum Format {
         return String(format: "%d:%02d", whole / 60, whole % 60)
     }
 
+    /// "0.5×", "1×", "2.3×", as the system camera shows it.
+    static func zoom(_ factor: Double) -> String {
+        let rounded = (factor * 10).rounded() / 10
+        let text = rounded == rounded.rounded() ? String(Int(rounded)) : String(format: "%.1f", rounded)
+        return text + "×"
+    }
+
     /// "41.1496° N · 8.6109° W".
     static func place(_ location: Location) -> String {
         String(format: "%.4f° %@ · %.4f° %@",
