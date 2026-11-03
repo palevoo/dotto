@@ -369,7 +369,7 @@ struct DayDivider: View {
     }
 }
 
-/// The last row of the page, always in reach: the composer. The margin breathes the
+/// The last row of the page, always in reach: the composer. The margin shows the
 /// current minute until the first thing arrives, then keeps that moment. Photos from
 /// before offer their own moment there; tap it to choose between then and now. Return
 /// stores the line. The camera waits at its end while it is empty.
@@ -384,14 +384,11 @@ struct LiveLine: View {
             TimelineView(.everyMinute) { context in
                 let moment = model.draftMoment ?? context.date
                 let offersMoment = model.draftPhotoMoment != nil
-                let waiting = model.draftStartedAt == nil
                 VStack(alignment: .leading, spacing: 3) {
                     Text(Format.time(moment, calendar: model.calendar))
                         .font(Theme.mono)
-                        .foregroundStyle(waiting ? Theme.faint : Theme.muted)
+                        .foregroundStyle(Theme.muted)
                         .monospacedDigit()
-                        .modifier(Breathing(active: waiting))
-                        .animation(nil, value: waiting)
                     if offersMoment {
                         Text(model.draftKeepsPhotoMoment ? Format.shortDay(moment, calendar: model.calendar) : "today")
                             .font(.system(size: 10, design: .monospaced))
@@ -431,8 +428,8 @@ struct LiveLine: View {
                 // start, so the words get the same width as every line above.
                 Button(action: onCamera) {
                     Image(systemName: "camera")
-                        .font(.system(size: 17, weight: .light))
-                        .foregroundStyle(Theme.faint)
+                        .font(.system(size: 17, weight: .regular))
+                        .foregroundStyle(Theme.muted)
                         .frame(width: 36, height: 36)
                 }
                 .buttonStyle(.plain)
@@ -481,23 +478,6 @@ struct DraftMediaRow: View {
     }
 }
 
-/// A slow pulse while nothing has been written yet. Off, the view is simply itself, so
-/// switching has no fade of its own.
-struct Breathing: ViewModifier {
-    let active: Bool
-
-    func body(content: Content) -> some View {
-        if active {
-            content.phaseAnimator([1.0, 0.4]) { view, phase in
-                view.opacity(phase)
-            } animation: { _ in
-                .easeInOut(duration: 1.8)
-            }
-        } else {
-            content
-        }
-    }
-}
 
 enum Format {
     static func time(_ date: Date, calendar: Calendar) -> String {
