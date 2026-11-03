@@ -128,43 +128,14 @@ public struct FileStore: Sendable {
         return events.sorted { $0.id < $1.id }
     }
 
-    /// The event files present on disk. Files iCloud has not pulled down yet show as
-    /// `.name.jsonl.icloud`; those are asked for and will be there next time.
+    /// The event files on disk. In iCloud Drive a file not pulled down yet shows as
+    /// `.name.jsonl.icloud` and is not one of them; `CloudWatcher` asks for those.
     public func eventFiles() throws -> [URL] {
         guard FileManager.default.fileExists(atPath: eventsDirectory.path) else { return [] }
-        freshen()
         return try FileManager.default.contentsOfDirectory(atPath: eventsDirectory.path)
             .filter { $0.hasSuffix(".jsonl") }
             .sorted()
             .map { eventsDirectory.appendingPathComponent($0) }
-    }
-
-    /// When the folder is in iCloud Drive, asks for the newest copy of every event file:
-    /// the placeholders not pulled down yet and the files another device has appended to
-    /// since. Elsewhere this does nothing. Returns true when every file is current now.
-    @discardableResult
-    public func freshen() -> Bool {
-        guard let names = try? FileManager.default.contentsOfDirectory(atPath: eventsDirectory.path) else { return true }
-        var current = true
-        for name in names where name.hasSuffix(".jsonl") || name.hasSuffix(".icloud") {
-            let url = eventsDirectory.appendingPathComponent(name)
-            let values = try? url.resourceValues(forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey])
-            guard values?.isUbiquitousItem == true else { continue }
-            if values?.ubiquitousItemDownloadingStatus != .current {
-                current = false
-                try? FileManager.default.startDownloadingUbiquitousItem(at: url)
-            }
-        }
-        return current
-    }
-
-    /// Asks iCloud for the newest copies and gives it a moment to deliver them, so a read
-    /// right after another device wrote sees what it wrote. Returns as soon as all is current.
-    public func freshen(waitingUpTo seconds: TimeInterval) {
-        let deadline = Date().addingTimeInterval(seconds)
-        while !freshen(), Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.1)
-        }
     }
 
     private func coordinated<T>(reading url: URL, _ body: (URL) throws -> T) throws -> T {

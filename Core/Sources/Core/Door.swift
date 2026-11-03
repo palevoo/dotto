@@ -180,7 +180,6 @@ public struct Door: Sendable {
 
     public func run(_ name: String, _ arguments: [String: Any]) throws -> String {
         guard let tool = Tool(rawValue: name) else { throw Failure.unknownTool(name) }
-        store.freshen(waitingUpTo: 2)
         let notebook = try store.load()
 
         switch tool {

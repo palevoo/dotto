@@ -43,6 +43,7 @@ final class NotebookModel {
     private let generator = ULIDGenerator()
     private let location = LocationSpy()
     private var watcher: FolderWatcher?
+    private var cloud: CloudWatcher?
     private var reloadTask: Task<Void, Never>?
     private var projectTask: Task<Void, Never>?
 
@@ -56,6 +57,9 @@ final class NotebookModel {
         reload()
         takeInbox()
         watcher = FolderWatcher(directory: store.eventsDirectory) { [weak self] in
+            self?.reloadSoon()
+        }
+        cloud = CloudWatcher(store: store) { [weak self] in
             self?.reloadSoon()
         }
     }

@@ -24,7 +24,7 @@ final class MacModel {
     private let shared = DoorState()
     private var server: DoorServer?
     private var watcher: FolderWatcher?
-    private var freshenTask: Task<Void, Never>?
+    private var cloud: CloudWatcher?
     private var summaryTask: Task<Void, Never>?
 
     init() {
@@ -83,18 +83,14 @@ final class MacModel {
     }
 
     /// The folder is watched, so a line the phone writes shows here on its own. When the
-    /// folder is in iCloud Drive the newest copies are also asked for every so often, since
-    /// the Mac does not pull them down until something asks.
+    /// folder is in iCloud Drive, iCloud is asked to say when a file has a newer version,
+    /// and the bytes are pulled down the moment it does.
     private func keepFresh(_ store: FileStore) {
         watcher = FolderWatcher(directory: store.eventsDirectory) { [weak self] in
             self?.refreshSummarySoon()
         }
-        freshenTask?.cancel()
-        freshenTask = Task.detached(priority: .utility) {
-            while !Task.isCancelled {
-                store.freshen()
-                try? await Task.sleep(for: .seconds(20))
-            }
+        cloud = CloudWatcher(store: store) { [weak self] in
+            self?.refreshSummarySoon()
         }
     }
 
