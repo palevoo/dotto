@@ -12,6 +12,7 @@ final class Launch {
     enum Request {
         case write
         case photo
+        case speak
     }
 
     var request: Request?
@@ -26,6 +27,19 @@ struct WriteIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult {
         Launch.shared.request = .write
+        return .result()
+    }
+}
+
+/// One press: recording starts; the words land in the line when you stop.
+struct SpeakIntent: AppIntent {
+    static let title: LocalizedStringResource = "Speak"
+    static let description = IntentDescription("Opens Margin and starts listening.")
+    static let openAppWhenRun = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        Launch.shared.request = .speak
         return .result()
     }
 }

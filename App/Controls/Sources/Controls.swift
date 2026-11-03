@@ -8,7 +8,20 @@ import WidgetKit
 struct MarginControls: WidgetBundle {
     var body: some Widget {
         WriteControl()
+        SpeakControl()
         PhotoControl()
+    }
+}
+
+struct SpeakControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "social.interface.notebook.speak") {
+            ControlWidgetButton(action: SpeakIntent()) {
+                Label("Speak", systemImage: "mic")
+            }
+        }
+        .displayName("Speak")
+        .description("Margin, listening.")
     }
 }
 

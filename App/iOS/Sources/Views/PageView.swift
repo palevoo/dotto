@@ -19,6 +19,7 @@ struct PageView: View {
     @State private var filter: String?
     @State private var revealed: ULID?
     @State private var launch = Launch.shared
+    @State private var recorder = VoiceRecorder()
     @Namespace private var zoom
     @FocusState private var liveFocused: Bool
 
@@ -85,8 +86,11 @@ struct PageView: View {
                     LiveLine(
                         model: model,
                         focused: $liveFocused,
+                        recorder: recorder,
                         onReturn: { storeDraft(proxy) },
-                        onCamera: { showCamera = true }
+                        onCamera: { showCamera = true },
+                        onSpeak: { speak() },
+                        onStopSpeaking: { finishVoice() }
                     )
                     .background(Theme.background)
                     .overlay(alignment: .top) {
@@ -102,6 +106,8 @@ struct PageView: View {
                         labels: model.notebook.labelCounts,
                         filter: filter,
                         home: Library.describe(model.store),
+                        walksOn: model.walks.isOn,
+                        walksAvailable: model.walks.available,
                         onPick: { key in
                             showCalendar = false
                             withAnimation(Motion.settle) { proxy.scrollTo(key, anchor: .top) }
@@ -113,6 +119,10 @@ struct PageView: View {
                         onMove: {
                             showCalendar = false
                             showMove = true
+                        },
+                        onWalks: {
+                            showCalendar = false
+                            model.turnOnWalks()
                         }
                     )
                     .presentationBackground(Theme.paper)
@@ -172,6 +182,7 @@ struct PageView: View {
                     switch request {
                     case .write: liveFocused = true
                     case .photo: showCamera = true
+                    case .speak: speak()
                     }
                 }
             }
@@ -220,6 +231,24 @@ struct PageView: View {
             withAnimation(.easeOut(duration: 0.8)) {
                 if revealed == id { revealed = nil }
             }
+        }
+    }
+
+    private func speak() {
+        guard !recorder.isRecording else { return }
+        liveFocused = false
+        Haptic.touch()
+        Task { await recorder.start() }
+    }
+
+    /// The take lands in the live line: the words as text to fix, the audio behind them.
+    private func finishVoice() {
+        guard let take = recorder.stop() else { return }
+        Haptic.touch()
+        Task {
+            let transcript = await Transcriber.transcribe(take.fileURL)
+            model.addVoice(fileURL: take.fileURL, duration: take.duration, transcript: transcript, startedAt: take.startedAt)
+            liveFocused = true
         }
     }
 
@@ -386,12 +415,16 @@ struct DayDivider: View {
 /// The last row of the page, always in reach: the composer. The margin shows the
 /// current minute until the first thing arrives, then keeps that moment. Photos from
 /// before offer their own moment there; tap it to choose between then and now. Return
-/// stores the line. The camera waits at its end while it is empty.
+/// stores the line. The camera and the mic wait at its end while it is empty; while
+/// speaking, a red square and the time stand there, and a tap on them stops.
 struct LiveLine: View {
     @Bindable var model: NotebookModel
     var focused: FocusState<Bool>.Binding
+    let recorder: VoiceRecorder
     let onReturn: () -> Void
     let onCamera: () -> Void
+    let onSpeak: () -> Void
+    let onStopSpeaking: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -437,21 +470,51 @@ struct LiveLine: View {
                         onReturn()
                     }
             }
-            if model.draftText.isEmpty {
-                // The camera waits at the end of an empty line and steps aside once words
-                // start, so the words get the same width as every line above.
-                Button(action: onCamera) {
-                    Image(systemName: "camera")
-                        .font(.system(size: 17, weight: .regular))
-                        .foregroundStyle(Theme.muted)
-                        .frame(width: 36, height: 36)
+            if recorder.isRecording, let started = recorder.startedAt {
+                Button(action: onStopSpeaking) {
+                    HStack(spacing: 8) {
+                        Theme.square(12)
+                            .fill(Theme.recording)
+                            .frame(width: 12, height: 12)
+                        TimelineView(.periodic(from: started, by: 1)) { context in
+                            Text(Format.duration(context.date.timeIntervalSince(started)))
+                                .font(Theme.mono)
+                                .foregroundStyle(Theme.foreground)
+                                .monospacedDigit()
+                        }
+                    }
+                    .frame(height: 36)
+                    .padding(.horizontal, 8)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Photo")
+                .accessibilityLabel("Stop")
+                .transition(.opacity)
+            } else if model.draftText.isEmpty {
+                // Camera and mic wait at the end of an empty line and step aside once words
+                // start, so the words get the same width as every line above.
+                HStack(spacing: 4) {
+                    Button(action: onCamera) {
+                        Image(systemName: "camera")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(Theme.muted)
+                            .frame(width: 36, height: 36)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Photo")
+                    Button(action: onSpeak) {
+                        Image(systemName: "mic")
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundStyle(Theme.muted)
+                            .frame(width: 36, height: 36)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Speak")
+                }
                 .transition(.opacity)
             }
         }
         .animation(Motion.settle, value: model.draftText.isEmpty)
+        .animation(Motion.settle, value: recorder.isRecording)
         .padding(.leading, 20)
         .padding(.trailing, 12)
         .padding(.top, 10)

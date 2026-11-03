@@ -10,6 +10,12 @@ struct MarginShortcuts: AppShortcutsProvider {
             systemImageName: "pencil.line"
         )
         AppShortcut(
+            intent: SpeakIntent(),
+            phrases: ["Speak in \(.applicationName)", "Speak to \(.applicationName)"],
+            shortTitle: "Speak",
+            systemImageName: "mic"
+        )
+        AppShortcut(
             intent: PhotoIntent(),
             phrases: ["Photo in \(.applicationName)", "Take a photo in \(.applicationName)"],
             shortTitle: "Photo",

@@ -77,16 +77,15 @@ enum PhotoLibrary {
     }
 }
 
-/// Hold to speak. The audio is kept; the words are made on this device.
+/// Tap to speak, tap to stop. The audio is kept; the words are made on this device.
+/// The elapsed time is drawn by the view from `startedAt`; nothing ticks here.
 @MainActor
 @Observable
 final class VoiceRecorder {
     private(set) var isRecording = false
     private(set) var startedAt: Date?
-    private(set) var elapsed: TimeInterval = 0
 
     private var recorder: AVAudioRecorder?
-    private var ticker: Task<Void, Never>?
 
     struct Take {
         let fileURL: URL
@@ -115,15 +114,7 @@ final class VoiceRecorder {
             }
             self.recorder = recorder
             startedAt = Date()
-            elapsed = 0
             isRecording = true
-            ticker = Task { [weak self] in
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .milliseconds(200))
-                    guard let self, let started = self.startedAt else { return }
-                    self.elapsed = Date().timeIntervalSince(started)
-                }
-            }
         } catch {
             NSLog("record failed: \(error)")
         }
@@ -131,7 +122,6 @@ final class VoiceRecorder {
 
     /// Stops and returns the take, or nil if it was too short to keep.
     func stop() -> Take? {
-        ticker?.cancel()
         guard let recorder, let startedAt else { return nil }
         recorder.stop()
         let duration = Date().timeIntervalSince(startedAt)
