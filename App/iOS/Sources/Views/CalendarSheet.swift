@@ -16,6 +16,7 @@ struct CalendarSheet: View {
 
     @State private var month: DateComponents
     @State private var height: CGFloat = 480
+    @State private var showsPresses = false
 
     init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?, home: String,
          onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void, onMove: @escaping () -> Void) {
@@ -111,6 +112,30 @@ struct CalendarSheet: View {
                 Spacer()
             }
             .padding(.top, 4)
+
+            // Where the one-press ways in are switched on. Tap to see the path through Settings.
+            VStack(alignment: .leading, spacing: 6) {
+                Button {
+                    withAnimation(Motion.settle) { showsPresses.toggle() }
+                } label: {
+                    Text("Write or take a photo with one press")
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.plain)
+                if showsPresses {
+                    Text("Action button: Settings · Action Button · Controls · Margin")
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.muted)
+                    Text("Lock screen or Control Center: hold, Add a Control, Margin")
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.muted)
+                    Text("Siri: “Write in Margin”, “Photo in Margin”")
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.muted)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(20)
         .padding(.top, 16)
