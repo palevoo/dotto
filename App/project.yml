@@ -24,9 +24,11 @@ targets:
     platform: iOS
     sources:
       - path: iOS/Sources
+      - path: iOS/Shared
     dependencies:
       - package: Core
         product: Core
+      - target: MarginControls
     info:
       path: iOS/Sources/Info.plist
       properties:
@@ -52,6 +54,27 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  # Control Center, lock screen and Action button controls. Nothing but two buttons
+  # that open the app; the intents they press live in iOS/Shared.
+  MarginControls:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Controls/Sources
+      - path: iOS/Shared
+    info:
+      path: Controls/Info.plist
+      properties:
+        CFBundleDisplayName: Margin
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      groups: [signing]
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook.controls
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: true
 
   MarginMac:
     type: application

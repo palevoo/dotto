@@ -18,6 +18,7 @@ struct PageView: View {
     @State private var viewing: PhotoOpening?
     @State private var filter: String?
     @State private var revealed: ULID?
+    @State private var launch = Launch.shared
     @Namespace private var zoom
     @FocusState private var liveFocused: Bool
 
@@ -159,6 +160,19 @@ struct PageView: View {
                 }
                 .onChange(of: liveFocused) { _, focused in
                     if !focused { storeDraft(proxy) }
+                }
+                // A press from outside: the Action button, a control, Siri. Back to the
+                // page, then the line or the camera.
+                .onChange(of: launch.request, initial: true) { _, request in
+                    guard let request else { return }
+                    launch.request = nil
+                    path = NavigationPath()
+                    viewing = nil
+                    showCalendar = false
+                    switch request {
+                    case .write: liveFocused = true
+                    case .photo: showCamera = true
+                    }
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
