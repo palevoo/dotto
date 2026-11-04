@@ -14,6 +14,9 @@ job, or several readers sharing the ink. The name is the identity; the mechanism
   line is a question.
 - Labels are lower-case words for finding things later, filed only when the word will be
   useful. The owner never types them.
+- A link joins a later line to an earlier one it carries on from, and may say the later
+  line finished what the earlier one opened. The owner never places one, and can take any
+  one back.
 
 ## What is deliberately open
 

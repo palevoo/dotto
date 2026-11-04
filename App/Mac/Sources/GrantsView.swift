@@ -79,7 +79,7 @@ struct GrantsView: View {
                     .font(MacTheme.mono)
                     .foregroundStyle(MacTheme.foreground)
             }
-            Text("Only a program holding one of the keys below gets in. It can read the notebook and write notes and labels in its own ink. It cannot touch your lines.")
+            Text("Only a program holding one of the keys below gets in. It can read the notebook and write notes, labels and links between lines in its own ink. It cannot touch your lines.")
                 .font(MacTheme.body)
                 .foregroundStyle(MacTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)

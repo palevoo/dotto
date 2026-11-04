@@ -55,10 +55,12 @@ Kinds, first vocabulary:
     place.resolve  {entry, name}                     a reader names the coordinates
     note.add       {entry, note, text}               a reader's line under yours
     note.remove    {note}
-    todo.open      {entry, todo, text, where?, when?}
-    todo.close     {todo, by_entry}
     label.attach   {entry, label}                    never typed by you
     label.detach   {entry, label}
+    link.add       {later, earlier, closes}          a later line carries on from an earlier one;
+                                                     closes: it finished what the earlier one opened
+    link.remove    {later, earlier}                  the owner takes a link back
+    visit          {what, since?, label?, count, …}  a reader's receipt for a read
     grant.create   {grant, to, slice, mode, scopes}  see §4
     grant.revoke   {grant}
 
@@ -67,8 +69,9 @@ is a group of entries. Nothing is overwritten. Edits are events, so history exis
 without a versions feature.
 
 **The invariant.** Only the owner ever writes `entry.*`. Every other author, weeju
-included, appends to its own layer: notes, atoms, labels, to-dos, views. A layer is
-removable wholesale by author. Different author, different ink.
+included, appends to its own layer: notes, labels, links, views. A layer is removable
+wholesale by author. Different author, different ink. A to-do is not a kind: an
+intention is a line, and the line that carries it out links back with `closes`.
 
 Conflicts: two devices editing one line in the same minute is the only case, last write
 wins. The live line alone can become a text CRDT later if it ever matters.

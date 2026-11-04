@@ -56,6 +56,8 @@ command in the Core package does that from a terminal:
     .build/debug/notebook list <folder> --label margin        the lines under a label
     .build/debug/notebook label <folder> <entry-id> margin    label a line (as weeju)
     .build/debug/notebook note <folder> <entry-id> "shipped"  a line under yours (as weeju)
+    .build/debug/notebook link <folder> <later-id> <earlier-id> [--closes]
+                                                              the later line carries on from the earlier
     .build/debug/notebook show <folder>                       the fold, as day pages
 
 ## The door
@@ -63,8 +65,13 @@ command in the Core package does that from a terminal:
 The Mac app is sandboxed: it sees the folder you pick and nothing else. It serves the
 Model Context Protocol on `127.0.0.1:27830/mcp`, behind a key per grant. A grant is a
 row in its window: who, which ink they write in, what they may do. Tools: `read_days`,
-`list_lines`, `read_photo`, `add_note`, `set_label`. Writes land in the grant's own event
-file; no grant can touch your lines. Revoke the row and the key is gone.
+`list_lines`, `read_photo`, `add_note`, `set_label`, `link_lines`. Writes land in the
+grant's own event file; no grant can touch your lines. Revoke the row and the key is gone.
+
+A link joins a later line to an earlier one it carries on from: the same plant, book or
+errand, written days apart. When the later line finishes what the earlier one asked for,
+the link says so and the earlier line is struck through on the page. A line's own page
+shows its thread in the reader's ink; hold a row there to take the link back.
 
 Every read leaves a receipt: a `visit` event in the grant's file saying what was asked for
 and how much came back. The phone shows the latest one on the calendar sheet and the whole

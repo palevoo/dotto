@@ -267,6 +267,11 @@ final class NotebookModel {
         record(.entryDelete(.init(entry: entry)))
     }
 
+    /// A reader's link taken back, in your ink. Your words on either line are untouched.
+    func unlink(_ link: Core.Link) {
+        record(.linkRemove(.init(later: link.later, earlier: link.earlier)))
+    }
+
     func mediaURL(_ media: Media) -> URL {
         store.mediaURL(hash: media.hash, fileExtension: Projector.fileExtension(forMIME: media.mime))
     }

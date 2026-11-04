@@ -3,8 +3,8 @@ import SwiftUI
 import UIKit
 
 /// One line, opened: the words at full width and selectable, the photos large, the voice,
-/// the thread of replies with a place to answer, the labels, and the history of who did
-/// what to it.
+/// the lines it carries on from and the ones that carry on from it, the thread of replies
+/// with a place to answer, the labels, and the history of who did what to it.
 struct LineView: View {
     let entryID: ULID
     @Bindable var model: NotebookModel
@@ -78,6 +78,7 @@ struct LineView: View {
                     Text(entry.text)
                         .font(.system(size: 20, design: .serif))
                         .foregroundStyle(Theme.foreground)
+                        .strikethrough(entry.closedBy != nil, color: Theme.muted)
                         .lineSpacing(5)
                         .textSelection(.enabled)
                 } else {
@@ -92,6 +93,10 @@ struct LineView: View {
                             .foregroundStyle(Theme.faint)
                     }
                     .buttonStyle(.plain)
+                }
+
+                if !entry.earlier.isEmpty || !entry.later.isEmpty {
+                    ThreadView(entry: entry, model: model)
                 }
 
                 VStack(alignment: .leading, spacing: 12) {
@@ -214,6 +219,80 @@ struct LineView: View {
 struct PhotoSelection: Identifiable {
     let index: Int
     var id: Int { index }
+}
+
+/// The lines this one carries on from, and the ones that carry on from it, as a reader
+/// placed them: in the reader's ink, each a day and the line's first words. Tap one to go
+/// there; hold one to take the link back.
+struct ThreadView: View {
+    let entry: Entry
+    @Bindable var model: NotebookModel
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Theme.square(4)
+                .fill(Theme.agent.opacity(0.5))
+                .frame(width: 2)
+            VStack(alignment: .leading, spacing: 10) {
+                group("earlier", entry.earlier, side: \.earlier) { $0.closes ? "done by this line" : nil }
+                group("later", entry.later, side: \.later) { $0.closes ? "done" : nil }
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    @ViewBuilder
+    private func group(_ title: String, _ links: [Core.Link], side: KeyPath<Core.Link, ULID>, mark: @escaping (Core.Link) -> String?) -> some View {
+        if !links.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(Theme.mono)
+                    .foregroundStyle(Theme.agent.opacity(0.7))
+                ForEach(links) { link in
+                    if let other = model.notebook.entry(link[keyPath: side]) {
+                        NavigationLink(value: other.id) {
+                            ThreadRow(line: other, mark: mark(link), calendar: model.calendar)
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button("Take the link back", systemImage: "minus.circle", role: .destructive) {
+                                withAnimation(Motion.settle) { model.unlink(link) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// One line of the thread: when, then its first words, then what the link says about it.
+struct ThreadRow: View {
+    let line: Entry
+    let mark: String?
+    let calendar: Calendar
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(Format.shortDay(line.startedAt, calendar: calendar))
+                .font(Theme.mono)
+                .foregroundStyle(Theme.agent.opacity(0.7))
+                .frame(width: 44, alignment: .leading)
+            Text(line.text.isEmpty ? "a photo" : line.text)
+                .font(Theme.sansSmall)
+                .foregroundStyle(Theme.agent)
+                .lineLimit(2)
+                .truncationMode(.tail)
+            if let mark {
+                Text(mark)
+                    .font(Theme.mono)
+                    .foregroundStyle(Theme.agent.opacity(0.7))
+                    .fixedSize()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
 }
 
 /// A photo at the width of the page, in its own proportions.

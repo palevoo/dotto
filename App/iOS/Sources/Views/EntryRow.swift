@@ -41,9 +41,12 @@ struct EntryRow: View {
                     VoiceChip(hash: voice.hash, duration: voice.duration ?? 0, url: model.mediaURL(voice))
                 }
                 if !entry.text.isEmpty {
+                    // A line a later line finished is struck through, and that is all the page says.
+                    let done = entry.closedBy != nil
                     Text(entry.text)
                         .font(Theme.serif)
-                        .foregroundStyle(Theme.foreground)
+                        .foregroundStyle(done ? Theme.muted : Theme.foreground)
+                        .strikethrough(done, color: Theme.muted)
                         .lineSpacing(4)
                 }
                 if !entry.notes.isEmpty {
