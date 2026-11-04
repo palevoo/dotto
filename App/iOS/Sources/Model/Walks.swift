@@ -3,14 +3,17 @@ import Foundation
 import HealthKit
 
 /// Walks, runs, hikes and rides from Health, each one a line on its day with its distance
-/// and time, from the moment you switch it on. Health wakes the app when a workout ends,
+/// and time, from the day you switch it on. Health wakes the app when a workout ends,
 /// even in the background, so the line is there before you look.
 @MainActor
 @Observable
 final class Walks {
     private static let onKey = "walks.on"
-    private static let sinceKey = "walks.since"
-    private static let anchorKey = "walks.anchor"
+    /// The start of the day walks were switched on. That whole day counts, nothing older.
+    private static let fromKey = "walks.from"
+    private static let anchorKey = "walks.anchor.1"
+    /// Keys from the first build, where only workouts after the exact moment counted.
+    private static let oldKeys = ["walks.since", "walks.anchor"]
 
     struct Walk: Sendable {
         let id: UUID
@@ -28,16 +31,14 @@ final class Walks {
 
     var available: Bool { HKHealthStore.isHealthDataAvailable() }
 
-    /// Asked once. Workouts from this moment on come in; earlier ones stay where they are.
+    /// Asked once. Workouts from the start of today on come in; earlier ones stay where they are.
     /// Call with nothing else presented: Health shows its permission sheet from here.
     func turnOn(_ handler: @escaping @MainActor ([Walk]) -> Void) async {
         guard available else { return }
         trouble = nil
         do {
             try await health.requestAuthorization(toShare: [], read: [HKObjectType.workoutType()])
-            if UserDefaults.standard.object(forKey: Self.sinceKey) == nil {
-                UserDefaults.standard.set(Date(), forKey: Self.sinceKey)
-            }
+            _ = firstDay()   // fixed now: the day the switch was flipped
             UserDefaults.standard.set(true, forKey: Self.onKey)
             isOn = true
             try await health.enableBackgroundDelivery(for: .workoutType(), frequency: .immediate)
@@ -64,10 +65,19 @@ final class Walks {
         Task { await fetchNew(handler) }
     }
 
+    /// The start of the day walks were switched on, fixed the first time it is asked for.
+    private func firstDay() -> Date {
+        let defaults = UserDefaults.standard
+        if let date = defaults.object(forKey: Self.fromKey) as? Date { return date }
+        let date = Calendar.current.startOfDay(for: Date())
+        defaults.set(date, forKey: Self.fromKey)
+        Self.oldKeys.forEach(defaults.removeObject(forKey:))
+        return date
+    }
+
     /// Only what has not been seen before, by Health's own anchor.
     private func fetchNew(_ handler: @MainActor ([Walk]) -> Void) async {
-        let since = UserDefaults.standard.object(forKey: Self.sinceKey) as? Date ?? Date()
-        let predicate = HKQuery.predicateForSamples(withStart: since, end: nil, options: .strictStartDate)
+        let predicate = HKQuery.predicateForSamples(withStart: firstDay(), end: nil, options: .strictStartDate)
         let anchor = UserDefaults.standard.data(forKey: Self.anchorKey)
             .flatMap { try? NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: $0) }
         let (samples, newAnchor): ([HKSample], HKQueryAnchor?) = await withCheckedContinuation { continuation in
