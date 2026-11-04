@@ -41,6 +41,7 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case noteRemove = "note.remove"
     case labelAttach = "label.attach"
     case labelDetach = "label.detach"
+    case visit = "visit"
 }
 
 /// What happened. One case per kind, each with a fixed shape.
@@ -53,6 +54,7 @@ public enum Payload: Hashable, Sendable {
     case noteRemove(NoteRemove)
     case labelAttach(LabelAttach)
     case labelDetach(LabelDetach)
+    case visit(Visit)
 
     public var kind: Kind {
         switch self {
@@ -64,6 +66,36 @@ public enum Payload: Hashable, Sendable {
         case .noteRemove: .noteRemove
         case .labelAttach: .labelAttach
         case .labelDetach: .labelDetach
+        case .visit: .visit
+        }
+    }
+
+    /// A reader read something. The receipt: what was asked for and how much came back,
+    /// so the owner can see every read, not only every write.
+    public struct Visit: Hashable, Codable, Sendable {
+        public enum What: String, Codable, Sendable {
+            case days, lines, photo
+        }
+
+        public var what: What
+        /// Only days on or after this one were asked for, `YYYY-MM-DD`.
+        public var since: String?
+        /// Only lines under this label were asked for.
+        public var label: String?
+        /// Lines that came back, or 1 for a photo.
+        public var count: Int
+        /// The line a photo was taken from.
+        public var entry: ULID?
+        /// The photo looked at.
+        public var hash: String?
+
+        public init(what: What, since: String? = nil, label: String? = nil, count: Int, entry: ULID? = nil, hash: String? = nil) {
+            self.what = what
+            self.since = since
+            self.label = label
+            self.count = count
+            self.entry = entry
+            self.hash = hash
         }
     }
 
@@ -220,6 +252,7 @@ extension Event: Codable {
         case .noteRemove: .noteRemove(try container.decode(Payload.NoteRemove.self, forKey: .payload))
         case .labelAttach: .labelAttach(try container.decode(Payload.LabelAttach.self, forKey: .payload))
         case .labelDetach: .labelDetach(try container.decode(Payload.LabelDetach.self, forKey: .payload))
+        case .visit: .visit(try container.decode(Payload.Visit.self, forKey: .payload))
         }
     }
 
@@ -239,6 +272,7 @@ extension Event: Codable {
         case .noteRemove(let p): try container.encode(p, forKey: .payload)
         case .labelAttach(let p): try container.encode(p, forKey: .payload)
         case .labelDetach(let p): try container.encode(p, forKey: .payload)
+        case .visit(let p): try container.encode(p, forKey: .payload)
         }
     }
 }

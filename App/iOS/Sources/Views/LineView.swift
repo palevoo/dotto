@@ -128,18 +128,19 @@ struct LineView: View {
                     }
                 }
 
-                if !entry.activity.isEmpty {
+                let history = history(of: entry, owner: owner)
+                if !history.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("History")
                             .font(Theme.mono)
                             .foregroundStyle(Theme.faint)
-                        ForEach(entry.activity) { item in
+                        ForEach(history) { item in
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
                                 Text(Format.time(item.at, calendar: model.calendar))
                                     .font(Theme.mono)
                                     .foregroundStyle(Theme.faint)
                                     .frame(width: 44, alignment: .leading)
-                                Text(describe(item, owner: owner))
+                                Text(item.text)
                                     .font(Theme.mono)
                                     .foregroundStyle(Theme.muted)
                             }
@@ -184,6 +185,22 @@ struct LineView: View {
             try? await Task.sleep(for: .milliseconds(350))
             withAnimation(Motion.settle) { proxy.scrollTo(id, anchor: .center) }
         }
+    }
+
+    private struct HistoryItem: Identifiable {
+        let id: ULID
+        let at: Date
+        let text: String
+    }
+
+    /// What was done to the line and who read it, in one order.
+    private func history(of entry: Entry, owner: Author) -> [HistoryItem] {
+        let done = entry.activity.map { HistoryItem(id: $0.id, at: $0.at, text: describe($0, owner: owner)) }
+        let read = model.notebook.reads(of: entry, calendar: model.calendar).map { visit in
+            HistoryItem(id: visit.id, at: visit.at,
+                        text: "\(visit.author.rawValue) \(visit.read.what == .photo ? "looked at a photo" : "read this"), via \(visit.device.rawValue)")
+        }
+        return (done + read).sorted { $0.id < $1.id }
     }
 
     private func describe(_ item: Activity, owner: Author) -> String {

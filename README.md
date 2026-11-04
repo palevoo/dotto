@@ -63,8 +63,12 @@ command in the Core package does that from a terminal:
 The Mac app is sandboxed: it sees the folder you pick and nothing else. It serves the
 Model Context Protocol on `127.0.0.1:27830/mcp`, behind a key per grant. A grant is a
 row in its window: who, which ink they write in, what they may do. Tools: `read_days`,
-`list_lines`, `add_note`, `set_label`. Writes land in the grant's own event file; no grant
-can touch your lines. Revoke the row and the key is gone.
+`list_lines`, `read_photo`, `add_note`, `set_label`. Writes land in the grant's own event
+file; no grant can touch your lines. Revoke the row and the key is gone.
+
+Every read leaves a receipt: a `visit` event in the grant's file saying what was asked for
+and how much came back. The phone shows the latest one on the calendar sheet and the whole
+log behind it; a line's History says who read it. The Mac window has the same log.
 
 ## Building Margin with Margin
 

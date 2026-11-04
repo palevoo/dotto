@@ -18,6 +18,8 @@ final class EventTests: XCTestCase {
             .noteRemove(.init(note: note)),
             .labelAttach(.init(entry: entry, label: "margin")),
             .labelDetach(.init(entry: entry, label: "margin")),
+            .visit(.init(what: .days, since: "2026-11-01", label: "bug", count: 4)),
+            .visit(.init(what: .photo, count: 1, entry: entry, hash: "abc")),
         ]
         for payload in payloads {
             let event = Event(id: ULID(), author: me, device: phone, at: at, payload: payload)

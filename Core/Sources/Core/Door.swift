@@ -63,22 +63,24 @@ public struct Door: Sendable {
     public static func conduct(for grant: Grant) -> String {
         """
         This is \(grant.name)'s door into one person's notebook. The lines are theirs: written \
-        for themselves, with no audience in mind. You read with read_days or list_lines, and you \
-        may leave a note under a line or file it under a label, in the ink of \(grant.author).
+        for themselves, with no audience in mind. You read with read_days or list_lines, look at \
+        a photo with read_photo, and you may leave a note under a line or file it under a label, \
+        in the ink of \(grant.author).
 
         What a note is for is not fixed. It may acknowledge, organise, move something forward, \
         close something that an earlier line opened, answer a question the line asked, or simply \
         keep company. Read what the line asks for and do that, in one short line. When nothing is \
         asked for, say nothing: silence is the default and most lines want none. Never restate \
         the line, never praise, never touch the owner's words. Labels are lower-case words for \
-        finding things later; file a line only when the word will be useful. Everything you do \
-        is recorded under the line with your name, where the owner can see it.
+        finding things later; file a line only when the word will be useful. Everything you do, \
+        reading included, is recorded with your name where the owner can see it.
         """
     }
 
     public enum Tool: String, CaseIterable, Sendable {
         case readDays = "read_days"
         case listLines = "list_lines"
+        case readPhoto = "read_photo"
         case addNote = "add_note"
         case setLabel = "set_label"
 
@@ -87,6 +89,12 @@ public struct Door: Sendable {
             let label: [String: Any] = ["type": "string", "description": "Only lines filed under this label."]
             let entry: [String: Any] = ["type": "string", "description": "The line's id, from list_lines."]
             switch self {
+            case .readPhoto:
+                return ["name": rawValue,
+                        "description": "A photo from a line, to look at. The hash is in the photo's path in read_days; without it, the line's first photo.",
+                        "inputSchema": ["type": "object",
+                                        "properties": ["entry": entry, "hash": ["type": "string", "description": "Which photo, when the line has several."]],
+                                        "required": ["entry"]]]
             case .readDays:
                 return ["name": rawValue,
                         "description": "The notebook as day pages in markdown: the owner's lines with their times, photos and voice notes, readers' notes under them, labels.",
@@ -112,6 +120,7 @@ public struct Door: Sendable {
     public enum Failure: Error, CustomStringConvertible {
         case notAllowed(String)
         case noSuchLine(String)
+        case noSuchPhoto(String)
         case missing(String)
         case unknownTool(String)
         case badDay(String)
@@ -120,12 +129,22 @@ public struct Door: Sendable {
             switch self {
             case .notAllowed(let what): "This grant may not \(what)."
             case .noSuchLine(let id): "No line with id \(id)."
+            case .noSuchPhoto(let id): "No photo on line \(id), or its file is not on this Mac yet."
             case .missing(let field): "Missing \(field)."
             case .unknownTool(let name): "No tool named \(name)."
             case .badDay(let text): "Not a day: \(text). Use YYYY-MM-DD."
             }
         }
     }
+
+    /// What a tool hands back: words, or a picture.
+    public enum Answer: Sendable {
+        case text(String)
+        case image(Data, mime: String)
+    }
+
+    /// The long side of a photo as a reader sees it.
+    public static let photoSide = 1568
 
     // MARK: - JSON-RPC
 
@@ -169,8 +188,12 @@ public struct Door: Sendable {
         let name = params["name"] as? String ?? ""
         let arguments = params["arguments"] as? [String: Any] ?? [:]
         do {
-            let text = try run(name, arguments)
-            return ["content": [["type": "text", "text": text]]]
+            switch try run(name, arguments) {
+            case .text(let text):
+                return ["content": [["type": "text", "text": text]]]
+            case .image(let data, let mime):
+                return ["content": [["type": "image", "data": data.base64EncodedString(), "mimeType": mime]]]
+            }
         } catch {
             return ["content": [["type": "text", "text": "\(error)"]], "isError": true]
         }
@@ -178,19 +201,32 @@ public struct Door: Sendable {
 
     // MARK: - Tools
 
-    public func run(_ name: String, _ arguments: [String: Any]) throws -> String {
+    public func run(_ name: String, _ arguments: [String: Any]) throws -> Answer {
         guard let tool = Tool(rawValue: name) else { throw Failure.unknownTool(name) }
         let notebook = try store.load()
 
         switch tool {
         case .readDays:
             let days = try select(notebook, arguments)
-            if days.isEmpty { return "No lines." }
-            return days.map { Projector.markdown(for: $0, calendar: calendar) }.joined(separator: "\n")
+            try receipt(.days, for: days, arguments)
+            if days.isEmpty { return .text("No lines.") }
+            return .text(days.map { Projector.markdown(for: $0, calendar: calendar) }.joined(separator: "\n"))
+
+        case .readPhoto:
+            let entry = try line(arguments, in: notebook)
+            let photos = notebook.entry(entry)?.media.filter { $0.mime.hasPrefix("image") } ?? []
+            let wanted = arguments["hash"] as? String
+            guard let photo = wanted.map({ hash in photos.first { $0.hash == hash } }) ?? photos.first,
+                  let data = Picture.jpeg(contentsOf: store.mediaURL(hash: photo.hash, fileExtension: Projector.fileExtension(forMIME: photo.mime)),
+                                          maxSide: Self.photoSide)
+            else { throw Failure.noSuchPhoto(entry.string) }
+            try receipt(.init(what: .photo, count: 1, entry: entry, hash: photo.hash))
+            return .image(data, mime: "image/jpeg")
 
         case .listLines:
             let days = try select(notebook, arguments)
-            if days.isEmpty { return "No lines." }
+            try receipt(.lines, for: days, arguments)
+            if days.isEmpty { return .text("No lines.") }
             var lines: [String] = []
             for day in days {
                 for entry in day.entries {
@@ -203,7 +239,7 @@ public struct Door: Sendable {
                     lines.append("\(entry.id)  \(day.key) \(Projector.time(entry.startedAt, calendar: calendar))  \(text)\(tail.isEmpty ? "" : "  " + tail.joined(separator: " "))")
                 }
             }
-            return lines.joined(separator: "\n")
+            return .text(lines.joined(separator: "\n"))
 
         case .addNote:
             guard grant.writesNotes else { throw Failure.notAllowed("write notes") }
@@ -215,7 +251,7 @@ public struct Door: Sendable {
             let id = generator.next(at: now)
             try store.append(Event(id: id, author: grant.author, device: grant.device, at: now,
                                    payload: .noteAdd(.init(entry: entry, note: id, text: text))))
-            return "Noted under \(entry) as \(grant.author)."
+            return .text("Noted under \(entry) as \(grant.author).")
 
         case .setLabel:
             guard grant.writesLabels else { throw Failure.notAllowed("write labels") }
@@ -229,8 +265,20 @@ public struct Door: Sendable {
                 ? .labelAttach(.init(entry: entry, label: label))
                 : .labelDetach(.init(entry: entry, label: label))
             try store.append(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
-            return "\(on ? "Filed" : "Unfiled") \(entry) \(on ? "under" : "from") #\(label)."
+            return .text("\(on ? "Filed" : "Unfiled") \(entry) \(on ? "under" : "from") #\(label).")
         }
+    }
+
+    /// The receipt for a read of days or lines: what was asked for, how many came back.
+    private func receipt(_ what: Payload.Visit.What, for days: [Day], _ arguments: [String: Any]) throws {
+        try receipt(.init(what: what, since: arguments["since"] as? String, label: (arguments["label"] as? String)?.lowercased(),
+                          count: days.reduce(0) { $0 + $1.entries.count }))
+    }
+
+    /// Lands in the grant's own file like a note would. A read is a fact about the notebook too.
+    private func receipt(_ visit: Payload.Visit) throws {
+        let now = Date()
+        try store.append(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: .visit(visit)))
     }
 
     private func select(_ notebook: Notebook, _ arguments: [String: Any]) throws -> [Day] {

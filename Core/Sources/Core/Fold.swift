@@ -65,6 +65,40 @@ public struct Activity: Hashable, Sendable, Identifiable {
     public let what: String
 }
 
+/// A reader read something: the receipt as folded.
+public struct Visit: Hashable, Sendable, Identifiable {
+    public let id: ULID
+    public let author: Author
+    public let device: DeviceID
+    public let at: Date
+    public let read: Payload.Visit
+
+    /// "read 4 lines", "read 3 lines under #bug", "looked at a photo".
+    public var what: String {
+        switch read.what {
+        case .photo:
+            return "looked at a photo"
+        case .days, .lines:
+            var text = "read \(read.count) line\(read.count == 1 ? "" : "s")"
+            if let label = read.label { text += " under #\(label)" }
+            if let since = read.since { text += " since \(since)" }
+            return text
+        }
+    }
+}
+
+/// One thing anyone other than the owner's pen did, anywhere in the notebook: a visit, a
+/// note, a label. In order, the log of who read and wrote what.
+public struct Trace: Hashable, Sendable, Identifiable {
+    public let id: ULID
+    public let author: Author
+    public let device: DeviceID
+    public let at: Date
+    public let what: String
+    /// The line it was about, when it was about one.
+    public let entry: ULID?
+}
+
 /// A calendar day in the notebook's time zone.
 public struct DayKey: Hashable, Comparable, Sendable, CustomStringConvertible {
     public let year: Int
@@ -126,6 +160,11 @@ public struct Notebook: Sendable {
     private var seen: Set<ULID> = []
 
     public private(set) var eventCount = 0
+
+    /// Every read a reader made, oldest first.
+    public private(set) var visits: [Visit] = []
+    /// Every visit, note and label by anyone, oldest first. The log.
+    public private(set) var trail: [Trace] = []
 
     public init(owner: Author, events: some Sequence<Event> = []) {
         self.owner = owner
@@ -189,12 +228,25 @@ public struct Notebook: Sendable {
                 note(&entry, event, "took a note back")
                 table[entryID] = entry
             }
+
+        case .visit(let p):
+            let visit = Visit(id: event.id, author: event.author, device: event.device, at: event.at, read: p)
+            visits.append(visit)
+            visits.sort { $0.id < $1.id }
+            trace(event, visit.what, entry: p.entry)
         }
     }
 
-    private func note(_ entry: inout Entry, _ event: Event, _ what: String) {
+    /// Something done to one line: on the line's own trail and on the notebook's.
+    private mutating func note(_ entry: inout Entry, _ event: Event, _ what: String) {
         entry.activity.append(Activity(id: event.id, author: event.author, device: event.device, at: event.at, what: what))
         entry.activity.sort { $0.id < $1.id }
+        trace(event, what, entry: entry.id)
+    }
+
+    private mutating func trace(_ event: Event, _ what: String, entry: ULID?) {
+        trail.append(Trace(id: event.id, author: event.author, device: event.device, at: event.at, what: what, entry: entry))
+        trail.sort { $0.id < $1.id }
     }
 
     private mutating func applyOrWait(_ event: Event, entry: ULID) {
@@ -245,7 +297,7 @@ public struct Notebook: Sendable {
                 note(&entry, event, "took #\(label) off")
             }
 
-        case .entryCreate, .noteRemove:
+        case .entryCreate, .noteRemove, .visit:
             break
         }
     }
@@ -282,6 +334,23 @@ public struct Notebook: Sendable {
     public func days(labelled label: String, calendar: Calendar) -> [Day] {
         let wanted = label.lowercased()
         return Self.days(of: entries.filter { $0.labels.contains(wanted) }, calendar: calendar)
+    }
+
+    /// The visits that took this line in: made after it was written, and asking for a range
+    /// or label it falls under, or for one of its photos.
+    public func reads(of entry: Entry, calendar: Calendar) -> [Visit] {
+        let day = DayKey(entry.startedAt, calendar: calendar).description
+        return visits.filter { visit in
+            guard visit.id > entry.id else { return false }
+            switch visit.read.what {
+            case .photo:
+                return visit.read.entry == entry.id
+            case .days, .lines:
+                if let since = visit.read.since, day < since { return false }
+                if let label = visit.read.label, !entry.labels.contains(label) { return false }
+                return true
+            }
+        }
     }
 
     /// Every label in use, with how many live lines carry it.

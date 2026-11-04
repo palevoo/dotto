@@ -15,6 +15,8 @@ final class MacModel {
     private(set) var folderURL: URL?
     private(set) var store: FileStore?
     private(set) var summary = ""
+    /// The fold as last read, for the log and the words of the lines it names.
+    private(set) var notebook: Notebook?
     private(set) var grants: [Grant] = []
     private(set) var port: UInt16?
     private(set) var problem: String?
@@ -106,8 +108,10 @@ final class MacModel {
     func refreshSummary() {
         guard let store, let notebook = try? store.load() else {
             summary = ""
+            self.notebook = nil
             return
         }
+        self.notebook = notebook
         let days = notebook.days(calendar: .current)
         var text = "\(notebook.entries.count) lines over \(days.count) days"
         if let last = days.last?.key { text += " · last \(last)" }

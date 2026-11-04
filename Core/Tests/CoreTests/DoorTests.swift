@@ -1,3 +1,4 @@
+import ImageIO
 import XCTest
 @testable import Core
 
@@ -55,7 +56,62 @@ final class DoorTests: XCTestCase {
         XCTAssertEqual((result?["serverInfo"] as? [String: Any])?["name"] as? String, "Margin")
 
         let tools = (try rpc("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
-        XCTAssertEqual(tools?.map { $0["name"] as? String }, ["read_days", "list_lines", "add_note", "set_label"])
+        XCTAssertEqual(tools?.map { $0["name"] as? String }, ["read_days", "list_lines", "read_photo", "add_note", "set_label"])
+    }
+
+    func testEveryReadLeavesAReceipt() throws {
+        _ = try rpc("tools/call", ["name": "read_days", "arguments": ["since": "2026-11-01"]])
+        _ = try rpc("tools/call", ["name": "list_lines", "arguments": ["label": "Bug"]])
+        let notebook = try store.load()
+        XCTAssertEqual(notebook.visits.map(\.what), ["read 1 line since 2026-11-01", "read 0 lines under #bug"])
+        XCTAssertEqual(notebook.visits.first?.author, .weeju)
+        XCTAssertEqual(notebook.trail.map(\.what), notebook.visits.map(\.what))
+
+        // The wall line is on 2026-11-02, so the first read took it in; the olives line is older.
+        let wallReads = notebook.reads(of: notebook.entry(wall)!, calendar: utc)
+        XCTAssertEqual(wallReads.count, 1)
+        let olives = notebook.entries.first { $0.text == "Olives in" }!
+        XCTAssertTrue(notebook.reads(of: olives, calendar: utc).isEmpty)
+
+        // The whole folder is still two files: the owner's and the grant's.
+        XCTAssertEqual(try store.eventFiles().map(\.lastPathComponent), ["me.iphone.jsonl", "weeju.mac-door.jsonl"])
+    }
+
+    func testReadPhotoHandsBackASmallJPEG() throws {
+        let hash = try store.storeMedia(Self.jpeg(width: 3000, height: 2000), fileExtension: "jpg")
+        try store.append(Event(id: generator.next(), author: "me", device: "iphone", at: Date(),
+                               payload: .mediaAttach(.init(entry: wall, hash: hash, mime: "image/jpeg", width: 3000, height: 2000))))
+
+        let response = try rpc("tools/call", ["name": "read_photo", "arguments": ["entry": wall.string]])
+        let content = ((response?["result"] as? [String: Any])?["content"] as? [[String: Any]])?.first
+        XCTAssertEqual(content?["type"] as? String, "image")
+        XCTAssertEqual(content?["mimeType"] as? String, "image/jpeg")
+        let data = Data(base64Encoded: content?["data"] as? String ?? "")!
+        let source = CGImageSourceCreateWithData(data as CFData, nil)!
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        XCTAssertEqual(properties?[kCGImagePropertyPixelWidth] as? Int, Door.photoSide)
+
+        let notebook = try store.load()
+        XCTAssertEqual(notebook.visits.last?.read.hash, hash)
+        XCTAssertEqual(notebook.reads(of: notebook.entry(wall)!, calendar: utc).count, 1)
+
+        let missing = try rpc("tools/call", ["name": "read_photo", "arguments": ["entry": wall.string, "hash": "nope"]])
+        XCTAssertTrue(text(missing).contains("No photo"))
+    }
+
+    /// A flat grey JPEG of the given size, made with ImageIO.
+    static func jpeg(width: Int, height: Int) throws -> Data {
+        let space = CGColorSpaceCreateDeviceRGB()
+        let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: space, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        context.setFillColor(CGColor(red: 0.5, green: 0.5, blue: 0.5, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let image = context.makeImage()!
+        let data = NSMutableData()
+        let destination = CGImageDestinationCreateWithData(data, "public.jpeg" as CFString, 1, nil)!
+        CGImageDestinationAddImage(destination, image, nil)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        return data as Data
     }
 
     func testNotificationsGetNoReply() throws {

@@ -15,6 +15,7 @@ struct GrantsView: View {
                 notebookSection
                 doorSection
                 grantsSection
+                logSection
             }
             .padding(28)
         }
@@ -111,6 +112,50 @@ struct GrantsView: View {
             }
             .padding(.top, 6)
         }
+    }
+
+    /// The last things readers did, newest first: every read, note and label, with the line.
+    private var logSection: some View {
+        Section("Log") {
+            let traces = Array((model.notebook?.trail ?? []).suffix(12).reversed())
+            if traces.isEmpty {
+                Text("No reader has been here yet.")
+                    .font(MacTheme.body)
+                    .foregroundStyle(MacTheme.muted)
+            }
+            ForEach(traces) { trace in
+                HStack(alignment: .top, spacing: 12) {
+                    Text(Self.stamp(trace.at))
+                        .font(MacTheme.mono)
+                        .foregroundStyle(MacTheme.faint)
+                        .frame(width: 96, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(trace.author.rawValue)
+                                .foregroundStyle(trace.author == model.notebook?.owner ? MacTheme.foreground : MacTheme.agent)
+                            Text(trace.what)
+                                .foregroundStyle(MacTheme.muted)
+                            Text("via \(trace.device.rawValue)")
+                                .foregroundStyle(MacTheme.faint)
+                        }
+                        .font(MacTheme.mono)
+                        if let entry = trace.entry.flatMap({ model.notebook?.entry($0) }) {
+                            Text(entry.text.isEmpty ? "a photo" : entry.text)
+                                .font(MacTheme.body)
+                                .foregroundStyle(MacTheme.muted)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// "4 Nov 13:21".
+    private static func stamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("d MMM HH:mm")
+        return formatter.string(from: date)
     }
 }
 

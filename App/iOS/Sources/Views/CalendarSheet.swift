@@ -13,19 +13,22 @@ struct CalendarSheet: View {
     let walksOn: Bool
     let walksAvailable: Bool
     let walksTrouble: String?
+    /// The latest read by a reader, as one line. Nil until someone has been.
+    let lastVisit: String?
     let onPick: (DayKey) -> Void
     let onFilter: (String?) -> Void
     let onMove: () -> Void
     let onWalks: () -> Void
+    let onLog: () -> Void
 
     @State private var month: DateComponents
     @State private var height: CGFloat = 480
     @State private var showsPresses = false
 
     init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?, home: String,
-         walksOn: Bool, walksAvailable: Bool, walksTrouble: String?,
+         walksOn: Bool, walksAvailable: Bool, walksTrouble: String?, lastVisit: String?,
          onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void, onMove: @escaping () -> Void,
-         onWalks: @escaping () -> Void) {
+         onWalks: @escaping () -> Void, onLog: @escaping () -> Void) {
         self.days = days
         self.today = today
         self.calendar = calendar
@@ -35,10 +38,12 @@ struct CalendarSheet: View {
         self.walksOn = walksOn
         self.walksAvailable = walksAvailable
         self.walksTrouble = walksTrouble
+        self.lastVisit = lastVisit
         self.onPick = onPick
         self.onFilter = onFilter
         self.onMove = onMove
         self.onWalks = onWalks
+        self.onLog = onLog
         _month = State(initialValue: DateComponents(year: today.year, month: today.month))
     }
 
@@ -104,6 +109,16 @@ struct CalendarSheet: View {
                         }
                     }
                 }
+            }
+
+            // The latest read, in the reader's ink. Tap for everything readers did.
+            if let lastVisit {
+                Button(action: onLog) {
+                    Text(lastVisit)
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.agent)
+                }
+                .buttonStyle(.plain)
             }
 
             HStack(spacing: 6) {

@@ -12,7 +12,13 @@ struct PageView: View {
     @State private var visibleDay: DayKey?
     @State private var atBottom = true
     @State private var showCalendar = false
-    @State private var askWalksWhenClosed = false
+    /// What the calendar sheet asked for, done once it has gone: Health presents its own
+    /// sheet, and a page is pushed on a clear stage.
+    @State private var afterCalendar: AfterCalendar?
+
+    enum AfterCalendar {
+        case walks, log
+    }
     @State private var showMove = false
     @State private var showCamera = false
     @State private var picked: [PhotosPickerItem] = []
@@ -99,11 +105,13 @@ struct PageView: View {
                     }
                 }
                 .background(Theme.background.ignoresSafeArea())
-                // Health presents its own permission sheet, so it is asked only once ours has gone.
                 .sheet(isPresented: $showCalendar, onDismiss: {
-                    guard askWalksWhenClosed else { return }
-                    askWalksWhenClosed = false
-                    model.turnOnWalks()
+                    guard let next = afterCalendar else { return }
+                    afterCalendar = nil
+                    switch next {
+                    case .walks: model.turnOnWalks()
+                    case .log: path.append(Route.log)
+                    }
                 }) {
                     CalendarSheet(
                         days: model.days,
@@ -115,6 +123,7 @@ struct PageView: View {
                         walksOn: model.walks.isOn,
                         walksAvailable: model.walks.available,
                         walksTrouble: model.walks.trouble,
+                        lastVisit: model.notebook.visits.last.map { LogView.summary(of: $0, calendar: model.calendar) },
                         onPick: { key in
                             showCalendar = false
                             withAnimation(Motion.settle) { proxy.scrollTo(key, anchor: .top) }
@@ -128,7 +137,11 @@ struct PageView: View {
                             showMove = true
                         },
                         onWalks: {
-                            askWalksWhenClosed = true
+                            afterCalendar = .walks
+                            showCalendar = false
+                        },
+                        onLog: {
+                            afterCalendar = .log
                             showCalendar = false
                         }
                     )
@@ -196,6 +209,11 @@ struct PageView: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: ULID.self) { id in
                 LineView(entryID: id, model: model)
+            }
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .log: LogView(model: model)
+                }
             }
         }
         .tint(Theme.accent)
