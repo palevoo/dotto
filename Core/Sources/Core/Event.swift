@@ -41,6 +41,8 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case noteRemove = "note.remove"
     case labelAttach = "label.attach"
     case labelDetach = "label.detach"
+    case linkAdd = "link.add"
+    case linkRemove = "link.remove"
     case visit = "visit"
 }
 
@@ -54,6 +56,8 @@ public enum Payload: Hashable, Sendable {
     case noteRemove(NoteRemove)
     case labelAttach(LabelAttach)
     case labelDetach(LabelDetach)
+    case linkAdd(LinkAdd)
+    case linkRemove(LinkRemove)
     case visit(Visit)
 
     public var kind: Kind {
@@ -66,7 +70,34 @@ public enum Payload: Hashable, Sendable {
         case .noteRemove: .noteRemove
         case .labelAttach: .labelAttach
         case .labelDetach: .labelDetach
+        case .linkAdd: .linkAdd
+        case .linkRemove: .linkRemove
         case .visit: .visit
+        }
+    }
+
+    /// A reader joins a later line to an earlier one: the later continues the earlier and,
+    /// when `closes` is set, finishes what the earlier line opened. One link per pair of
+    /// lines; a newer add or remove for the same pair replaces an older one.
+    public struct LinkAdd: Hashable, Codable, Sendable {
+        public var later: ULID
+        public var earlier: ULID
+        public var closes: Bool
+
+        public init(later: ULID, earlier: ULID, closes: Bool = false) {
+            self.later = later
+            self.earlier = earlier
+            self.closes = closes
+        }
+    }
+
+    public struct LinkRemove: Hashable, Codable, Sendable {
+        public var later: ULID
+        public var earlier: ULID
+
+        public init(later: ULID, earlier: ULID) {
+            self.later = later
+            self.earlier = earlier
         }
     }
 
@@ -252,6 +283,8 @@ extension Event: Codable {
         case .noteRemove: .noteRemove(try container.decode(Payload.NoteRemove.self, forKey: .payload))
         case .labelAttach: .labelAttach(try container.decode(Payload.LabelAttach.self, forKey: .payload))
         case .labelDetach: .labelDetach(try container.decode(Payload.LabelDetach.self, forKey: .payload))
+        case .linkAdd: .linkAdd(try container.decode(Payload.LinkAdd.self, forKey: .payload))
+        case .linkRemove: .linkRemove(try container.decode(Payload.LinkRemove.self, forKey: .payload))
         case .visit: .visit(try container.decode(Payload.Visit.self, forKey: .payload))
         }
     }
@@ -272,6 +305,8 @@ extension Event: Codable {
         case .noteRemove(let p): try container.encode(p, forKey: .payload)
         case .labelAttach(let p): try container.encode(p, forKey: .payload)
         case .labelDetach(let p): try container.encode(p, forKey: .payload)
+        case .linkAdd(let p): try container.encode(p, forKey: .payload)
+        case .linkRemove(let p): try container.encode(p, forKey: .payload)
         case .visit(let p): try container.encode(p, forKey: .payload)
         }
     }

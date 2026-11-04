@@ -10,10 +10,11 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
     public var key: String
     public var writesNotes: Bool
     public var writesLabels: Bool
+    public var writesLinks: Bool
     public var createdAt: Date
 
     public init(id: ULID = ULID(), name: String, author: Author, device: DeviceID, key: String = Grant.makeKey(),
-                writesNotes: Bool = true, writesLabels: Bool = true, createdAt: Date = Date()) {
+                writesNotes: Bool = true, writesLabels: Bool = true, writesLinks: Bool = true, createdAt: Date = Date()) {
         self.id = id
         self.name = name
         self.author = author
@@ -21,7 +22,22 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
         self.key = key
         self.writesNotes = writesNotes
         self.writesLabels = writesLabels
+        self.writesLinks = writesLinks
         self.createdAt = createdAt.toMilliseconds
+    }
+
+    /// A grant saved before links existed may write them: links are the same kind of thing as labels.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(ULID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        author = try container.decode(Author.self, forKey: .author)
+        device = try container.decode(DeviceID.self, forKey: .device)
+        key = try container.decode(String.self, forKey: .key)
+        writesNotes = try container.decode(Bool.self, forKey: .writesNotes)
+        writesLabels = try container.decode(Bool.self, forKey: .writesLabels)
+        writesLinks = try container.decodeIfPresent(Bool.self, forKey: .writesLinks) ?? true
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 
     /// 256 random bits, URL-safe.
@@ -37,6 +53,7 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
         var parts = ["read all"]
         if writesNotes { parts.append("write notes") }
         if writesLabels { parts.append("write labels") }
+        if writesLinks { parts.append("write links") }
         return parts.joined(separator: " · ")
     }
 }
@@ -64,16 +81,19 @@ public struct Door: Sendable {
         """
         This is \(grant.name)'s door into one person's notebook. The lines are theirs: written \
         for themselves, with no audience in mind. You read with read_days or list_lines, look at \
-        a photo with read_photo, and you may leave a note under a line or file it under a label, \
-        in the ink of \(grant.author).
+        a photo with read_photo, and you may leave a note under a line, file it under a label, or \
+        link it to an earlier line, in the ink of \(grant.author).
 
         What a note is for is not fixed. It may acknowledge, organise, move something forward, \
         close something that an earlier line opened, answer a question the line asked, or simply \
         keep company. Read what the line asks for and do that, in one short line. When nothing is \
         asked for, say nothing: silence is the default and most lines want none. Never restate \
         the line, never praise, never touch the owner's words. Labels are lower-case words for \
-        finding things later; file a line only when the word will be useful. Everything you do, \
-        reading included, is recorded with your name where the owner can see it.
+        finding things later; file a line only when the word will be useful. When a line carries \
+        on from an earlier one, the same plant, book or errand, link_lines joins them; when it \
+        finishes what the earlier line asked for, say so with closes, and the earlier line is \
+        struck through on the page. Everything you do, reading included, is recorded with your \
+        name where the owner can see it.
         """
     }
 
@@ -83,6 +103,7 @@ public struct Door: Sendable {
         case readPhoto = "read_photo"
         case addNote = "add_note"
         case setLabel = "set_label"
+        case linkLines = "link_lines"
 
         var spec: [String: Any] {
             let since: [String: Any] = ["type": "string", "description": "Only days on or after this date, YYYY-MM-DD."]
@@ -113,6 +134,15 @@ public struct Door: Sendable {
                         "inputSchema": ["type": "object",
                                         "properties": ["entry": entry, "label": ["type": "string"], "on": ["type": "boolean", "default": true]],
                                         "required": ["entry", "label"]]]
+            case .linkLines:
+                return ["name": rawValue,
+                        "description": "Join a line to an earlier line it carries on from. With closes=true the later line finishes what the earlier one opened, and the earlier line is struck through. on=false takes the link back.",
+                        "inputSchema": ["type": "object",
+                                        "properties": ["entry": ["type": "string", "description": "The later line's id."],
+                                                       "earlier": ["type": "string", "description": "The earlier line's id."],
+                                                       "closes": ["type": "boolean", "default": false],
+                                                       "on": ["type": "boolean", "default": true]],
+                                        "required": ["entry", "earlier"]]]
             }
         }
     }
@@ -124,6 +154,7 @@ public struct Door: Sendable {
         case missing(String)
         case unknownTool(String)
         case badDay(String)
+        case notEarlier(String)
 
         public var description: String {
             switch self {
@@ -133,6 +164,7 @@ public struct Door: Sendable {
             case .missing(let field): "Missing \(field)."
             case .unknownTool(let name): "No tool named \(name)."
             case .badDay(let text): "Not a day: \(text). Use YYYY-MM-DD."
+            case .notEarlier(let id): "Line \(id) is not earlier than the one linking to it."
             }
         }
     }
@@ -235,6 +267,8 @@ public struct Door: Sendable {
                     var tail: [String] = []
                     if !entry.media.isEmpty { tail.append("[\(entry.media.count) media]") }
                     if !entry.notes.isEmpty { tail.append("[\(entry.notes.count) notes]") }
+                    if !entry.earlier.isEmpty { tail.append("[continues \(entry.earlier.map(\.earlier.string).joined(separator: " "))]") }
+                    if let closed = entry.closedBy { tail.append("[done by \(closed.later)]") }
                     tail.append(contentsOf: entry.labels.map { "#\($0)" })
                     lines.append("\(entry.id)  \(day.key) \(Projector.time(entry.startedAt, calendar: calendar))  \(text)\(tail.isEmpty ? "" : "  " + tail.joined(separator: " "))")
                 }
@@ -266,6 +300,21 @@ public struct Door: Sendable {
                 : .labelDetach(.init(entry: entry, label: label))
             try store.append(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
             return .text("\(on ? "Filed" : "Unfiled") \(entry) \(on ? "under" : "from") #\(label).")
+
+        case .linkLines:
+            guard grant.writesLinks else { throw Failure.notAllowed("write links") }
+            let later = try line(arguments, in: notebook)
+            let earlier = try line(arguments, key: "earlier", in: notebook)
+            let (a, b) = (notebook.entry(earlier)!, notebook.entry(later)!)
+            guard (a.startedAt, a.id) < (b.startedAt, b.id) else { throw Failure.notEarlier(earlier.string) }
+            let closes = arguments["closes"] as? Bool ?? false
+            let on = arguments["on"] as? Bool ?? true
+            let now = Date()
+            let payload: Payload = on
+                ? .linkAdd(.init(later: later, earlier: earlier, closes: closes))
+                : .linkRemove(.init(later: later, earlier: earlier))
+            try store.append(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
+            return .text(on ? "Linked \(later) back to \(earlier)\(closes ? ", closing it" : "")." : "Unlinked \(later) from \(earlier).")
         }
     }
 
@@ -293,8 +342,8 @@ public struct Door: Sendable {
         return days
     }
 
-    private func line(_ arguments: [String: Any], in notebook: Notebook) throws -> ULID {
-        guard let raw = arguments["entry"] as? String else { throw Failure.missing("entry") }
+    private func line(_ arguments: [String: Any], key: String = "entry", in notebook: Notebook) throws -> ULID {
+        guard let raw = arguments[key] as? String else { throw Failure.missing(key) }
         guard let id = ULID(raw), notebook.entry(id) != nil else { throw Failure.noSuchLine(raw) }
         return id
     }

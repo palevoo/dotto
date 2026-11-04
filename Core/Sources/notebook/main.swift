@@ -7,6 +7,7 @@ import Foundation
 //   notebook add <folder> "<text>" [--author <id>] [--device <id>] [--at <iso8601>]
 //   notebook note <folder> <entry-id> "<text>" [--author weeju] [--device <id>]
 //   notebook label <folder> <entry-id> <label> [--author weeju] [--remove]
+//   notebook link <folder> <later-id> <earlier-id> [--closes] [--author weeju] [--remove]
 //   notebook list <folder> [--label <label>] [--since YYYY-MM-DD]   one line per entry, with ids
 //   notebook show <folder> [--label <label>]                        the fold, as day pages
 //   notebook labels <folder>                                        every label and its count
@@ -74,7 +75,7 @@ func parseDay(_ text: String) -> DayKey {
 
 let arguments = Arguments(Array(CommandLine.arguments.dropFirst()))
 guard let command = arguments.positional.first else {
-    fail("usage: notebook init|add|note|label|list|show|labels|project|log <folder> ...")
+    fail("usage: notebook init|add|note|label|link|list|show|labels|project|log <folder> ...")
 }
 
 let generator = ULIDGenerator()
@@ -130,6 +131,23 @@ do {
         try store.append(Event(id: generator.next(at: at), author: author, device: host, at: at, payload: payload))
         print("\(arguments.flags.contains("remove") ? "-" : "+")\(label.lowercased()) \(entry)")
 
+    case "link":
+        let store = try FileStore.open(folder(arguments, at: 1))
+        guard arguments.positional.count > 3, let later = ULID(arguments.positional[2]), let earlier = ULID(arguments.positional[3]) else {
+            fail("usage: link <folder> <later-id> <earlier-id> [--closes] [--remove]")
+        }
+        let notebook = try store.load()
+        guard let a = notebook.entry(later), let b = notebook.entry(earlier) else { fail("no such entry") }
+        guard (b.startedAt, b.id) < (a.startedAt, a.id) else { fail("\(earlier) is not earlier than \(later)") }
+        let at = parseDate(arguments.options["at"])
+        let author = Author(rawValue: arguments.options["author"] ?? Author.weeju.rawValue)
+        let remove = arguments.flags.contains("remove")
+        let payload: Payload = remove
+            ? .linkRemove(.init(later: later, earlier: earlier))
+            : .linkAdd(.init(later: later, earlier: earlier, closes: arguments.flags.contains("closes")))
+        try store.append(Event(id: generator.next(at: at), author: author, device: host, at: at, payload: payload))
+        print("\(remove ? "-" : "+")\(later) → \(earlier)\(arguments.flags.contains("closes") && !remove ? " closes" : "")")
+
     case "list":
         let store = try FileStore.open(folder(arguments, at: 1))
         let notebook = try store.load()
@@ -142,6 +160,8 @@ do {
                 var tail: [String] = []
                 if !entry.media.isEmpty { tail.append("[\(entry.media.count) media]") }
                 if !entry.notes.isEmpty { tail.append("[\(entry.notes.count) notes]") }
+                if !entry.earlier.isEmpty { tail.append("[continues \(entry.earlier.map(\.earlier.string).joined(separator: " "))]") }
+                if let closed = entry.closedBy { tail.append("[done by \(closed.later)]") }
                 tail.append(contentsOf: entry.labels.map { "#\($0)" })
                 print("\(entry.id)  \(day.key) \(time(entry.startedAt))  \(text)\(tail.isEmpty ? "" : "  " + tail.joined(separator: " "))")
             }

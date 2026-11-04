@@ -35,6 +35,13 @@ public enum Projector {
                     lines.append("> \(noteLine)")
                 }
             }
+            // The thread, as a reader placed it. The other line is named by its day and time.
+            let threads = entry.earlier.map { "\($0.closes ? "closes" : "continues") \(moment($0.earlierAt, calendar: calendar))" }
+                + entry.later.map { "\($0.closes ? "done by" : "continued by") \(moment($0.laterAt, calendar: calendar))" }
+            if !threads.isEmpty {
+                lines.append("")
+                lines.append(contentsOf: threads.map { "_\($0)_" })
+            }
             if !entry.labels.isEmpty {
                 lines.append("")
                 lines.append(entry.labels.map { "#\($0)" }.joined(separator: " "))
@@ -103,6 +110,11 @@ public enum Projector {
     static func time(_ date: Date, calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.hour, .minute], from: date)
         return String(format: "%02d:%02d", parts.hour!, parts.minute!)
+    }
+
+    /// `2026-11-02 17:16`.
+    public static func moment(_ date: Date, calendar: Calendar) -> String {
+        "\(DayKey(date, calendar: calendar)) \(time(date, calendar: calendar))"
     }
 
     static func weekday(_ key: DayKey, calendar: Calendar) -> String {

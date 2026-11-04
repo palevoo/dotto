@@ -66,6 +66,19 @@ final class ProjectorTests: XCTestCase {
         )
     }
 
+    func testMarkdownShowsTheThread() {
+        let (events, wall) = sampleEvents()
+        let later = Date(timeIntervalSince1970: 1_793_610_840 + 86_400 * 2 + 60) // 2026-11-04 09:15
+        let potted = ULID(timestamp: later)
+        let notebook = Notebook(owner: me, events: events + [
+            event(.entryCreate(.init(entry: potted, text: "Rendered the wall.", startedAt: later)), at: later),
+            event(.linkAdd(.init(later: potted, earlier: wall, closes: true)), author: .weeju, at: later.addingTimeInterval(3600)),
+        ])
+        let days = notebook.days(calendar: lisbon)
+        XCTAssertTrue(Projector.markdown(for: days[0], calendar: lisbon).contains("\n_done by 2026-11-04 09:15_\n"))
+        XCTAssertTrue(Projector.markdown(for: days[1], calendar: lisbon).hasSuffix("Rendered the wall.\n\n_closes 2026-11-02 09:14_\n"))
+    }
+
     func testWriteCreatesAndPrunesDayFiles() throws {
         let store = try FileStore.create(at: root, owner: me)
         let (events, wall) = sampleEvents()
