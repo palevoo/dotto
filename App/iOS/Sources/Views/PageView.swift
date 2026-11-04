@@ -12,14 +12,9 @@ struct PageView: View {
     @State private var visibleDay: DayKey?
     @State private var atBottom = true
     @State private var showCalendar = false
-    /// What the calendar sheet asked for, done once it has gone: Health presents its own
-    /// sheet, and a page is pushed on a clear stage.
-    @State private var afterCalendar: AfterCalendar?
-
-    enum AfterCalendar {
-        case walks, log
-    }
-    @State private var showMove = false
+    /// What the calendar sheet asked for, done once it has gone: a page is pushed on a
+    /// clear stage.
+    @State private var afterCalendar: Route?
     @State private var showCamera = false
     @State private var picked: [PhotosPickerItem] = []
     @State private var viewing: PhotoOpening?
@@ -108,10 +103,7 @@ struct PageView: View {
                 .sheet(isPresented: $showCalendar, onDismiss: {
                     guard let next = afterCalendar else { return }
                     afterCalendar = nil
-                    switch next {
-                    case .walks: model.turnOnWalks()
-                    case .log: path.append(Route.log)
-                    }
+                    path.append(next)
                 }) {
                     CalendarSheet(
                         days: model.days,
@@ -119,10 +111,6 @@ struct PageView: View {
                         calendar: model.calendar,
                         labels: model.notebook.labelCounts,
                         filter: filter,
-                        home: Library.describe(model.store),
-                        walksOn: model.walks.isOn,
-                        walksAvailable: model.walks.available,
-                        walksTrouble: model.walks.trouble,
                         lastVisit: model.notebook.visits.last.map { LogView.summary(of: $0, calendar: model.calendar) },
                         onPick: { key in
                             showCalendar = false
@@ -132,27 +120,16 @@ struct PageView: View {
                             showCalendar = false
                             withAnimation(Motion.settle) { filter = label }
                         },
-                        onMove: {
-                            showCalendar = false
-                            showMove = true
-                        },
-                        onWalks: {
-                            afterCalendar = .walks
-                            showCalendar = false
-                        },
                         onLog: {
                             afterCalendar = .log
+                            showCalendar = false
+                        },
+                        onSetup: {
+                            afterCalendar = .setup
                             showCalendar = false
                         }
                     )
                     .presentationBackground(Theme.paper)
-                }
-                .sheet(isPresented: $showMove) {
-                    FolderPicker { url in
-                        showMove = false
-                        if let url { onRelocate(url) }
-                    }
-                    .ignoresSafeArea()
                 }
                 .fullScreenCover(isPresented: $showCamera) {
                     CameraView(picked: $picked) { data in
@@ -213,6 +190,7 @@ struct PageView: View {
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .log: LogView(model: model)
+                case .setup: SetupView(model: model, onRelocate: onRelocate)
                 }
             }
         }

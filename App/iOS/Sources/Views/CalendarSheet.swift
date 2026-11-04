@@ -1,49 +1,38 @@
 import Core
 import SwiftUI
 
-/// The date, tapped: a month with a mark under every day that has lines, and the labels
-/// readers have filed lines under. Tap a label to see only those lines.
+/// The date, tapped: a month with a mark under every day that has lines, the labels
+/// readers have filed lines under, the latest read, and the way to Setup. Tap a label to
+/// see only those lines.
 struct CalendarSheet: View {
     let days: [Day]
     let today: DayKey
     let calendar: Calendar
     let labels: [String: Int]
     let filter: String?
-    let home: String
-    let walksOn: Bool
-    let walksAvailable: Bool
-    let walksTrouble: String?
     /// The latest read by a reader, as one line. Nil until someone has been.
     let lastVisit: String?
     let onPick: (DayKey) -> Void
     let onFilter: (String?) -> Void
-    let onMove: () -> Void
-    let onWalks: () -> Void
     let onLog: () -> Void
+    let onSetup: () -> Void
 
     @State private var month: DateComponents
     @State private var height: CGFloat = 480
-    @State private var showsPresses = false
 
-    init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?, home: String,
-         walksOn: Bool, walksAvailable: Bool, walksTrouble: String?, lastVisit: String?,
-         onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void, onMove: @escaping () -> Void,
-         onWalks: @escaping () -> Void, onLog: @escaping () -> Void) {
+    init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?, lastVisit: String?,
+         onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void,
+         onLog: @escaping () -> Void, onSetup: @escaping () -> Void) {
         self.days = days
         self.today = today
         self.calendar = calendar
         self.labels = labels
         self.filter = filter
-        self.home = home
-        self.walksOn = walksOn
-        self.walksAvailable = walksAvailable
-        self.walksTrouble = walksTrouble
         self.lastVisit = lastVisit
         self.onPick = onPick
         self.onFilter = onFilter
-        self.onMove = onMove
-        self.onWalks = onWalks
         self.onLog = onLog
+        self.onSetup = onSetup
         _month = State(initialValue: DateComponents(year: today.year, month: today.month))
     }
 
@@ -111,80 +100,26 @@ struct CalendarSheet: View {
                 }
             }
 
-            // The latest read, in the reader's ink. Tap for everything readers did.
-            if let lastVisit {
-                Button(action: onLog) {
-                    Text(lastVisit)
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.agent)
+            // The latest read, in the reader's ink, and the way to everything else.
+            HStack(alignment: .firstTextBaseline) {
+                if let lastVisit {
+                    Button(action: onLog) {
+                        Text(lastVisit)
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.agent)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-            }
-
-            HStack(spacing: 6) {
-                Text(home)
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.muted)
-                Text("·")
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.faint)
-                Button(action: onMove) {
-                    Text("Move to a folder")
+                Spacer()
+                Button(action: onSetup) {
+                    Text("Setup")
                         .font(Theme.mono)
                         .foregroundStyle(Theme.accent)
                 }
                 .buttonStyle(.plain)
-                Spacer()
             }
             .padding(.top, 4)
-
-            // Where the one-press ways in are switched on. Tap to see the path through Settings.
-            VStack(alignment: .leading, spacing: 6) {
-                Button {
-                    withAnimation(Motion.settle) { showsPresses.toggle() }
-                } label: {
-                    Text("Write or take a photo with one press")
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.accent)
-                }
-                .buttonStyle(.plain)
-                if showsPresses {
-                    Text("Action button: Settings · Action Button · Controls · Margin")
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.muted)
-                    Text("Lock screen or Control Center: hold, Add a Control, Margin")
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.muted)
-                    Text("Siri: “Write in Margin”, “Photo in Margin”")
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.muted)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Walks from Health, once you say so. A line per walk, from then on.
-            if walksAvailable {
-                if walksOn {
-                    Text("Walks from Health arrive as lines")
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.muted)
-                } else {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Button(action: onWalks) {
-                            Text("Bring walks from Health")
-                                .font(Theme.mono)
-                                .foregroundStyle(Theme.accent)
-                        }
-                        .buttonStyle(.plain)
-                        // Health's refusal, in its words, where it can be read and reported.
-                        if let walksTrouble {
-                            Text("Health: \(walksTrouble)")
-                                .font(Theme.mono)
-                                .foregroundStyle(Theme.muted)
-                        }
-                    }
-                }
-            }
         }
         .padding(20)
         .padding(.top, 16)

@@ -44,7 +44,10 @@ final class NotebookModel {
     private let location = LocationSpy()
     let walks = Walks()
     private var watcher: FolderWatcher?
-    private var cloud: CloudWatcher?
+    private var cloudWatcher: CloudWatcher?
+    /// Where photos and voice notes stand with iCloud. Nil when the folder is not in iCloud
+    /// Drive, or until iCloud has spoken.
+    private(set) var cloud: CloudState?
     private var reloadTask: Task<Void, Never>?
     private var projectTask: Task<Void, Never>?
 
@@ -60,8 +63,10 @@ final class NotebookModel {
         watcher = FolderWatcher(directory: store.eventsDirectory) { [weak self] in
             self?.reloadSoon()
         }
-        cloud = CloudWatcher(store: store) { [weak self] in
-            self?.reloadSoon()
+        cloudWatcher = CloudWatcher(store: store) { [weak self] in
+            guard let self else { return }
+            cloud = cloudWatcher?.state
+            reloadSoon()
         }
         walks.resume { [weak self] walks in self?.add(walks) }
     }

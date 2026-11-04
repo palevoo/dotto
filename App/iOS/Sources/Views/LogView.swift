@@ -4,6 +4,7 @@ import SwiftUI
 /// Pages reachable from the main page that are not lines.
 enum Route: Hashable {
     case log
+    case setup
 }
 
 /// Everything readers did, newest first: each visit, note and label, with the line it was

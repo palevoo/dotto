@@ -115,6 +115,9 @@ final class MacModel {
         let days = notebook.days(calendar: .current)
         var text = "\(notebook.entries.count) lines over \(days.count) days"
         if let last = days.last?.key { text += " · last \(last)" }
+        // Photos a reader would be refused until iCloud brings them.
+        if let arriving = cloud?.state?.arriving, arriving > 0 { text += " · \(arriving) media files not yet on this Mac" }
+        if let trouble = cloud?.state?.trouble { text += " · iCloud: \(trouble)" }
         summary = text
     }
 
