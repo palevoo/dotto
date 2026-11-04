@@ -12,6 +12,7 @@ struct CalendarSheet: View {
     let home: String
     let walksOn: Bool
     let walksAvailable: Bool
+    let walksTrouble: String?
     let onPick: (DayKey) -> Void
     let onFilter: (String?) -> Void
     let onMove: () -> Void
@@ -22,7 +23,7 @@ struct CalendarSheet: View {
     @State private var showsPresses = false
 
     init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?, home: String,
-         walksOn: Bool, walksAvailable: Bool,
+         walksOn: Bool, walksAvailable: Bool, walksTrouble: String?,
          onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void, onMove: @escaping () -> Void,
          onWalks: @escaping () -> Void) {
         self.days = days
@@ -33,6 +34,7 @@ struct CalendarSheet: View {
         self.home = home
         self.walksOn = walksOn
         self.walksAvailable = walksAvailable
+        self.walksTrouble = walksTrouble
         self.onPick = onPick
         self.onFilter = onFilter
         self.onMove = onMove
@@ -152,12 +154,20 @@ struct CalendarSheet: View {
                         .font(Theme.mono)
                         .foregroundStyle(Theme.muted)
                 } else {
-                    Button(action: onWalks) {
-                        Text("Bring walks from Health")
-                            .font(Theme.mono)
-                            .foregroundStyle(Theme.accent)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Button(action: onWalks) {
+                            Text("Bring walks from Health")
+                                .font(Theme.mono)
+                                .foregroundStyle(Theme.accent)
+                        }
+                        .buttonStyle(.plain)
+                        // Health's refusal, in its words, where it can be read and reported.
+                        if let walksTrouble {
+                            Text("Health: \(walksTrouble)")
+                                .font(Theme.mono)
+                                .foregroundStyle(Theme.muted)
+                        }
                     }
-                    .buttonStyle(.plain)
                 }
             }
         }

@@ -23,12 +23,16 @@ final class Walks {
     private let health = HKHealthStore()
     private var observer: HKObserverQuery?
     private(set) var isOn = UserDefaults.standard.bool(forKey: Walks.onKey)
+    /// What Health said when it refused, in its own words, so the page can show it.
+    private(set) var trouble: String?
 
     var available: Bool { HKHealthStore.isHealthDataAvailable() }
 
     /// Asked once. Workouts from this moment on come in; earlier ones stay where they are.
+    /// Call with nothing else presented: Health shows its permission sheet from here.
     func turnOn(_ handler: @escaping @MainActor ([Walk]) -> Void) async {
         guard available else { return }
+        trouble = nil
         do {
             try await health.requestAuthorization(toShare: [], read: [HKObjectType.workoutType()])
             if UserDefaults.standard.object(forKey: Self.sinceKey) == nil {
@@ -40,6 +44,7 @@ final class Walks {
             resume(handler)
         } catch {
             NSLog("health failed: \(error)")
+            trouble = error.localizedDescription
         }
     }
 

@@ -12,6 +12,7 @@ struct PageView: View {
     @State private var visibleDay: DayKey?
     @State private var atBottom = true
     @State private var showCalendar = false
+    @State private var askWalksWhenClosed = false
     @State private var showMove = false
     @State private var showCamera = false
     @State private var picked: [PhotosPickerItem] = []
@@ -98,7 +99,12 @@ struct PageView: View {
                     }
                 }
                 .background(Theme.background.ignoresSafeArea())
-                .sheet(isPresented: $showCalendar) {
+                // Health presents its own permission sheet, so it is asked only once ours has gone.
+                .sheet(isPresented: $showCalendar, onDismiss: {
+                    guard askWalksWhenClosed else { return }
+                    askWalksWhenClosed = false
+                    model.turnOnWalks()
+                }) {
                     CalendarSheet(
                         days: model.days,
                         today: model.today,
@@ -108,6 +114,7 @@ struct PageView: View {
                         home: Library.describe(model.store),
                         walksOn: model.walks.isOn,
                         walksAvailable: model.walks.available,
+                        walksTrouble: model.walks.trouble,
                         onPick: { key in
                             showCalendar = false
                             withAnimation(Motion.settle) { proxy.scrollTo(key, anchor: .top) }
@@ -121,8 +128,8 @@ struct PageView: View {
                             showMove = true
                         },
                         onWalks: {
+                            askWalksWhenClosed = true
                             showCalendar = false
-                            model.turnOnWalks()
                         }
                     )
                     .presentationBackground(Theme.paper)
