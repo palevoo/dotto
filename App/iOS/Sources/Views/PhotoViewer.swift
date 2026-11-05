@@ -30,7 +30,8 @@ func withoutAnimation(_ change: () -> Void) {
 /// settles fitted to the screen; a drag in any direction carries it, the page showing
 /// through, and letting go past a point sets it back where it came from. A sideways drag
 /// pages. Pinch or double-tap to zoom. No pager of its own, so nothing competes for the
-/// first movement.
+/// first movement. The words in the photo are selectable the whole time, as in Photos, and
+/// a selection can be taken as a quote into the line.
 struct PhotoViewer: View {
     let opening: PhotoOpening
     let model: NotebookModel
@@ -50,8 +51,7 @@ struct PhotoViewer: View {
     @State private var settledPan: CGSize = .zero
     @State private var words = ""
     @State private var editing = false
-    /// The words in the photo selectable, to take a quote from a page.
-    @State private var reading = false
+    /// Words selected in the photo, to take as a quote from a page.
     @State private var selected = ""
     @FocusState private var focused: Bool
 
@@ -92,7 +92,7 @@ struct PhotoViewer: View {
                 }
                 .frame(width: size.width, height: size.height)
                 .contentShape(Rectangle())
-                .gesture(hand(step: size.width + gap, width: size.width), isEnabled: !zoomed && !reading)
+                .gesture(hand(step: size.width + gap, width: size.width), isEnabled: !zoomed)
             }
             .ignoresSafeArea()
 
@@ -109,6 +109,7 @@ struct PhotoViewer: View {
             withAnimation(.snappy(duration: 0.38, extraBounce: 0)) { shown = true }
         }
         .task(id: index) { await loadFull() }
+        .onChange(of: index) { _, _ in selected = "" }
         .onChange(of: focused) { _, isFocused in
             if !isFocused, editing { store() }
         }
@@ -128,8 +129,10 @@ struct PhotoViewer: View {
         let radius = source?.radius ?? 0
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         Group {
-            if current, reading, let image = images[photo.hash] {
-                LiveTextView(image: image) { selected = $0 }
+            // Once the photo is settled and at full size its words are live; the thumbnail
+            // carries the way in and out.
+            if current, shown, full.contains(photo.hash), LiveTextView.isSupported, let image = images[photo.hash] {
+                LiveTextView(image: image, selected: $selected)
             } else if let image = images[photo.hash] {
                 Image(uiImage: image)
                     .resizable()
@@ -149,10 +152,10 @@ struct PhotoViewer: View {
             x: rect.midX + CGFloat(position - index) * (size.width + gap) + (axis == .horizontal ? drag.width : 0),
             y: rect.midY + (current && axis == .vertical ? drag.height : 0)
         )
-        .gesture(pinch, isEnabled: current && calm && !reading)
+        .gesture(pinch, isEnabled: current && calm)
         .simultaneousGesture(panning, isEnabled: current && zoomed)
         .onTapGesture(count: 2) {
-            guard current, calm, !reading else { return }
+            guard current, calm else { return }
             withAnimation(Motion.settle) {
                 if zoomed {
                     resetZoom()
@@ -189,25 +192,24 @@ struct PhotoViewer: View {
         }
     }
 
-    /// Which photo this is, the words in it, and the way out for a thumb that would rather tap.
-    /// While reading, the selected words can be taken as a quote into the line.
+    /// Which photo this is and the way out for a thumb that would rather tap. Once words are
+    /// selected in the photo, Quote takes them into the line.
     private var top: some View {
         HStack(spacing: 8) {
-            if reading {
+            if !selected.isEmpty {
                 Button {
                     quote()
                 } label: {
                     Text("Quote")
                         .font(Theme.sansSmall.weight(.medium))
-                        .foregroundStyle(selected.isEmpty ? Theme.faint : Theme.background)
+                        .foregroundStyle(Theme.background)
                         .padding(.horizontal, 14)
                         .frame(height: 36)
-                        .background(Theme.square(36).fill(selected.isEmpty ? Theme.paper : Theme.accent))
+                        .background(Theme.square(36).fill(Theme.accent))
                 }
                 .buttonStyle(.plain)
-                .disabled(selected.isEmpty)
                 .padding(.leading, 12)
-                Text(selected.isEmpty ? "Select words in the photo" : "\(selected.split(separator: " ").count) words")
+                Text("\(selected.split(whereSeparator: \.isWhitespace).count) words")
                     .font(Theme.mono)
                     .foregroundStyle(Theme.muted)
                     .lineLimit(1)
@@ -219,24 +221,11 @@ struct PhotoViewer: View {
                     .padding(.leading, 20)
             }
             Spacer()
-            if reading {
-                button("xmark", label: "Done reading") {
-                    reading = false
-                    selected = ""
-                }
-            } else {
-                if LiveTextView.isSupported, full.contains(photos[index].hash) {
-                    button("text.viewfinder", label: "Read the words in the photo") {
-                        withAnimation(Motion.settle) { resetZoom() }
-                        selected = ""
-                        reading = true
-                    }
-                }
-                button("xmark", label: "Close") { close() }
-            }
+            button("xmark", label: "Close") { close() }
         }
         .padding(.top, 8)
         .padding(.trailing, 12)
+        .animation(.easeOut(duration: 0.15), value: selected.isEmpty)
     }
 
     private func button(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
@@ -260,7 +249,6 @@ struct PhotoViewer: View {
         let words = (entry?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         model.edit(opening.entry, text: words.isEmpty ? quoted : "\(words) \(quoted)")
         Haptic.store()
-        reading = false
         selected = ""
     }
 
@@ -384,7 +372,7 @@ struct PhotoViewer: View {
     /// page comes through behind, and only then does the cover go, with no motion of its own.
     private func close() {
         if editing { store() }
-        reading = false
+        selected = ""
         withAnimation(.snappy(duration: 0.36, extraBounce: 0)) {
             shown = false
             drag = .zero
