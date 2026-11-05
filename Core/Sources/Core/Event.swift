@@ -37,7 +37,7 @@ public struct DeviceID: RawRepresentable, Hashable, Codable, Sendable, Expressib
     public var description: String { rawValue }
 }
 
-/// Coordinates captured silently when a line starts. Named later by a reader, never a prompt.
+/// Coordinates captured silently when a line starts. Named later through the door, never a prompt.
 public struct Location: Hashable, Codable, Sendable {
     public var latitude: Double
     public var longitude: Double
@@ -109,7 +109,7 @@ public enum Payload: Hashable, Sendable {
         public init(name: String) { self.name = name }
     }
 
-    /// A reader joins a later line to an earlier one: the later continues the earlier and,
+    /// An author joins a later line to an earlier one: the later continues the earlier and,
     /// when `closes` is set, finishes what the earlier line opened. One link per pair of
     /// lines; a newer add or remove for the same pair replaces an older one.
     public struct LinkAdd: Hashable, Codable, Sendable {
@@ -134,11 +134,13 @@ public enum Payload: Hashable, Sendable {
         }
     }
 
-    /// A reader read something. The receipt: what was asked for and how much came back,
+    /// Someone read something through the door. The receipt: what was asked for and how much came back,
     /// so the owner can see every read, not only every write.
     public struct Visit: Hashable, Codable, Sendable {
         public enum What: String, Codable, Sendable {
             case days, lines, photo
+            /// A look at what happened since the last look.
+            case inbox
         }
 
         public var what: What
@@ -146,24 +148,29 @@ public enum Payload: Hashable, Sendable {
         public var since: String?
         /// Only lines under this label were asked for.
         public var label: String?
-        /// Lines that came back, or 1 for a photo.
+        /// Lines that came back, 1 for a photo, or the things found new.
         public var count: Int
         /// The line a photo was taken from.
         public var entry: ULID?
         /// The photo looked at.
         public var hash: String?
+        /// For an inbox look: how many events each file held when it was taken, by file
+        /// name. The next look starts after these, whatever order the files grew in.
+        public var seen: [String: Int]?
 
-        public init(what: What, since: String? = nil, label: String? = nil, count: Int, entry: ULID? = nil, hash: String? = nil) {
+        public init(what: What, since: String? = nil, label: String? = nil, count: Int, entry: ULID? = nil, hash: String? = nil,
+                    seen: [String: Int]? = nil) {
             self.what = what
             self.since = since
             self.label = label
             self.count = count
             self.entry = entry
             self.hash = hash
+            self.seen = seen
         }
     }
 
-    /// A reader files the line under a word. Never typed by the owner at the moment of writing.
+    /// An author files the line under a word. Never typed by the owner at the moment of writing.
     public struct LabelAttach: Hashable, Codable, Sendable {
         public var entry: ULID
         public var label: String
@@ -184,7 +191,7 @@ public enum Payload: Hashable, Sendable {
         }
     }
 
-    /// A line, with the moment it started. Only the owner writes this.
+    /// A line, with the moment it started. It belongs to whoever writes it.
     public struct EntryCreate: Hashable, Codable, Sendable {
         public var entry: ULID
         public var text: String
@@ -205,7 +212,7 @@ public enum Payload: Hashable, Sendable {
         }
     }
 
-    /// The owner changed the words. The whole text, not a diff.
+    /// The line's author changed the words. The whole text, not a diff.
     public struct EntryEdit: Hashable, Codable, Sendable {
         public var entry: ULID
         public var text: String
@@ -249,7 +256,7 @@ public enum Payload: Hashable, Sendable {
         }
     }
 
-    /// A reader's line under the owner's. weeju's ink, or anyone else's.
+    /// A line under someone's line, by anyone: a reply.
     public struct NoteAdd: Hashable, Codable, Sendable {
         public var entry: ULID
         public var note: ULID

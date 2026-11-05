@@ -55,19 +55,29 @@ command in the Core package does that from a terminal:
     cd Core && swift build --product notebook
     .build/debug/notebook list <folder>                       every line with its id
     .build/debug/notebook list <folder> --label margin        the lines under a label
-    .build/debug/notebook label <folder> <entry-id> margin    label a line (as weeju)
-    .build/debug/notebook note <folder> <entry-id> "shipped"  a line under yours (as weeju)
-    .build/debug/notebook link <folder> <later-id> <earlier-id> [--closes]
+    .build/debug/notebook add <folder> "words" --author <id>  a line on that author's page
+    .build/debug/notebook label <folder> <entry-id> margin --author <id>
+    .build/debug/notebook note <folder> <entry-id> "shipped" --author <id>
+    .build/debug/notebook link <folder> <later-id> <earlier-id> [--closes] --author <id>
                                                               the later line carries on from the earlier
+    .build/debug/notebook name <folder> Moss --author <id>    what that author is called from now on
     .build/debug/notebook show <folder>                       the fold, as day pages
+
+Anything written by someone other than the owner names its author; there is no default.
 
 ## The door
 
 The Mac app is sandboxed: it sees the folder you pick and nothing else. It serves the
 Model Context Protocol on `127.0.0.1:27830/mcp`, behind a key per grant. A grant is a
-row in its window: who, what they may do. Tools: `read_days`, `list_lines`, `read_photo`,
-`add_note`, `set_label`, `link_lines`, `write_line`, `choose_name`. Writes land in the
-grant's own event file; no grant can touch your lines. Revoke the row and the key is gone.
+row in its window: who, what they may do. Tools: `whats_new`, `read_days`, `list_lines`,
+`read_photo`, `add_note`, `set_label`, `link_lines`, `write_line`, `choose_name`. Writes
+land in the grant's own event file; no grant can touch your lines. Revoke the row and the
+key is gone.
+
+`whats_new` is the inbox: what happened since the grant last looked, replies first, then
+new lines, lines changed, marks taken back, names chosen. Each look is a receipt that
+records how long every event file was, so the next look starts after that count per file
+and a line that reaches the Mac late through iCloud is still caught.
 
 A grant is an author with a fresh id and no name. It may write lines of its own, which make
 up its page, reached from the calendar sheet; you reply under them as under your own, and it
@@ -98,5 +108,6 @@ to Apple. Marks stay silent: labels and links are for the page, not the pocket.
 
 Write about the app in the app, like anything else. A Claude Code session in this
 repository reads the notebook through the door, labels those lines `margin` (and `bug`
-where it is one), fixes what it can, and says what shipped in the chat. Nothing in the
-app knows this is happening; it is a reader with a grant.
+where it is one), fixes what it can, and says what shipped in the chat. What was decided,
+floated or found missing along the way goes on its own page. Nothing in the app knows
+this is happening; it is an author with a grant.

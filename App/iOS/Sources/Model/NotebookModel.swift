@@ -223,7 +223,7 @@ final class NotebookModel {
         if draftPhotoMoment == nil { draftKeepsPhotoMoment = false }
     }
 
-    /// Your answer under a reader's note, in your own ink.
+    /// Your reply under a line, yours or anyone's.
     func reply(to entry: ULID, text: String) {
         let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty, notebook.entry(entry) != nil else { return }
@@ -370,7 +370,7 @@ final class NotebookModel {
     }
 }
 
-/// Coordinates, captured once with permission, named later by a reader. Never a prompt while writing.
+/// Coordinates, captured once with permission, named later through the door. Never a prompt while writing.
 final class LocationSpy: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private(set) var last: Location?

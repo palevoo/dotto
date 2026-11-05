@@ -5,9 +5,10 @@ import Foundation
 //
 //   notebook init <folder> --owner <id>
 //   notebook add <folder> "<text>" [--author <id>] [--device <id>] [--at <iso8601>]
-//   notebook note <folder> <entry-id> "<text>" [--author weeju] [--device <id>]
-//   notebook label <folder> <entry-id> <label> [--author weeju] [--remove]
-//   notebook link <folder> <later-id> <earlier-id> [--closes] [--author weeju] [--remove]
+//   notebook note <folder> <entry-id> "<text>" --author <id> [--device <id>]
+//   notebook label <folder> <entry-id> <label> --author <id> [--remove]
+//   notebook link <folder> <later-id> <earlier-id> [--closes] --author <id> [--remove]
+//   notebook name <folder> "<name>" --author <id>                  what that author is called from now on
 //   notebook list <folder> [--label <label>] [--since YYYY-MM-DD]   one line per entry, with ids
 //   notebook show <folder> [--label <label>]                        the fold, as day pages
 //   notebook labels <folder>                                        every label and its count
@@ -75,10 +76,16 @@ func parseDay(_ text: String) -> DayKey {
 
 let arguments = Arguments(Array(CommandLine.arguments.dropFirst()))
 guard let command = arguments.positional.first else {
-    fail("usage: notebook init|add|note|label|link|list|show|labels|project|log <folder> ...")
+    fail("usage: notebook init|add|note|label|link|name|list|show|labels|project|log <folder> ...")
 }
 
 let generator = ULIDGenerator()
+/// Anything written beside the owner's lines names its author. There is no default.
+func author(_ arguments: Arguments) -> Author {
+    guard let id = arguments.options["author"], !id.isEmpty else { fail("--author <id> is required") }
+    return Author(rawValue: id)
+}
+
 let host = DeviceID(rawValue: arguments.options["device"] ?? (Host.current().localizedName ?? "cli").lowercased().replacingOccurrences(of: " ", with: "-"))
 
 func time(_ date: Date) -> String {
@@ -110,7 +117,7 @@ do {
         guard arguments.positional.count > 3, let entry = ULID(arguments.positional[2]) else { fail("usage: note <folder> <entry-id> <text>") }
         guard try store.load().entry(entry) != nil else { fail("no such entry: \(entry)") }
         let at = parseDate(arguments.options["at"])
-        let author = Author(rawValue: arguments.options["author"] ?? Author.weeju.rawValue)
+        let author = author(arguments)
         let id = generator.next(at: at)
         try store.append(Event(
             id: id, author: author, device: host, at: at,
@@ -123,7 +130,7 @@ do {
         guard arguments.positional.count > 3, let entry = ULID(arguments.positional[2]) else { fail("usage: label <folder> <entry-id> <label> [--remove]") }
         guard try store.load().entry(entry) != nil else { fail("no such entry: \(entry)") }
         let at = parseDate(arguments.options["at"])
-        let author = Author(rawValue: arguments.options["author"] ?? Author.weeju.rawValue)
+        let author = author(arguments)
         let label = arguments.positional[3]
         let payload: Payload = arguments.flags.contains("remove")
             ? .labelDetach(.init(entry: entry, label: label))
@@ -140,13 +147,22 @@ do {
         guard let a = notebook.entry(later), let b = notebook.entry(earlier) else { fail("no such entry") }
         guard (b.startedAt, b.id) < (a.startedAt, a.id) else { fail("\(earlier) is not earlier than \(later)") }
         let at = parseDate(arguments.options["at"])
-        let author = Author(rawValue: arguments.options["author"] ?? Author.weeju.rawValue)
+        let author = author(arguments)
         let remove = arguments.flags.contains("remove")
         let payload: Payload = remove
             ? .linkRemove(.init(later: later, earlier: earlier))
             : .linkAdd(.init(later: later, earlier: earlier, closes: arguments.flags.contains("closes")))
         try store.append(Event(id: generator.next(at: at), author: author, device: host, at: at, payload: payload))
         print("\(remove ? "-" : "+")\(later) → \(earlier)\(arguments.flags.contains("closes") && !remove ? " closes" : "")")
+
+    case "name":
+        let store = try FileStore.open(folder(arguments, at: 1))
+        guard arguments.positional.count > 2, !arguments.positional[2].trimmingCharacters(in: .whitespaces).isEmpty else { fail("usage: name <folder> <name> --author <id>") }
+        let at = parseDate(arguments.options["at"])
+        let author = author(arguments)
+        try store.append(Event(id: generator.next(at: at), author: author, device: host, at: at,
+                               payload: .nameSet(.init(name: arguments.positional[2]))))
+        print("\(author) is called \(arguments.positional[2])")
 
     case "list":
         let store = try FileStore.open(folder(arguments, at: 1))

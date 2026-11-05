@@ -24,7 +24,7 @@ public struct Note: Hashable, Sendable, Identifiable {
     var lastTextEvent: ULID
 }
 
-/// A reader's thread between two of the owner's lines: the later continues the earlier
+/// A thread between two lines: the later continues the earlier
 /// and, when `closes` is set, finishes what the earlier line opened.
 public struct Link: Hashable, Sendable, Identifiable {
     /// The event that placed it.
@@ -61,7 +61,7 @@ public struct Entry: Hashable, Sendable, Identifiable {
         later.first { $0.closes }
     }
 
-    /// Words a reader filed this line under, sorted.
+    /// Words this line is filed under, sorted.
     public var labels: [String] {
         labelMarks.filter { $0.value.on }.keys.sorted()
     }
@@ -96,7 +96,7 @@ public struct Activity: Hashable, Sendable, Identifiable {
     public let before: String?
 }
 
-/// A reader read something: the receipt as folded.
+/// Someone read something through the door: the receipt as folded.
 public struct Visit: Hashable, Sendable, Identifiable {
     public let id: ULID
     public let author: Author
@@ -104,11 +104,13 @@ public struct Visit: Hashable, Sendable, Identifiable {
     public let at: Date
     public let read: Payload.Visit
 
-    /// "read 4 lines", "read 3 lines under #bug", "looked at a photo".
+    /// "read 4 lines", "read 3 lines under #bug", "looked at a photo", "found 2 new things".
     public var what: String {
         switch read.what {
         case .photo:
             return "looked at a photo"
+        case .inbox:
+            return read.count == 0 ? "found nothing new" : "found \(read.count) new thing\(read.count == 1 ? "" : "s")"
         case .days, .lines:
             var text = "read \(read.count) line\(read.count == 1 ? "" : "s")"
             if let label = read.label { text += " under #\(label)" }
@@ -219,7 +221,7 @@ public struct Notebook: Sendable {
 
     public private(set) var eventCount = 0
 
-    /// Every read a reader made, oldest first.
+    /// Every read through the door, oldest first.
     public private(set) var visits: [Visit] = []
     /// Every visit, note and label by anyone, oldest first. The log.
     public private(set) var trail: [Trace] = []
@@ -514,6 +516,8 @@ public struct Notebook: Sendable {
             switch visit.read.what {
             case .photo:
                 return visit.read.entry == entry.id
+            case .inbox:
+                return false
             case .days, .lines:
                 if let since = visit.read.since, day < since { return false }
                 if let label = visit.read.label, !entry.labels.contains(label) { return false }

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Watches the events folder and every file in it, so a line appended from another
-/// device or by a reader shows up without the app being told. Calls back on the main queue.
+/// device or through the door shows up without the app being told. Calls back on the main queue.
 public final class FolderWatcher {
     private let directory: URL
     private let onChange: () -> Void

@@ -2,7 +2,7 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-/// A photo made small enough to hand to a reader: the long side capped, re-encoded as JPEG.
+/// A photo made small enough to hand through the door: the long side capped, re-encoded as JPEG.
 /// The original in `media/` is never touched.
 public enum Picture {
     public static func jpeg(contentsOf url: URL, maxSide: Int) -> Data? {

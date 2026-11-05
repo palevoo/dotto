@@ -2,7 +2,7 @@ import Core
 import SwiftUI
 
 /// The date, tapped: a month with a mark under every day that has lines, the labels
-/// readers have filed lines under, the latest read, and the way to Setup. Tap a label to
+/// lines have been filed under, the latest read, and the way to Setup. Tap a label to
 /// see only those lines.
 struct CalendarSheet: View {
     let days: [Day]

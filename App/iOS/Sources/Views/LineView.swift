@@ -42,7 +42,7 @@ struct LineView: View {
                         .foregroundStyle(Theme.foreground)
                         .monospacedDigit()
                     if let place = entry.location {
-                        // Where, as the line knows it. A name for it comes later, from a reader.
+                        // Where, as the line knows it. A name for it comes later, through the door.
                         Text(Format.place(place))
                             .font(Theme.mono)
                             .foregroundStyle(Theme.faint)

@@ -57,7 +57,7 @@ final class DoorTests: XCTestCase {
 
         let tools = (try rpc("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
         XCTAssertEqual(tools?.map { $0["name"] as? String },
-                       ["read_days", "list_lines", "read_photo", "add_note", "set_label", "link_lines", "write_line", "choose_name"])
+                       ["whats_new", "read_days", "list_lines", "read_photo", "add_note", "set_label", "link_lines", "write_line", "choose_name"])
         let conduct = result?["instructions"] as? String ?? ""
         XCTAssertTrue(conduct.contains("You have no name yet"))
     }
@@ -86,6 +86,47 @@ final class DoorTests: XCTestCase {
         let noLines = Grant(name: "Reader", author: "friend", device: "x", writesLines: false)
         door = Door(store: store, grant: noLines, calendar: utc)
         XCTAssertTrue(text(try rpc("tools/call", ["name": "write_line", "arguments": ["text": "hi"]])).contains("may not write lines"))
+    }
+
+    func testWhatsNewStartsWhereTheLastLookEnded() throws {
+        // Nothing has happened since this grant was made.
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "whats_new", "arguments": [:]])).hasPrefix("Nothing new"))
+
+        let mine = ULID(String(text(try rpc("tools/call", ["name": "write_line", "arguments": ["text": "Two harvests so far."]])).dropFirst("Written on your page as ".count).dropLast()))!
+        _ = try rpc("tools/call", ["name": "set_label", "arguments": ["entry": wall.string, "label": "bug"]])
+        let now = Date()
+        let reply = generator.next(at: now)
+        try store.append(Event(id: reply, author: "me", device: "iphone", at: now,
+                               payload: .noteAdd(.init(entry: mine, note: reply, text: "Three, counting the one Anna did."))))
+        try store.append(Event(id: generator.next(at: now), author: "me", device: "iphone", at: now,
+                               payload: .nameSet(.init(name: "wiju"))))
+        let fresh = generator.next(at: now)
+        try store.append(Event(id: fresh, author: "me", device: "iphone", at: now,
+                               payload: .entryCreate(.init(entry: fresh, text: "Rain from Saturday", startedAt: now))))
+        try store.append(Event(id: generator.next(at: now), author: "me", device: "iphone", at: now,
+                               payload: .labelDetach(.init(entry: wall, label: "bug"))))
+
+        let found = text(try rpc("tools/call", ["name": "whats_new", "arguments": [:]]))
+        XCTAssertTrue(found.hasPrefix("4 new things since "), found)
+        XCTAssertTrue(found.contains("wiju under your line \(mine) “Two harvests so far.”: Three, counting the one Anna did."), found)
+        XCTAssertTrue(found.contains("\(fresh)  2026-"), found)
+        XCTAssertTrue(found.contains("wiju took #bug off \(wall!)"), found)
+        XCTAssertTrue(found.contains("me is called wiju now"), found)
+        XCTAssertFalse(found.contains("read 0 lines"), "another grant's reads are not news")
+
+        // The look is a receipt like any read, and the next look starts after it.
+        var notebook = try store.load()
+        XCTAssertEqual(notebook.visits.map(\.what), ["found nothing new", "found 4 new things"])
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "whats_new", "arguments": [:]])).hasPrefix("Nothing new since "))
+
+        // A file that reaches the Mac late, with ids older than the last look, is still caught.
+        let late = generator.next(at: now.addingTimeInterval(-3600))
+        try store.append(Event(id: late, author: "me", device: "ipad", at: now.addingTimeInterval(-3600),
+                               payload: .entryCreate(.init(entry: late, text: "Written on the iPad an hour ago", startedAt: now.addingTimeInterval(-3600)))))
+        let caught = text(try rpc("tools/call", ["name": "whats_new", "arguments": [:]]))
+        XCTAssertTrue(caught.contains("Written on the iPad an hour ago"), caught)
+        notebook = try store.load()
+        XCTAssertEqual(notebook.visits.last?.read.seen?["me.ipad.jsonl"], 1)
     }
 
     func testLinkLinesJoinsALineToAnEarlierOne() throws {

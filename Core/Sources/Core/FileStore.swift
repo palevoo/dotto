@@ -25,7 +25,7 @@ public struct NotebookManifest: Hashable, Codable, Sendable {
 ///       days/YYYY-MM-DD.md               derived, see Projector
 ///
 /// Each device appends only to its own file, so two writers never touch the same bytes
-/// and there is nothing to merge. Any reader with the folder can take part by appending
+/// and there is nothing to merge. Anyone with the folder can take part by appending
 /// to a file of its own.
 public struct FileStore: Sendable {
     public let root: URL
@@ -114,18 +114,24 @@ public struct FileStore: Sendable {
 
     /// Every event in every file, sorted by id.
     public func loadEvents() throws -> [Event] {
-        var events: [Event] = []
+        try loadEventsByFile().flatMap(\.events).sorted { $0.id < $1.id }
+    }
+
+    /// Every event, file by file, in the order written. Files only grow, so a count per
+    /// file is a cursor into the whole notebook that no late arrival can slip past.
+    public func loadEventsByFile() throws -> [(file: String, events: [Event])] {
+        var result: [(file: String, events: [Event])] = []
         for url in try eventFiles() {
             let text = try coordinated(reading: url) { url in
                 try String(contentsOf: url, encoding: .utf8)
             }
             do {
-                events.append(contentsOf: try JSONLines.decodeAll(text))
+                result.append((url.lastPathComponent, try JSONLines.decodeAll(text)))
             } catch JSONLines.DecodeError.badLine(let number, _) {
                 throw Error.badEventFile(url, line: number)
             }
         }
-        return events.sorted { $0.id < $1.id }
+        return result
     }
 
     /// The event files on disk. In iCloud Drive a file not pulled down yet shows as

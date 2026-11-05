@@ -90,7 +90,7 @@ struct GrantsView: View {
     private var grantsSection: some View {
         Section("Grants") {
             if model.grants.isEmpty {
-                Text("No readers yet.")
+                Text("Nobody holds a key yet.")
                     .font(MacTheme.body)
                     .foregroundStyle(MacTheme.muted)
             }
@@ -158,12 +158,12 @@ struct GrantsView: View {
         }
     }
 
-    /// The last things readers did, newest first: every read, note and label, with the line.
+    /// The last things done through the door, newest first: every read, note and label, with the line.
     private var logSection: some View {
-        Section("Log") {
+        Section("Logs") {
             let traces = Array((model.notebook?.trail ?? []).suffix(12).reversed())
             if traces.isEmpty {
-                Text("No reader has been here yet.")
+                Text("Nobody has been through the door yet.")
                     .font(MacTheme.body)
                     .foregroundStyle(MacTheme.muted)
             }

@@ -37,7 +37,7 @@ public enum Projector {
                     lines.append("> \(noteLine)")
                 }
             }
-            // The thread, as a reader placed it. The other line is named by its day and time.
+            // The thread, as someone placed it. The other line is named by its day and time.
             let threads = entry.earlier.map { "\($0.closes ? "closes" : "continues") \(moment($0.earlierAt, calendar: calendar))" }
                 + entry.later.map { "\($0.closes ? "done by" : "continued by") \(moment($0.laterAt, calendar: calendar))" }
             if !threads.isEmpty {

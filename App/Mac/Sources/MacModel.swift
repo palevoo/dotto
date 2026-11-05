@@ -126,7 +126,7 @@ final class MacModel {
         let days = notebook.days(calendar: .current)
         var text = "\(notebook.entries.count) lines over \(days.count) days"
         if let last = days.last?.key { text += " · last \(last)" }
-        // Photos a reader would be refused until iCloud brings them.
+        // Photos the door would refuse until iCloud brings them.
         if let arriving = cloud?.state?.arriving, arriving > 0 { text += " · \(arriving) media files not yet on this Mac" }
         if let trouble = cloud?.state?.trouble { text += " · iCloud: \(trouble)" }
         summary = text
@@ -190,7 +190,7 @@ final class MacModel {
     static func device(for name: String) -> DeviceID {
         let slug = name.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "-" }
         let joined = String(slug).split(separator: "-", omittingEmptySubsequences: true).joined(separator: "-")
-        return DeviceID(rawValue: joined.isEmpty ? "reader" : joined)
+        return DeviceID(rawValue: joined.isEmpty ? "door" : joined)
     }
 
     private func saveGrants() {
