@@ -31,6 +31,12 @@ struct GrantsView: View {
                 .font(.system(size: 30, weight: .medium, design: .serif))
                 .foregroundStyle(MacTheme.foreground)
             Spacer()
+            // Which build this is, to hold against git log.
+            if let build = Build.label() {
+                Text(build)
+                    .font(MacTheme.mono)
+                    .foregroundStyle(MacTheme.faint)
+            }
         }
     }
 

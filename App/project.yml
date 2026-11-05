@@ -57,6 +57,10 @@ targets:
         NSLocationWhenInUseUsageDescription: To remember where a line was written. Named later, never asked.
         NSPhotoLibraryUsageDescription: To bring older photos onto the page, on the day they were taken.
         NSHealthShareUsageDescription: To put a walk on the page as a line, with its distance and time.
+    postBuildScripts:
+      - name: Stamp Build
+        path: Scripts/stamp.sh
+        # Reads git and writes the built Info.plist, which the script sandbox would refuse.
     settings:
       groups: [signing]
       base:
@@ -64,6 +68,7 @@ targets:
         # Changes to social.interface.margin once the notebook lives in iCloud Drive.
         PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook
         TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_USER_SCRIPT_SANDBOXING: false
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 
@@ -149,9 +154,14 @@ targets:
         com.apple.security.network.server: true
         # To reach Apple's push servers.
         com.apple.security.network.client: true
+    postBuildScripts:
+      - name: Stamp Build
+        path: Scripts/stamp.sh
+        # Reads git and writes the built Info.plist, which the script sandbox would refuse.
     settings:
       groups: [signing]
       base:
         PRODUCT_NAME: Margin
         PRODUCT_BUNDLE_IDENTIFIER: social.interface.margin.mac
         ENABLE_HARDENED_RUNTIME: false
+        ENABLE_USER_SCRIPT_SANDBOXING: false

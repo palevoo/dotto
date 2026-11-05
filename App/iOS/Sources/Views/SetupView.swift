@@ -28,6 +28,7 @@ struct SetupView: View {
                 walks
                 presses
                 logs
+                build
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
@@ -187,6 +188,16 @@ struct SetupView: View {
         }
         .buttonStyle(.plain)
         .padding(.top, 6)
+    }
+
+    /// Which build this is, to hold against git log.
+    @ViewBuilder
+    private var build: some View {
+        if let label = Build.label(calendar: model.calendar) {
+            Text(label)
+                .font(Theme.mono)
+                .foregroundStyle(Theme.faint)
+        }
     }
 
     /// One step: the square, the name, then its lines.

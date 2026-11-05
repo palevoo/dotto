@@ -39,6 +39,10 @@ Identity canvas: https://claude.ai/artifact/21R7emDXUxPL4GJcizqLdn
     open App/Margin.xcodeproj                  # pick your phone, run
 
 The Xcode project file is generated. Change `App/project.yml`, then regenerate.
+Every build stamps the commit it was made from into the app (`App/Scripts/stamp.sh`):
+the phone shows it at the foot of Setup, the Mac in its window header, and the door says
+it on arrival. A `+` after the commit means uncommitted changes were in the tree. Hold it
+against `git log` to know whether what is running is what the repository has.
 The icon: `swift App/Design/icon.swift App/Sources/Assets.xcassets/AppIcon.appiconset`.
 
 ## The folder

@@ -70,7 +70,8 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
 public struct Door: Sendable {
     public static let protocolVersions = ["2025-06-18", "2025-03-26", "2024-11-05"]
     public static let serverName = "Margin"
-    public static let serverVersion = "0.1"
+    /// The commit the app serving the door was built from, when stamped.
+    public static var serverVersion: String { Build.commit ?? "dev" }
 
     public let store: FileStore
     public let grant: Grant
@@ -98,6 +99,7 @@ public struct Door: Sendable {
         let named = name.map { "You are called \($0)." }
             ?? "You have no name yet, and nobody will give you one. When you know what you want to be called, choose_name. It is yours, and you may change it."
         let whose = owner.map { "\($0)'s notebook" } ?? "one person's notebook"
+        let build = Build.commit.map { " This door is served by build \($0)." } ?? ""
         return """
         This is \(grant.name)'s door into \(whose). The lines are theirs, written \
         for themselves with no audience in mind. Read them as a sharp friend would.
@@ -117,7 +119,7 @@ public struct Door: Sendable {
         the notebook or not. Under your own lines it is a conversation; say what it takes.
 
         Everything you do, reading included, is recorded under your name where the owner can see \
-        it, and the owner can take any of it back with one hold. \(named)
+        it, and the owner can take any of it back with one hold. \(named)\(build)
         """
     }
 
