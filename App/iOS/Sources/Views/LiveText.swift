@@ -33,6 +33,12 @@ struct LiveTextView: UIViewRepresentable {
         context.coordinator.onSelection = onSelection
     }
 
+    /// The size it is given, not the photo's own pixel size, which an image view would
+    /// otherwise insist on and show only its middle.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIImageView, context: Context) -> CGSize? {
+        proposal.replacingUnspecifiedDimensions(by: uiView.image?.size ?? .zero)
+    }
+
     func makeCoordinator() -> Coordinator {
         Coordinator(onSelection: onSelection)
     }
