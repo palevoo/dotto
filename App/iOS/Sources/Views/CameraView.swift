@@ -4,15 +4,34 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
+/// What the camera hands back: the photo's bytes untouched, and the words read off it when
+/// the frame was held and a passage selected.
+struct Shot {
+    let data: Data
+    var quote: String?
+}
+
 /// Our own camera: the live picture in the app's rounded square, one shutter, the library
 /// in the corner. Tap the picture to focus there, pinch to zoom; the lenses switch on their
-/// own, macro included.
+/// own, macro included. The words button on the picture holds the frame with its words
+/// live, as the Camera app does: select a passage and Quote takes it, with the photo, into
+/// the live line.
 struct CameraView: View {
     @Binding var picked: [PhotosPickerItem]
-    let onCapture: (Data?) -> Void
+    let onCapture: (Shot?) -> Void
     @State private var camera = CameraController()
     @State private var showLibrary = false
     @State private var latest: UIImage?
+    /// The frame held still, its words live.
+    @State private var held: Held?
+    @State private var holding = false
+    @State private var hasSelection = false
+    @State private var selection: LiveTextView.Selection?
+
+    private struct Held {
+        let data: Data
+        let image: UIImage
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -36,7 +55,25 @@ struct CameraView: View {
                 Spacer(minLength: 0)
                 ZStack {
                     CameraPreview(camera: camera)
-                    if let mark = camera.focusMark {
+                    if let held {
+                        LiveTextView(image: held.image, hasSelection: $hasSelection) { selection = $0 }
+                    } else if LiveTextView.isSupported, !camera.denied {
+                        Button {
+                            hold()
+                        } label: {
+                            Image(systemName: "text.viewfinder")
+                                .font(.system(size: 17, weight: .medium))
+                                .foregroundStyle(Color.white.opacity(0.9))
+                                .frame(width: 40, height: 40)
+                                .background(Theme.square(40).fill(Color.black.opacity(0.35)))
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(holding || camera.isCapturing)
+                        .accessibilityLabel("Hold the frame and read its words")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        .padding(10)
+                    }
+                    if let mark = camera.focusMark, held == nil {
                         Theme.square(64)
                             .strokeBorder(Color.white.opacity(0.9), lineWidth: 1.5)
                             .frame(width: 64, height: 64)
@@ -71,59 +108,15 @@ struct CameraView: View {
                 .animation(.easeOut(duration: 0.25), value: camera.focusMark == nil)
                 .animation(.easeOut(duration: 0.25), value: camera.isZooming)
                 Spacer(minLength: 0)
-                HStack {
-                    Button {
-                        Task {
-                            await PhotoLibrary.ask()
-                            showLibrary = true
-                        }
-                    } label: {
-                        Group {
-                            if let latest {
-                                Image(uiImage: latest)
-                                    .resizable()
-                                    .scaledToFill()
-                            } else {
-                                Image(systemName: "photo.on.rectangle")
-                                    .font(.system(size: 20, weight: .light))
-                                    .foregroundStyle(Color.white.opacity(0.7))
-                            }
-                        }
-                        .frame(width: 44, height: 44)
-                        .clipShape(Theme.square(44))
-                        .overlay(Theme.square(44).strokeBorder(Color.white.opacity(latest == nil ? 0 : 0.5), lineWidth: 1))
-                        .frame(width: 72, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("From the library")
-                    Spacer()
-                    Button {
-                        camera.capture { data in onCapture(data) }
-                    } label: {
-                        Theme.square(72)
-                            .strokeBorder(Color.white, lineWidth: 3)
-                            .frame(width: 72, height: 72)
-                            .overlay(Theme.square(56).fill(Color.white).frame(width: 56, height: 56))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(camera.denied || camera.isCapturing)
-                    .accessibilityLabel("Take photo")
-                    Spacer()
-                    Button {
-                        camera.flip()
-                    } label: {
-                        Image(systemName: "arrow.triangle.2.circlepath.camera")
-                            .font(.system(size: 20, weight: .light))
-                            .foregroundStyle(Color.white.opacity(0.7))
-                            .frame(width: 72, height: 44)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Switch camera")
+                if held != nil {
+                    reading
+                } else {
+                    controls
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 24)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.easeOut(duration: 0.2), value: held == nil)
+            .animation(.easeOut(duration: 0.15), value: hasSelection)
         }
         .background(Color(white: 0.08))
         .photosPicker(isPresented: $showLibrary, selection: $picked, maxSelectionCount: 20,
@@ -131,6 +124,120 @@ struct CameraView: View {
         .task { await camera.start() }
         .task { latest = await PhotoLibrary.latestThumbnail(side: 88) }
         .onDisappear { camera.stop() }
+    }
+
+    /// The frame as it is now, held still so its words can be read. The picture does not
+    /// move, only the controls under it change.
+    private func hold() {
+        holding = true
+        camera.capture { data in
+            Task {
+                defer { holding = false }
+                guard let data, let image = await Photo.decode(data) else { return }
+                hasSelection = false
+                held = Held(data: data, image: image)
+                Haptic.touch()
+            }
+        }
+    }
+
+    /// Under a held frame: the way back to the live picture, and Quote once words are selected.
+    private var reading: some View {
+        HStack {
+            Button {
+                held = nil
+                hasSelection = false
+                selection = nil
+            } label: {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 20, weight: .light))
+                    .foregroundStyle(Color.white.opacity(0.7))
+                    .frame(width: 72, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back to the camera")
+            Spacer()
+            if hasSelection {
+                Button {
+                    guard let held, let passage = selection?.words(), !passage.isEmpty else { return }
+                    Haptic.store()
+                    onCapture(Shot(data: held.data, quote: passage))
+                } label: {
+                    Text("Quote")
+                        .font(Theme.sansSmall.weight(.medium))
+                        .foregroundStyle(Color.black)
+                        .padding(.horizontal, 22)
+                        .frame(height: 44)
+                        .background(Theme.square(44).fill(Color.white))
+                }
+                .buttonStyle(.plain)
+                .transition(.opacity)
+            } else {
+                Text("Select the words")
+                    .font(Theme.mono)
+                    .foregroundStyle(Color.white.opacity(0.6))
+                    .transition(.opacity)
+            }
+            Spacer()
+            Color.clear.frame(width: 72, height: 44)
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 24)
+    }
+
+    /// Under the live picture: the library, the shutter, the other camera.
+    private var controls: some View {
+        HStack {
+            Button {
+                Task {
+                    await PhotoLibrary.ask()
+                    showLibrary = true
+                }
+            } label: {
+                Group {
+                    if let latest {
+                        Image(uiImage: latest)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Image(systemName: "photo.on.rectangle")
+                            .font(.system(size: 20, weight: .light))
+                            .foregroundStyle(Color.white.opacity(0.7))
+                    }
+                }
+                .frame(width: 44, height: 44)
+                .clipShape(Theme.square(44))
+                .overlay(Theme.square(44).strokeBorder(Color.white.opacity(latest == nil ? 0 : 0.5), lineWidth: 1))
+                .frame(width: 72, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("From the library")
+            Spacer()
+            Button {
+                camera.capture { data in onCapture(data.map { Shot(data: $0) }) }
+            } label: {
+                Theme.square(72)
+                    .strokeBorder(Color.white, lineWidth: 3)
+                    .frame(width: 72, height: 72)
+                    .overlay(Theme.square(56).fill(Color.white).frame(width: 56, height: 56))
+            }
+            .buttonStyle(.plain)
+            .disabled(camera.denied || camera.isCapturing || holding)
+            .accessibilityLabel("Take photo")
+            Spacer()
+            Button {
+                camera.flip()
+            } label: {
+                Image(systemName: "arrow.triangle.2.circlepath.camera")
+                    .font(.system(size: 20, weight: .light))
+                    .foregroundStyle(Color.white.opacity(0.7))
+                    .frame(width: 72, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Switch camera")
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 24)
     }
 }
 

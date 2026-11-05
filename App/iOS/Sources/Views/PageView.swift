@@ -143,11 +143,12 @@ struct PageView: View {
                 .presentationBackground(Theme.paper)
             }
             .fullScreenCover(isPresented: $showCamera) {
-                CameraView(picked: $picked) { data in
+                CameraView(picked: $picked) { shot in
                     showCamera = false
-                    guard let data else { return }
+                    guard let shot else { return }
                     Task {
-                        await model.addPhoto(data)
+                        await model.addPhoto(shot.data)
+                        if let quote = shot.quote { model.addQuote(quote) }
                         Haptic.touch()
                         liveFocused = true
                     }

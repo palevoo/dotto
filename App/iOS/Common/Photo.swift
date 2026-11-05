@@ -77,6 +77,15 @@ enum Photo {
         }.value
     }
 
+    /// A photo's bytes at viewing size, orientation baked in, decoded off the main thread.
+    static func decode(_ data: Data, maxSide: Int = 2400) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  let image = downsample(source, maxSide: maxSide) else { return nil }
+            return UIImage(cgImage: image)
+        }.value
+    }
+
     /// Decodes only as many pixels as needed. Cheap even for a 48-megapixel source.
     static func downsample(_ source: CGImageSource, maxSide: Int) -> CGImage? {
         let options: [CFString: Any] = [

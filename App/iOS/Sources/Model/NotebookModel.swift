@@ -217,6 +217,16 @@ final class NotebookModel {
         await addPhoto(data, takenAt: takenAt, location: location)
     }
 
+    /// A passage read off a page lands in the live line as its words, in quotation marks,
+    /// after whatever is there already.
+    func addQuote(_ passage: String) {
+        let words = passage.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ")
+        guard !words.isEmpty else { return }
+        let quoted = "\u{201C}\(words)\u{201D}"
+        draftText = draftText.isEmpty ? quoted : draftText + " " + quoted
+        touchDraft()
+    }
+
     func removeDraftMedia(_ item: DraftMedia) {
         draftMedia.removeAll { $0.id == item.id }
         touchDraft()
