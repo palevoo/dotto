@@ -12,14 +12,20 @@ struct AuthorPage: View {
         let days = model.notebook.days(of: author, calendar: model.calendar)
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // The name they chose, or, until they choose one, only their mark.
+                // The name they chose, in their colour, or, until they choose one, their mark
+                // and the plain fact.
                 if let name = model.notebook.name(of: author) {
                     Text(name)
                         .font(Theme.title)
-                        .foregroundStyle(Theme.foreground)
+                        .foregroundStyle(Theme.ink(for: author, owner: model.store.manifest.owner))
                 } else {
-                    AuthorMark(side: 22)
-                        .padding(.vertical, 4)
+                    HStack(spacing: 10) {
+                        AuthorMark(author: author, model: model, side: 18)
+                        Text("no name yet")
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.faint)
+                    }
+                    .padding(.vertical, 4)
                 }
                 if days.isEmpty {
                     Text("Nothing written here yet.")
@@ -63,12 +69,8 @@ struct AuthorPage: View {
                     .foregroundStyle(Theme.foreground)
                     .lineSpacing(4)
                 if !entry.notes.isEmpty {
-                    VStack(alignment: .leading, spacing: 5) {
-                        ForEach(entry.notes) { note in
-                            ReplyMark(note: note, mine: note.author == model.store.manifest.owner)
-                        }
-                    }
-                    .padding(.top, 2)
+                    ReplyPreview(notes: entry.notes)
+                        .padding(.top, 2)
                 }
             }
         }

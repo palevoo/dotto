@@ -16,6 +16,17 @@ public struct Author: RawRepresentable, Hashable, Codable, Sendable, Expressible
     public static func fresh() -> Author {
         Author(rawValue: String(ULID().string.suffix(6)).lowercased())
     }
+
+    /// A hue in 0..<1 that follows from the id, so an author has a colour of their own
+    /// everywhere, on every device, from the first thing they do, without anyone choosing.
+    public var hue: Double {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in rawValue.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 1_099_511_628_211
+        }
+        return Double(hash % 360) / 360
+    }
 }
 
 /// Which device wrote an event. One device, one event file.
@@ -47,6 +58,7 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case mediaAttach = "media.attach"
     case noteAdd = "note.add"
     case noteRemove = "note.remove"
+    case noteEdit = "note.edit"
     case labelAttach = "label.attach"
     case labelDetach = "label.detach"
     case linkAdd = "link.add"
@@ -63,6 +75,7 @@ public enum Payload: Hashable, Sendable {
     case mediaAttach(MediaAttach)
     case noteAdd(NoteAdd)
     case noteRemove(NoteRemove)
+    case noteEdit(NoteEdit)
     case labelAttach(LabelAttach)
     case labelDetach(LabelDetach)
     case linkAdd(LinkAdd)
@@ -78,6 +91,7 @@ public enum Payload: Hashable, Sendable {
         case .mediaAttach: .mediaAttach
         case .noteAdd: .noteAdd
         case .noteRemove: .noteRemove
+        case .noteEdit: .noteEdit
         case .labelAttach: .labelAttach
         case .labelDetach: .labelDetach
         case .linkAdd: .linkAdd
@@ -253,6 +267,17 @@ public enum Payload: Hashable, Sendable {
 
         public init(note: ULID) { self.note = note }
     }
+
+    /// The note's author changed its words. The whole text, not a diff.
+    public struct NoteEdit: Hashable, Codable, Sendable {
+        public var note: ULID
+        public var text: String
+
+        public init(note: ULID, text: String) {
+            self.note = note
+            self.text = text
+        }
+    }
 }
 
 /// One immutable fact. The log is a sequence of these and nothing else.
@@ -300,6 +325,7 @@ extension Event: Codable {
         case .mediaAttach: .mediaAttach(try container.decode(Payload.MediaAttach.self, forKey: .payload))
         case .noteAdd: .noteAdd(try container.decode(Payload.NoteAdd.self, forKey: .payload))
         case .noteRemove: .noteRemove(try container.decode(Payload.NoteRemove.self, forKey: .payload))
+        case .noteEdit: .noteEdit(try container.decode(Payload.NoteEdit.self, forKey: .payload))
         case .labelAttach: .labelAttach(try container.decode(Payload.LabelAttach.self, forKey: .payload))
         case .labelDetach: .labelDetach(try container.decode(Payload.LabelDetach.self, forKey: .payload))
         case .linkAdd: .linkAdd(try container.decode(Payload.LinkAdd.self, forKey: .payload))
@@ -323,6 +349,7 @@ extension Event: Codable {
         case .mediaAttach(let p): try container.encode(p, forKey: .payload)
         case .noteAdd(let p): try container.encode(p, forKey: .payload)
         case .noteRemove(let p): try container.encode(p, forKey: .payload)
+        case .noteEdit(let p): try container.encode(p, forKey: .payload)
         case .labelAttach(let p): try container.encode(p, forKey: .payload)
         case .labelDetach(let p): try container.encode(p, forKey: .payload)
         case .linkAdd(let p): try container.encode(p, forKey: .payload)

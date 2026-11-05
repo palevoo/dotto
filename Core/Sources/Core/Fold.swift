@@ -12,13 +12,16 @@ public struct Media: Hashable, Sendable, Identifiable {
     public var id: String { hash }
 }
 
-/// A reader's line under an entry, in that reader's ink.
+/// A line under an entry, by anyone: a reply.
 public struct Note: Hashable, Sendable, Identifiable {
     public var id: ULID
     public var entry: ULID
     public var author: Author
     public var text: String
     public var at: Date
+    public var editedAt: Date?
+    /// The id of the event that last set `text`, so an older edit arriving late cannot win.
+    var lastTextEvent: ULID
 }
 
 /// A reader's thread between two of the owner's lines: the later continues the earlier
@@ -194,6 +197,8 @@ public struct Notebook: Sendable {
     }
     private var noteToEntry: [ULID: ULID] = [:]
     private var removedNotes: Set<ULID> = []
+    /// Edits to notes not seen yet.
+    private var pendingNoteEdits: [ULID: [Event]] = [:]
     /// Per pair of lines, the latest add or remove seen, so order of arrival does not matter.
     private var linkMarks: [LinkPair: LinkMark] = [:]
     private var waiting: [ULID: [Event]] = [:]
@@ -283,6 +288,14 @@ public struct Notebook: Sendable {
                 entry.notes.removeAll { $0.id == p.note }
                 note(&entry, event, "took a note back")
                 table[entryID] = entry
+            }
+
+        case .noteEdit(let p):
+            // Only the note's author changes its words; an edit that arrives before the note waits on its line.
+            if let entryID = noteToEntry[p.note] {
+                applyOrWait(event, entry: entryID)
+            } else {
+                pendingNoteEdits[p.note, default: []].append(event)
             }
 
         case .visit(let p):
@@ -414,9 +427,24 @@ public struct Notebook: Sendable {
         case .noteAdd(let p):
             noteToEntry[p.note] = entryID
             guard !removedNotes.contains(p.note), !entry.notes.contains(where: { $0.id == p.note }) else { return }
-            entry.notes.append(Note(id: p.note, entry: entryID, author: event.author, text: p.text, at: event.at))
+            entry.notes.append(Note(id: p.note, entry: entryID, author: event.author, text: p.text, at: event.at, lastTextEvent: event.id))
             entry.notes.sort { $0.id < $1.id }
             note(&entry, event, "left a note")
+            if let edits = pendingNoteEdits.removeValue(forKey: p.note) {
+                table[entryID] = entry
+                for edit in edits.sorted(by: { $0.id < $1.id }) { apply(edit, toExisting: entryID) }
+                entry = table[entryID]!
+            }
+
+        case .noteEdit(let p):
+            guard let index = entry.notes.firstIndex(where: { $0.id == p.note }),
+                  entry.notes[index].author == event.author,
+                  event.id > entry.notes[index].lastTextEvent else { return }
+            let before = entry.notes[index].text
+            entry.notes[index].text = p.text
+            entry.notes[index].editedAt = event.at
+            entry.notes[index].lastTextEvent = event.id
+            note(&entry, event, "changed a note", before: before)
 
         case .labelAttach(let p):
             if let label = mark(&entry, label: p.label, on: true, by: event) {

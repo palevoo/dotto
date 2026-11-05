@@ -49,20 +49,20 @@ struct EntryRow: View {
                 }
                 if editing {
                     // The words stay where they are, at their size and spacing, on paper.
+                    // Return stores; so does a tap anywhere else, through the page.
                     WordsField(placeholder: "Words for this", text: $text, font: Theme.serif,
                                color: Theme.foreground, focused: $focused) {
-                        focused = false
+                        finishEditing()
                     }
                     .lineSpacing(4)
                     .editingSurface()
+                    // Focus is asked for once the field exists, not while the menu is still closing.
+                    .onAppear { focused = true }
                     .onChange(of: focused) { _, isFocused in
-                        guard !isFocused else { return }
-                        editing = false
-                        if editingRow == entry.id { editingRow = nil }
-                        model.edit(entry.id, text: text)
+                        if !isFocused { finishEditing() }
                     }
                     .onChange(of: editingRow) { _, row in
-                        if row != entry.id { focused = false }
+                        if row != entry.id { finishEditing() }
                     }
                 } else if !entry.text.isEmpty {
                     // A line a later line finished is struck through, and that is all the page says.
@@ -74,12 +74,8 @@ struct EntryRow: View {
                         .lineSpacing(4)
                 }
                 if !entry.notes.isEmpty {
-                    VStack(alignment: .leading, spacing: 5) {
-                        ForEach(entry.notes) { note in
-                            ReplyMark(note: note, mine: note.author == model.store.manifest.owner)
-                        }
-                    }
-                    .padding(.top, 2)
+                    ReplyPreview(notes: entry.notes)
+                        .padding(.top, 2)
                 }
             }
             .padding(.top, 4)
@@ -98,78 +94,19 @@ struct EntryRow: View {
                 text = entry.text
                 editing = true
                 editingRow = entry.id
-                focused = true
             }
             Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
             Button("Delete", systemImage: "trash", role: .destructive) { model.delete(entry.id) }
         }
     }
-}
 
-/// A reply as it sits on the page: a dot of its writer's ink, then the words, at most two
-/// lines. Who and when wait on the line's page.
-struct ReplyMark: View {
-    let note: Note
-    let mine: Bool
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Theme.square(6)
-                .fill(mine ? Theme.faint : Theme.agent.opacity(0.65))
-                .frame(width: 6, height: 6)
-                .alignmentGuide(.firstTextBaseline) { $0[.bottom] + 1 }
-            Text(note.text)
-                .font(mine ? Theme.serifSmall : Theme.sansSmall)
-                .foregroundStyle(mine ? Theme.foreground : Theme.agent)
-                .lineSpacing(2)
-                .lineLimit(2)
-                .truncationMode(.tail)
-        }
-    }
-}
-
-/// Replies under a line, opened. A hairline runs down the left; each reply says who wrote
-/// it and when.
-struct ReplyThread: View {
-    let notes: [Note]
-    let model: NotebookModel
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Theme.square(4)
-                .fill(Theme.agent.opacity(0.5))
-                .frame(width: 2)
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(notes) { note in
-                    ReplyLine(note: note, model: model)
-                }
-            }
-        }
-        .padding(.top, 2)
-    }
-}
-
-/// One reply: who and when in small type, then the words, selectable.
-struct ReplyLine: View {
-    let note: Note
-    let model: NotebookModel
-
-    private var mine: Bool { note.author == model.store.manifest.owner }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Who(author: note.author, model: model)
-                Text("· \(Format.time(note.at, calendar: model.calendar))")
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.faint)
-            }
-            Text(note.text)
-                .font(mine ? Theme.serifSmall : Theme.sansSmall)
-                .foregroundStyle(mine ? Theme.foreground : Theme.agent)
-                .lineSpacing(2)
-                .textSelection(.enabled)
-        }
+    /// Stores the words and leaves the edit, whichever way it ended. Safe to call twice.
+    private func finishEditing() {
+        guard editing else { return }
+        editing = false
+        focused = false
+        if editingRow == entry.id { editingRow = nil }
+        model.edit(entry.id, text: text)
     }
 }
 

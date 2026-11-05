@@ -176,7 +176,7 @@ struct GrantsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(model.name(of: trace.author))
-                                .foregroundStyle(trace.author == model.notebook?.owner ? MacTheme.foreground : MacTheme.agent)
+                                .foregroundStyle(MacTheme.ink(for: trace.author, owner: model.notebook?.owner))
                             Text(trace.what)
                                 .foregroundStyle(MacTheme.muted)
                             Text("via \(trace.device.rawValue)")
@@ -246,7 +246,7 @@ struct GrantCard: View {
             }
             HStack(spacing: 8) {
                 MacTheme.square(8)
-                    .fill(MacTheme.agent)
+                    .fill(MacTheme.ink(for: grant.author, owner: nil))
                     .frame(width: 8, height: 8)
                 Text(name.map { "called \($0)" } ?? "no name yet · id \(grant.author.rawValue)")
                     .font(MacTheme.mono)

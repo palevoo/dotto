@@ -77,7 +77,13 @@ name stands beside everything it does from then on. Until then it is only a mark
 A link joins a later line to an earlier one it carries on from: the same plant, book or
 errand, written days apart. When the later line finishes what the earlier one asked for,
 the link says so and the earlier line is struck through on the page. A line's own page
-shows its thread in the reader's ink; hold a row there to take the link back.
+lists its thread; hold a row there to take the link back, or join the line to an earlier
+one of yours with "Carries on from…".
+
+Replies under a line show on the page as one quiet line, the latest reply's words with a
+count before it. The line's page holds the conversation, with the place to reply pinned at
+the foot; hold a reply of yours to change or delete it. Everyone has a colour of their own,
+from their id, which is their mark everywhere until they choose a name and after.
 
 Every read leaves a receipt: a `visit` event in the grant's file saying what was asked for
 and how much came back. The phone shows the latest one on the calendar sheet and the whole

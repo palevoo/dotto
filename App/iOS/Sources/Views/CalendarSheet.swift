@@ -108,20 +108,13 @@ struct CalendarSheet: View {
                 }
             }
 
-            // Everyone else's page, by name or mark.
+            // Everyone else's page: their colour, and their name or the fact there is none yet.
             if !others.isEmpty {
-                HStack(spacing: 14) {
+                HStack(spacing: 18) {
                     ForEach(others, id: \.rawValue) { author in
                         Button { onAuthor(author) } label: {
-                            HStack(spacing: 6) {
-                                AuthorMark(side: 8)
-                                if let name = model.notebook.name(of: author) {
-                                    Text(name)
-                                        .font(Theme.mono)
-                                        .foregroundStyle(Theme.foreground)
-                                }
-                            }
-                            .frame(minHeight: 30)
+                            AuthorLabel(author: author, model: model)
+                                .frame(minHeight: 30)
                         }
                         .buttonStyle(.plain)
                     }
@@ -137,7 +130,7 @@ struct CalendarSheet: View {
                             Who(author: lastVisit.author, model: model)
                             Text("· \(lastVisit.text)")
                                 .font(Theme.mono)
-                                .foregroundStyle(Theme.agent)
+                                .foregroundStyle(Theme.muted)
                                 .lineLimit(1)
                         }
                     }

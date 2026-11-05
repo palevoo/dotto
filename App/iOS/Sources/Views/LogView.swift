@@ -9,35 +9,6 @@ enum Route: Hashable {
     case author(Author)
 }
 
-/// Who did something, as the page says it: "you", the name they chose, or, until they
-/// choose one, only their mark. Nobody is called anything by default.
-struct Who: View {
-    let author: Author
-    let model: NotebookModel
-    var font: Font = Theme.mono
-
-    var body: some View {
-        if author == model.store.manifest.owner {
-            Text("you").font(font).foregroundStyle(Theme.foreground)
-        } else if let name = model.notebook.name(of: author) {
-            Text(name).font(font).foregroundStyle(Theme.foreground)
-        } else {
-            AuthorMark()
-        }
-    }
-}
-
-/// The square that stands for someone who has not chosen a name.
-struct AuthorMark: View {
-    var side: CGFloat = 10
-
-    var body: some View {
-        Theme.square(side)
-            .fill(Theme.agent)
-            .frame(width: side, height: side)
-    }
-}
-
 /// Everything anyone else did in the notebook, newest first: each read, note, label and
 /// link, with the line it was about. Tap a row to open the line.
 struct LogView: View {

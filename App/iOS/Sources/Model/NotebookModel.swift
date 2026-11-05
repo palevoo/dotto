@@ -312,6 +312,25 @@ final class NotebookModel {
         record(.linkRemove(.init(later: link.later, earlier: link.earlier)))
     }
 
+    /// Your own link: this line carries on from an earlier one of yours.
+    func link(_ later: ULID, from earlier: ULID) {
+        guard let a = notebook.entry(earlier), let b = notebook.entry(later),
+              (a.startedAt, a.id) < (b.startedAt, b.id) else { return }
+        record(.linkAdd(.init(later: later, earlier: earlier)))
+    }
+
+    /// Your reply, changed. Only your own.
+    func editNote(_ note: Note, text: String) {
+        let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard note.author == store.manifest.owner, !words.isEmpty, words != note.text else { return }
+        record(.noteEdit(.init(note: note.id, text: words)))
+    }
+
+    /// A reply taken away: yours, or anyone's from under your line.
+    func removeNote(_ note: Note) {
+        record(.noteRemove(.init(note: note.id)))
+    }
+
     func mediaURL(_ media: Media) -> URL {
         store.mediaURL(hash: media.hash, fileExtension: Projector.fileExtension(forMIME: media.mime))
     }

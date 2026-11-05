@@ -1,4 +1,5 @@
 import AppKit
+import Core
 import SwiftUI
 
 /// The same inks as the phone, as dynamic Mac colors.
@@ -15,6 +16,18 @@ enum MacTheme {
 
     static func square(_ side: CGFloat) -> RoundedRectangle {
         RoundedRectangle(cornerRadius: side * 0.22, style: .continuous)
+    }
+
+    /// Everyone's own colour, from their id, the same as on the phone. The owner is the ink.
+    static func ink(for author: Author, owner: Author?) -> Color {
+        guard author != owner else { return foreground }
+        let hue = author.hue
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            return isDark
+                ? NSColor(hue: hue, saturation: 0.38, brightness: 0.78, alpha: 1)
+                : NSColor(hue: hue, saturation: 0.48, brightness: 0.52, alpha: 1)
+        })
     }
 
     static let title: Font = .system(size: 22, weight: .medium, design: .serif)

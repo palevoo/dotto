@@ -127,6 +127,26 @@ final class FoldTests: XCTestCase {
         XCTAssertEqual(notebook.entry(id)?.notes, [])
     }
 
+    func testANoteIsEditedOnlyByItsAuthorAndTheLatestWins() {
+        let id = ULID()
+        let noteID = ULID()
+        var notebook = Notebook(owner: me)
+        notebook.apply(event(.entryCreate(.init(entry: id, text: "line", startedAt: clock))))
+        let add = event(.noteAdd(.init(entry: id, note: noteID, text: "hello")), author: .weeju)
+        let older = event(.noteEdit(.init(note: noteID, text: "hallo")), author: .weeju)
+        let newer = event(.noteEdit(.init(note: noteID, text: "hullo")), author: .weeju)
+        let byOwner = event(.noteEdit(.init(note: noteID, text: "mine now")))
+        // The edits arrive before the note, and out of order.
+        notebook.apply(newer)
+        notebook.apply(byOwner)
+        notebook.apply(add)
+        notebook.apply(older)
+        XCTAssertEqual(notebook.entry(id)?.notes.first?.text, "hullo")
+        XCTAssertNotNil(notebook.entry(id)?.notes.first?.editedAt)
+        XCTAssertEqual(notebook.entry(id)?.activity.map(\.what), ["left a note", "changed a note"])
+        XCTAssertEqual(notebook.entry(id)?.activity.last?.before, "hello")
+    }
+
     func testLabelsAreOrderIndependentAndCaseFolded() {
         let id = ULID()
         var notebook = Notebook(owner: me)

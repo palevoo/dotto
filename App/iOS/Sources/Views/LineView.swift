@@ -11,10 +11,9 @@ struct LineView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
     @State private var text = ""
-    @State private var replyText = ""
     @State private var viewing: PhotoOpening?
+    @State private var picking = false
     @FocusState private var focused: Bool
-    @FocusState private var replying: Bool
 
     var body: some View {
         if let entry = model.notebook.entry(entryID) {
@@ -62,13 +61,9 @@ struct LineView: View {
                     VoiceChip(hash: voice.hash, duration: voice.duration ?? 0, url: model.mediaURL(voice))
                 }
 
-                if entry.author != owner, let name = model.notebook.name(of: entry.author) {
+                if entry.author != owner {
                     // Whose line this is, when it is not yours.
-                    Text(name)
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.muted)
-                } else if entry.author != owner {
-                    AuthorMark()
+                    AuthorLabel(author: entry.author, model: model)
                 }
 
                 if editing {
@@ -108,28 +103,25 @@ struct LineView: View {
                     .buttonStyle(.plain)
                 }
 
-                if !entry.earlier.isEmpty || !entry.later.isEmpty {
-                    ThreadView(entry: entry, model: model)
-                }
-
-                VStack(alignment: .leading, spacing: 12) {
-                    if !entry.notes.isEmpty {
-                        ReplyThread(notes: entry.notes, model: model)
-                    }
-                    HStack(alignment: .top, spacing: 10) {
-                        Theme.square(4)
-                            .fill(replying || !replyText.isEmpty ? Theme.foreground.opacity(0.4) : Theme.line)
-                            .frame(width: 2)
-                        WordsField(placeholder: "Reply", text: $replyText, font: Theme.serifSmall,
-                                   color: Theme.foreground, focused: $replying) {
-                            let words = replyText
-                            replyText = ""
-                            withAnimation(Motion.settle) { model.reply(to: entry.id, text: words) }
-                            Haptic.store()
+                // The thread: the lines this one is joined to, and, for your own lines, the way
+                // to join it to an earlier one yourself.
+                if !entry.earlier.isEmpty || !entry.later.isEmpty || entry.author == owner {
+                    VStack(alignment: .leading, spacing: 10) {
+                        if !entry.earlier.isEmpty || !entry.later.isEmpty {
+                            ThreadList(entry: entry, model: model)
+                        }
+                        if entry.author == owner {
+                            Button("Carries on from…") { picking = true }
+                                .font(Theme.mono)
+                                .foregroundStyle(Theme.accent)
+                                .buttonStyle(.plain)
                         }
                     }
-                    .padding(.top, entry.notes.isEmpty ? 0 : 4)
-                    .id("reply")
+                }
+
+                if !entry.notes.isEmpty {
+                    Conversation(notes: entry.notes, model: model)
+                        .id("replies")
                 }
 
                 if !entry.labels.isEmpty {
@@ -199,13 +191,22 @@ struct LineView: View {
             .scrollDismissesKeyboard(.interactively)
             // The field being written in stays above the keyboard.
             .onChange(of: focused) { _, isFocused in if isFocused { show("words", proxy) } }
-            .onChange(of: replying) { _, isReplying in if isReplying { show("reply", proxy) } }
+        }
+        // The place to reply is the last row of the page, like the live line on the main one.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            ReplyBar(entry: entry.id, model: model)
         }
         .background(Theme.background.ignoresSafeArea())
         .toolbarBackground(Theme.background, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(item: $viewing) { opening in
             PhotoViewer(opening: opening, model: model) { withoutAnimation { viewing = nil } }
+        }
+        .sheet(isPresented: $picking) {
+            EarlierPicker(entry: entry, model: model) { earlier in
+                withAnimation(Motion.settle) { model.link(entry.id, from: earlier) }
+                Haptic.store()
+            }
         }
     }
 
@@ -243,80 +244,6 @@ struct LineView: View {
     /// In a sentence, someone with no name yet is "someone": the mark cannot sit inside text.
     private func who(_ author: Author) -> String {
         model.notebook.name(of: author) ?? "someone"
-    }
-}
-
-/// The lines this one carries on from, and the ones that carry on from it, as a reader
-/// placed them: in the reader's ink, each a day and the line's first words. Tap one to go
-/// there; hold one to take the link back.
-struct ThreadView: View {
-    let entry: Entry
-    @Bindable var model: NotebookModel
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Theme.square(4)
-                .fill(Theme.agent.opacity(0.5))
-                .frame(width: 2)
-            VStack(alignment: .leading, spacing: 10) {
-                group("earlier", entry.earlier, side: \.earlier) { $0.closes ? "done by this line" : nil }
-                group("later", entry.later, side: \.later) { $0.closes ? "done" : nil }
-            }
-        }
-        .padding(.top, 2)
-    }
-
-    @ViewBuilder
-    private func group(_ title: String, _ links: [Core.Link], side: KeyPath<Core.Link, ULID>, mark: @escaping (Core.Link) -> String?) -> some View {
-        if !links.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(title)
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.agent.opacity(0.7))
-                ForEach(links) { link in
-                    if let other = model.notebook.entry(link[keyPath: side]) {
-                        NavigationLink(value: other.id) {
-                            ThreadRow(line: other, mark: mark(link), calendar: model.calendar)
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button("Take the link back", systemImage: "minus.circle", role: .destructive) {
-                                withAnimation(Motion.settle) { model.unlink(link) }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// One line of the thread: when, then its first words, then what the link says about it.
-struct ThreadRow: View {
-    let line: Entry
-    let mark: String?
-    let calendar: Calendar
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(Format.shortDay(line.startedAt, calendar: calendar))
-                .font(Theme.mono)
-                .foregroundStyle(Theme.agent.opacity(0.7))
-                .frame(width: 44, alignment: .leading)
-            Text(line.text.isEmpty ? "a photo" : line.text)
-                .font(Theme.sansSmall)
-                .foregroundStyle(Theme.agent)
-                .lineLimit(2)
-                .truncationMode(.tail)
-            if let mark {
-                Text(mark)
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.agent.opacity(0.7))
-                    .fixedSize()
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 }
 
