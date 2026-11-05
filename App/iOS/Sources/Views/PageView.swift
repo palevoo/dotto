@@ -264,7 +264,7 @@ struct PageView: View {
         guard let take = recorder.stop() else { return }
         Haptic.touch()
         Task {
-            let transcript = await Transcriber.transcribe(take.fileURL)
+            let transcript = await Voice.transcribe(take.fileURL)
             model.addVoice(fileURL: take.fileURL, duration: take.duration, transcript: transcript, startedAt: take.startedAt)
             liveFocused = true
         }

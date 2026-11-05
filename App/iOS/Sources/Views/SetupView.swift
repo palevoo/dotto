@@ -26,6 +26,7 @@ struct SetupView: View {
                 location
                 notifications
                 walks
+                voice
                 presses
                 logs
                 build
@@ -168,6 +169,36 @@ struct SetupView: View {
                 }
             }
         }
+    }
+
+    /// Voice notes become words on the phone, in each of the phone's languages that Apple's
+    /// models cover. The models are fetched once from here.
+    private var voice: some View {
+        let voice = Voice.shared
+        let heard = voice.languages.filter { $0.state != .unsupported }
+        return Step("Voice", done: !heard.isEmpty && heard.allSatisfy { $0.state == .ready }) {
+            if voice.languages.isEmpty {
+                Status("Looking at the phone's languages", pending: true)
+            }
+            ForEach(voice.languages) { language in
+                switch language.state {
+                case .ready:
+                    Status("\(language.name) is understood on this phone")
+                case .getting:
+                    Status("Getting \(language.name)", pending: true)
+                case .missing:
+                    Status("\(language.name) needs its model on the phone")
+                    Action("Get \(language.name)") { voice.get(language) }
+                case .unsupported:
+                    Status("\(language.name) is not one Apple's models cover")
+                }
+            }
+            if let trouble = voice.trouble {
+                Status("Apple: \(trouble)")
+            }
+            Way("Languages", "Settings · General · Language & Region")
+        }
+        .task { await voice.refresh() }
     }
 
     /// The phone does not say whether these are on, so the step never fills.

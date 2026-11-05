@@ -137,7 +137,8 @@ final class VoiceRecorder {
     }
 }
 
-/// Speech to text that stays on the phone when the language allows it.
+/// The older recogniser, in the phone's language only. What `Voice` falls back to when no
+/// newer model is on the phone yet.
 enum Transcriber {
     static func transcribe(_ url: URL) async -> String {
         let status = await withCheckedContinuation { continuation in
