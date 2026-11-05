@@ -7,8 +7,8 @@ enum Route: Hashable {
     case setup
 }
 
-/// Everything readers did, newest first: each visit, note and label, with the line it was
-/// about. Tap a row to open the line.
+/// Everything anyone else did in the notebook, newest first: each read, note, label and
+/// link, with the line it was about. Tap a row to open the line.
 struct LogView: View {
     @Bindable var model: NotebookModel
 
@@ -16,11 +16,11 @@ struct LogView: View {
         let days = Self.days(of: model.notebook.trail.reversed(), calendar: model.calendar)
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text("Readers")
+                Text("Logs")
                     .font(Theme.title)
                     .foregroundStyle(Theme.foreground)
                 if days.isEmpty {
-                    Text("No reader has been here yet.")
+                    Text("Nothing yet. What anyone else does in the notebook is listed here.")
                         .font(Theme.serifSmall)
                         .foregroundStyle(Theme.muted)
                 }
@@ -53,18 +53,12 @@ struct LogView: View {
                 .font(Theme.mono)
                 .foregroundStyle(Theme.faint)
                 .frame(width: 44, alignment: .leading)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(trace.author == owner ? "you" : trace.author.rawValue)
-                        .foregroundStyle(trace.author == owner ? Theme.foreground : Theme.agent)
-                    Text(trace.what)
-                        .foregroundStyle(Theme.muted)
-                    if trace.author != owner {
-                        Text("via \(trace.device.rawValue)")
-                            .foregroundStyle(Theme.faint)
-                    }
-                }
-                .font(Theme.mono)
+            VStack(alignment: .leading, spacing: 4) {
+                // One sentence: who, what, and from where.
+                let who = trace.author == owner ? "you" : trace.author.rawValue
+                let via = trace.author == owner ? "" : ", via \(trace.device.rawValue)"
+                (Text(who).foregroundStyle(Theme.foreground) + Text(" \(trace.what)\(via)").foregroundStyle(Theme.muted))
+                    .font(Theme.mono)
                 if let line {
                     Text(line.text.isEmpty ? "a photo" : line.text)
                         .font(Theme.serifSmall)

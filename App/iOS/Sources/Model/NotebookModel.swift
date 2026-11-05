@@ -42,6 +42,8 @@ final class NotebookModel {
 
     private let generator = ULIDGenerator()
     private let location = LocationSpy()
+    /// Whether a line may keep where it was written, as the phone has it now.
+    private(set) var locationStatus: CLAuthorizationStatus
     let walks = Walks()
     private var watcher: FolderWatcher?
     private var cloudWatcher: CloudWatcher?
@@ -58,6 +60,8 @@ final class NotebookModel {
         calendar.locale = Locale.autoupdatingCurrent
         self.calendar = calendar
         self.notebook = Notebook(owner: store.manifest.owner)
+        locationStatus = location.status
+        location.onChange = { [weak self] status in self?.locationStatus = status }
         reload()
         takeInbox()
         watcher = FolderWatcher(directory: store.eventsDirectory) { [weak self] in
@@ -71,7 +75,12 @@ final class NotebookModel {
         walks.resume { [weak self] walks in self?.add(walks) }
     }
 
-    /// Walks from Health, switched on from the calendar. From then on each one is a line.
+    /// Asks the phone, once, whether lines may keep their place. Refused, the answer lives in Settings.
+    func allowLocation() {
+        location.ask()
+    }
+
+    /// Walks from Health, switched on from Setup. From then on each one is a line.
     func turnOnWalks() {
         Task { await walks.turnOn { [weak self] walks in self?.add(walks) } }
     }
@@ -320,12 +329,15 @@ final class NotebookModel {
 final class LocationSpy: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private(set) var last: Location?
+    var onChange: ((CLAuthorizationStatus) -> Void)?
 
     override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
+
+    var status: CLAuthorizationStatus { manager.authorizationStatus }
 
     func ask() {
         switch manager.authorizationStatus {
@@ -336,9 +348,11 @@ final class LocationSpy: NSObject, CLLocationManagerDelegate {
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        if manager.authorizationStatus == .authorizedWhenInUse || manager.authorizationStatus == .authorizedAlways {
+        let status = manager.authorizationStatus
+        if status == .authorizedWhenInUse || status == .authorizedAlways {
             manager.requestLocation()
         }
+        Task { @MainActor in self.onChange?(status) }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {

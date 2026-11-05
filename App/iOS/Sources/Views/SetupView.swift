@@ -1,24 +1,28 @@
 import Core
+import CoreLocation
 import SwiftUI
 
-/// Everything about the app that is not a line, on one page: where the notebook is and how
-/// far iCloud is with it, walks from Health, the one-press ways in, and who has read. Each
-/// group is a fact and at most one thing to do.
+/// Everything about the app that is not a line, as steps in the order someone new would take
+/// them. Each step is a square that fills when it is done, a name, its state in plain words,
+/// and at most one thing to do.
 struct SetupView: View {
     @Bindable var model: NotebookModel
     let onRelocate: (URL) -> Void
     @State private var showMove = false
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 26) {
                 Text("Setup")
                     .font(Theme.title)
                     .foregroundStyle(Theme.foreground)
                 notebook
+                cloud
+                location
                 walks
                 presses
-                readers
+                logs
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
@@ -37,22 +41,25 @@ struct SetupView: View {
     }
 
     private var notebook: some View {
-        Block("Notebook") {
-            Text(Library.describe(model.store))
-                .font(Theme.serifSmall)
-                .foregroundStyle(Theme.foreground)
-            if let cloud = model.cloud {
-                Text(Self.sync(cloud))
-                    .font(Theme.mono)
-                    .foregroundStyle(cloud.settled ? Theme.muted : Theme.warm)
-                if let trouble = cloud.trouble {
-                    // iCloud's refusal, in its words, where it can be read and reported.
-                    Text("iCloud: \(trouble)")
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.muted)
-                }
-            }
+        Step("Notebook", done: true) {
+            Status(Library.describe(model.store))
             Action("Move to a folder") { showMove = true }
+        }
+    }
+
+    /// Photos and voice notes travel after the lines. This is how far they are.
+    private var cloud: some View {
+        let state = model.cloud
+        return Step("Photos and voice notes in iCloud", done: state?.settled == true) {
+            if let state {
+                Status(Self.sync(state), pending: !state.settled)
+                if let trouble = state.trouble {
+                    // iCloud's refusal, in its words, where it can be read and reported.
+                    Status("iCloud: \(trouble)")
+                }
+            } else {
+                Status("iCloud has not said yet")
+            }
         }
     }
 
@@ -67,83 +74,110 @@ struct SetupView: View {
         return parts.joined(separator: " · ")
     }
 
+    private var location: some View {
+        let status = model.locationStatus
+        let allowed = status == .authorizedWhenInUse || status == .authorizedAlways
+        return Step("Location", done: allowed) {
+            switch status {
+            case .authorizedWhenInUse, .authorizedAlways:
+                Status("Each line keeps where it was written")
+            case .notDetermined:
+                Status("A line could keep where it was written")
+                Action("Allow location") { model.allowLocation() }
+            default:
+                Status("Refused. Lines keep no place")
+                Action("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private var walks: some View {
         if model.walks.available {
-            Block("Walks") {
+            Step("Walks from Health", done: model.walks.isOn) {
                 if model.walks.isOn {
-                    Text("Walks from Health arrive as lines, at the moment each one began.")
-                        .font(Theme.serifSmall)
-                        .foregroundStyle(Theme.foreground)
+                    Status("Each walk arrives as a line, at the moment it began")
                 } else {
-                    Text("Each walk can be a line, with its distance and time.")
-                        .font(Theme.serifSmall)
-                        .foregroundStyle(Theme.foreground)
+                    Status("Each walk could be a line, with its distance and time")
                     Action("Bring walks from Health") { model.turnOnWalks() }
                     // Health's refusal, in its words, where it can be read and reported.
                     if let trouble = model.walks.trouble {
-                        Text("Health: \(trouble)")
-                            .font(Theme.mono)
-                            .foregroundStyle(Theme.muted)
+                        Status("Health: \(trouble)")
                     }
                 }
             }
         }
     }
 
+    /// The phone does not say whether these are on, so the step never fills.
     private var presses: some View {
-        Block("One press") {
-            Text("Write, take a photo or speak without opening the app first.")
-                .font(Theme.serifSmall)
-                .foregroundStyle(Theme.foreground)
+        Step("One press", done: false) {
+            Status("Write, take a photo or speak without opening the app first")
             Way("Action button", "Settings · Action Button · Controls · Margin")
             Way("Lock screen and Control Center", "Hold, Add a Control, Margin")
             Way("Siri", "“Write in Margin”, “Photo in Margin”, “Speak in Margin”")
         }
     }
 
-    private var readers: some View {
-        Block("Readers") {
-            if let last = model.notebook.visits.last {
-                Text(LogView.summary(of: last, calendar: model.calendar))
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.agent)
-                NavigationLink(value: Route.log) {
-                    Text("Everything readers did")
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.accent)
-                }
-                .buttonStyle(.plain)
-            } else {
-                Text("No reader has been here yet.")
-                    .font(Theme.serifSmall)
-                    .foregroundStyle(Theme.muted)
-            }
+    private var logs: some View {
+        NavigationLink(value: Route.log) {
+            Text("Logs")
+                .font(Theme.mono)
+                .foregroundStyle(Theme.accent)
         }
+        .buttonStyle(.plain)
+        .padding(.top, 6)
     }
 
-    /// A titled group: a small name, a hairline, then its lines.
-    private struct Block<Content: View>: View {
+    /// One step: the square, the name, then its lines.
+    private struct Step<Content: View>: View {
         let title: String
+        let done: Bool
         @ViewBuilder let content: Content
 
-        init(_ title: String, @ViewBuilder content: () -> Content) {
+        init(_ title: String, done: Bool, @ViewBuilder content: () -> Content) {
             self.title = title
+            self.done = done
             self.content = content()
         }
 
         var body: some View {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(title)
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.faint)
-                Theme.line.frame(height: 1)
-                content
+            HStack(alignment: .top, spacing: 14) {
+                Theme.square(16)
+                    .fill(done ? Theme.accent : .clear)
+                    .overlay(Theme.square(16).strokeBorder(done ? .clear : Theme.faint, lineWidth: 1.5))
+                    .frame(width: 16, height: 16)
+                    .padding(.top, 3)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(title)
+                        .font(Theme.serif)
+                        .foregroundStyle(Theme.foreground)
+                    content
+                }
             }
         }
     }
 
-    /// The one thing a group lets you do.
+    /// Where the step stands, in plain words. Warm while something is still on its way.
+    private struct Status: View {
+        let text: String
+        var pending = false
+
+        init(_ text: String, pending: Bool = false) {
+            self.text = text
+            self.pending = pending
+        }
+
+        var body: some View {
+            Text(text)
+                .font(Theme.mono)
+                .foregroundStyle(pending ? Theme.warm : Theme.muted)
+        }
+    }
+
+    /// The one thing a step lets you do.
     private struct Action: View {
         let title: String
         let action: () -> Void
@@ -160,7 +194,6 @@ struct SetupView: View {
                     .foregroundStyle(Theme.accent)
             }
             .buttonStyle(.plain)
-            .padding(.top, 2)
         }
     }
 
