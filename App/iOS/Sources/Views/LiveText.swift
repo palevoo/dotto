@@ -4,19 +4,11 @@ import VisionKit
 
 /// A photo with the words in it selectable, by Apple's Live Text, on the phone, in the
 /// phone's languages. Touching words selects them; a touch anywhere else is left to whatever
-/// holds the photo, so a drag still pages or closes. Says only whether something is
-/// selected, so the selection can move without the rest of the screen following; the words
-/// themselves are read when they are wanted.
+/// holds the photo, so a drag still pages or closes. The selected words are read out as the
+/// selection changes, and emptying them from outside clears the selection in the photo.
 struct LiveTextView: UIViewRepresentable {
     let image: UIImage
-    @Binding var hasSelection: Bool
-    /// Hands over the way to read the selected words and to clear them.
-    let hold: (Selection) -> Void
-
-    struct Selection {
-        let words: () -> String
-        let clear: () -> Void
-    }
+    @Binding var selected: String
 
     static var isSupported: Bool { ImageAnalyzer.isSupported }
     /// One analyser for every photo, as Apple asks.
@@ -46,7 +38,6 @@ struct LiveTextView: UIViewRepresentable {
         interaction.delegate = context.coordinator
         view.addInteraction(interaction)
         context.coordinator.interaction = interaction
-        hold(Selection(words: { interaction.selectedText }, clear: { interaction.resetTextSelection() }))
         Task {
             var configuration = ImageAnalyzer.Configuration([.text])
             configuration.locales = Self.languages
@@ -58,7 +49,10 @@ struct LiveTextView: UIViewRepresentable {
     }
 
     func updateUIView(_ view: UIImageView, context: Context) {
-        context.coordinator.onChange = { hasSelection = $0 }
+        context.coordinator.onChange = { selected = $0 }
+        if selected.isEmpty, let interaction = context.coordinator.interaction, interaction.hasActiveTextSelection {
+            interaction.resetTextSelection()
+        }
     }
 
     /// The size it is given, not the photo's own pixel size, which an image view would
@@ -68,15 +62,14 @@ struct LiveTextView: UIViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator { hasSelection = $0 }
+        Coordinator { selected = $0 }
     }
 
     final class Coordinator: NSObject, ImageAnalysisInteractionDelegate {
-        var onChange: (Bool) -> Void
+        var onChange: (String) -> Void
         var interaction: ImageAnalysisInteraction?
-        private var had = false
 
-        init(onChange: @escaping (Bool) -> Void) {
+        init(onChange: @escaping (String) -> Void) {
             self.onChange = onChange
         }
 
@@ -87,10 +80,13 @@ struct LiveTextView: UIViewRepresentable {
         }
 
         func textSelectionDidChange(_ interaction: ImageAnalysisInteraction) {
-            let has = !interaction.selectedText.isEmpty
-            guard has != had else { return }
-            had = has
-            onChange(has)
+            onChange(interaction.selectedText)
         }
     }
+}
+
+/// "12 words", for the passage about to be quoted.
+func wordCount(_ passage: String) -> String {
+    let count = passage.split(whereSeparator: \.isWhitespace).count
+    return "\(count) word\(count == 1 ? "" : "s")"
 }

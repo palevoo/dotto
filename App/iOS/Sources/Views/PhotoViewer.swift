@@ -51,10 +51,10 @@ struct PhotoViewer: View {
     @State private var settledPan: CGSize = .zero
     @State private var words = ""
     @State private var editing = false
-    /// Whether words are selected in the photo, to take as a quote from a page, and the way
-    /// to read and clear them.
-    @State private var hasSelection = false
-    @State private var selection: LiveTextView.Selection?
+    /// What is selected in the photo right now, and the last passage selected, which is what
+    /// Quote takes: a touch that lands on the button may end the selection first.
+    @State private var selected = ""
+    @State private var passage = ""
     @FocusState private var focused: Bool
 
     private let gap: CGFloat = 24
@@ -111,7 +111,13 @@ struct PhotoViewer: View {
             withAnimation(.snappy(duration: 0.38, extraBounce: 0)) { shown = true }
         }
         .task(id: index) { await loadFull() }
-        .onChange(of: index) { _, _ in hasSelection = false }
+        .onChange(of: index) { _, _ in
+            selected = ""
+            passage = ""
+        }
+        .onChange(of: selected) { _, words in
+            if !words.isEmpty { passage = words }
+        }
         .onChange(of: focused) { _, isFocused in
             if !isFocused, editing { store() }
         }
@@ -134,7 +140,7 @@ struct PhotoViewer: View {
             // Once the photo is settled and at full size its words are live; the thumbnail
             // carries the way in and out.
             if current, shown, full.contains(photo.hash), LiveTextView.isSupported, let image = images[photo.hash] {
-                LiveTextView(image: image, hasSelection: $hasSelection) { selection = $0 }
+                LiveTextView(image: image, selected: $selected)
             } else if let image = images[photo.hash] {
                 Image(uiImage: image)
                     .resizable()
@@ -198,7 +204,7 @@ struct PhotoViewer: View {
     /// selected in the photo, Quote takes them into the line.
     private var top: some View {
         HStack(spacing: 8) {
-            if hasSelection {
+            if !passage.isEmpty {
                 Button {
                     quote()
                 } label: {
@@ -211,6 +217,10 @@ struct PhotoViewer: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.leading, 12)
+                Text(wordCount(passage))
+                    .font(Theme.mono)
+                    .foregroundStyle(Theme.muted)
+                    .monospacedDigit()
             } else if photos.count > 1 {
                 Text("\(index + 1) / \(photos.count)")
                     .font(Theme.mono)
@@ -223,7 +233,7 @@ struct PhotoViewer: View {
         }
         .padding(.top, 8)
         .padding(.trailing, 12)
-        .animation(.easeOut(duration: 0.15), value: hasSelection)
+        .animation(.easeOut(duration: 0.15), value: passage.isEmpty)
     }
 
     private func button(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
@@ -241,15 +251,14 @@ struct PhotoViewer: View {
     /// The selected words join the line's, in quotes. An edit like any other: the words
     /// before stay in the line's history.
     private func quote() {
-        guard let selection else { return }
-        let passage = selection.words().trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ")
+        let passage = passage.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ")
         guard !passage.isEmpty else { return }
         let quoted = "\u{201C}\(passage)\u{201D}"
         let words = (entry?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         model.edit(opening.entry, text: words.isEmpty ? quoted : "\(words) \(quoted)")
         Haptic.store()
-        selection.clear()
-        hasSelection = false
+        selected = ""
+        self.passage = ""
     }
 
     /// The words of the line, or the place for them. Return stores.
@@ -372,7 +381,8 @@ struct PhotoViewer: View {
     /// page comes through behind, and only then does the cover go, with no motion of its own.
     private func close() {
         if editing { store() }
-        hasSelection = false
+        selected = ""
+        passage = ""
         withAnimation(.snappy(duration: 0.36, extraBounce: 0)) {
             shown = false
             drag = .zero

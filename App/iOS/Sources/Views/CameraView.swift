@@ -25,8 +25,10 @@ struct CameraView: View {
     /// The frame held still, its words live.
     @State private var held: Held?
     @State private var holding = false
-    @State private var hasSelection = false
-    @State private var selection: LiveTextView.Selection?
+    /// What is selected in the held frame right now, and the last passage selected, which is
+    /// what Quote takes: a touch that lands on the button may end the selection first.
+    @State private var selected = ""
+    @State private var passage = ""
 
     private struct Held {
         let data: Data
@@ -49,6 +51,19 @@ struct CameraView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Close")
                     Spacer()
+                    if held == nil, LiveTextView.isSupported, !camera.denied {
+                        Button {
+                            hold()
+                        } label: {
+                            Image(systemName: "text.viewfinder")
+                                .font(.system(size: 17, weight: .light))
+                                .foregroundStyle(Color.white.opacity(0.7))
+                                .frame(width: 44, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(holding || camera.isCapturing)
+                        .accessibilityLabel("Hold the frame and read its words")
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -56,22 +71,7 @@ struct CameraView: View {
                 ZStack {
                     CameraPreview(camera: camera)
                     if let held {
-                        LiveTextView(image: held.image, hasSelection: $hasSelection) { selection = $0 }
-                    } else if LiveTextView.isSupported, !camera.denied {
-                        Button {
-                            hold()
-                        } label: {
-                            Image(systemName: "text.viewfinder")
-                                .font(.system(size: 17, weight: .medium))
-                                .foregroundStyle(Color.white.opacity(0.9))
-                                .frame(width: 40, height: 40)
-                                .background(Theme.square(40).fill(Color.black.opacity(0.35)))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(holding || camera.isCapturing)
-                        .accessibilityLabel("Hold the frame and read its words")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                        .padding(10)
+                        LiveTextView(image: held.image, selected: $selected)
                     }
                     if let mark = camera.focusMark, held == nil {
                         Theme.square(64)
@@ -116,7 +116,10 @@ struct CameraView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .animation(.easeOut(duration: 0.2), value: held == nil)
-            .animation(.easeOut(duration: 0.15), value: hasSelection)
+            .animation(.easeOut(duration: 0.15), value: passage.isEmpty)
+        }
+        .onChange(of: selected) { _, words in
+            if !words.isEmpty { passage = words }
         }
         .background(Color(white: 0.08))
         .photosPicker(isPresented: $showLibrary, selection: $picked, maxSelectionCount: 20,
@@ -134,7 +137,8 @@ struct CameraView: View {
             Task {
                 defer { holding = false }
                 guard let data, let image = await Photo.decode(data) else { return }
-                hasSelection = false
+                selected = ""
+                passage = ""
                 held = Held(data: data, image: image)
                 Haptic.touch()
             }
@@ -146,8 +150,8 @@ struct CameraView: View {
         HStack {
             Button {
                 held = nil
-                hasSelection = false
-                selection = nil
+                selected = ""
+                passage = ""
             } label: {
                 Image(systemName: "arrow.uturn.backward")
                     .font(.system(size: 20, weight: .light))
@@ -157,20 +161,26 @@ struct CameraView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Back to the camera")
             Spacer()
-            if hasSelection {
-                Button {
-                    guard let held, let passage = selection?.words(), !passage.isEmpty else { return }
-                    Haptic.store()
-                    onCapture(Shot(data: held.data, quote: passage))
-                } label: {
-                    Text("Quote")
-                        .font(Theme.sansSmall.weight(.medium))
-                        .foregroundStyle(Color.black)
-                        .padding(.horizontal, 22)
-                        .frame(height: 44)
-                        .background(Theme.square(44).fill(Color.white))
+            if !passage.isEmpty {
+                HStack(spacing: 10) {
+                    Button {
+                        guard let held else { return }
+                        Haptic.store()
+                        onCapture(Shot(data: held.data, quote: passage))
+                    } label: {
+                        Text("Quote")
+                            .font(Theme.sansSmall.weight(.medium))
+                            .foregroundStyle(Color.black)
+                            .padding(.horizontal, 22)
+                            .frame(height: 44)
+                            .background(Theme.square(44).fill(Color.white))
+                    }
+                    .buttonStyle(.plain)
+                    Text(wordCount(passage))
+                        .font(Theme.mono)
+                        .foregroundStyle(Color.white.opacity(0.6))
+                        .monospacedDigit()
                 }
-                .buttonStyle(.plain)
                 .transition(.opacity)
             } else {
                 Text("Select the words")
