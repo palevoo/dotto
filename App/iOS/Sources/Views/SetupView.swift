@@ -9,6 +9,9 @@ struct SetupView: View {
     @Bindable var model: NotebookModel
     let onRelocate: (URL) -> Void
     @State private var showMove = false
+    @State private var naming = false
+    @State private var newName = ""
+    @FocusState private var nameFocused: Bool
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -17,6 +20,7 @@ struct SetupView: View {
                 Text("Setup")
                     .font(Theme.title)
                     .foregroundStyle(Theme.foreground)
+                you
                 notebook
                 cloud
                 location
@@ -38,6 +42,33 @@ struct SetupView: View {
                 if let url { onRelocate(url) }
             }
             .ignoresSafeArea()
+        }
+    }
+
+    /// Your name, for whoever else reads: day files, the Mac, anyone through the door. To
+    /// yourself you stay "you". Nobody is called anything until they choose.
+    private var you: some View {
+        let name = model.notebook.name(of: model.store.manifest.owner)
+        return Step("Name", done: name != nil) {
+            if naming {
+                WordsField(placeholder: "What you are called", text: $newName, font: Theme.serif,
+                           color: Theme.foreground, focused: $nameFocused) {
+                    nameFocused = false
+                }
+                .lineSpacing(4)
+                .editingSurface()
+                .onChange(of: nameFocused) { _, isFocused in
+                    guard !isFocused else { return }
+                    naming = false
+                    model.chooseName(newName)
+                }
+            } else if let name {
+                Status("Called \(name) by anyone else who reads")
+                Action("Change it") { newName = name; naming = true; nameFocused = true }
+            } else {
+                Status("No name yet. Anyone else who reads sees only your id")
+                Action("Choose a name") { newName = ""; naming = true; nameFocused = true }
+            }
         }
     }
 

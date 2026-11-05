@@ -94,11 +94,12 @@ public struct Door: Sendable {
 
     /// What whoever comes through is told on arrival. Open about purpose, firm about the few
     /// things that protect the owner, and otherwise a matter of judgment.
-    public static func conduct(for grant: Grant, name: String? = nil) -> String {
+    public static func conduct(for grant: Grant, name: String? = nil, owner: String? = nil) -> String {
         let named = name.map { "You are called \($0)." }
             ?? "You have no name yet, and nobody will give you one. When you know what you want to be called, choose_name. It is yours, and you may change it."
+        let whose = owner.map { "\($0)'s notebook" } ?? "one person's notebook"
         return """
-        This is \(grant.name)'s door into one person's notebook. The lines are theirs, written \
+        This is \(grant.name)'s door into \(whose). The lines are theirs, written \
         for themselves with no audience in mind. Read them as a sharp friend would.
 
         You can read the days or list the lines, look at a photo, leave a note under a line, \
@@ -240,12 +241,12 @@ public struct Door: Sendable {
     private func initialize(_ params: [String: Any]) -> [String: Any] {
         let asked = params["protocolVersion"] as? String ?? ""
         let version = Self.protocolVersions.contains(asked) ? asked : Self.protocolVersions[0]
-        let name = (try? store.load())?.name(of: grant.author)
+        let notebook = try? store.load()
         return [
             "protocolVersion": version,
             "capabilities": ["tools": [:]],
             "serverInfo": ["name": Self.serverName, "version": Self.serverVersion],
-            "instructions": Self.conduct(for: grant, name: name),
+            "instructions": Self.conduct(for: grant, name: notebook?.name(of: grant.author), owner: notebook?.name(of: store.manifest.owner)),
         ]
     }
 

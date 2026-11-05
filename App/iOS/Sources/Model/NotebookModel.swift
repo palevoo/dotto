@@ -299,7 +299,15 @@ final class NotebookModel {
         record(.entryDelete(.init(entry: entry)))
     }
 
-    /// A reader's link taken back, in your ink. Your words on either line are untouched.
+    /// What you are called, to anyone else who reads: in the day files, on the Mac, through
+    /// the door. To yourself you stay "you".
+    func chooseName(_ name: String) {
+        let chosen = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !chosen.isEmpty, chosen != notebook.name(of: store.manifest.owner) else { return }
+        record(.nameSet(.init(name: chosen)))
+    }
+
+    /// A link taken back. Your words on either line are untouched.
     func unlink(_ link: Core.Link) {
         record(.linkRemove(.init(later: link.later, earlier: link.earlier)))
     }
