@@ -62,6 +62,15 @@ struct LineView: View {
                     VoiceChip(hash: voice.hash, duration: voice.duration ?? 0, url: model.mediaURL(voice))
                 }
 
+                if entry.author != owner, let name = model.notebook.name(of: entry.author) {
+                    // Whose line this is, when it is not yours.
+                    Text(name)
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.muted)
+                } else if entry.author != owner {
+                    AuthorMark()
+                }
+
                 if editing {
                     // The words stay where they are, at their size and spacing; the paper
                     // under them says they are being changed.
@@ -85,7 +94,7 @@ struct LineView: View {
                         .strikethrough(entry.closedBy != nil, color: Theme.muted)
                         .lineSpacing(5)
                         .textSelection(.enabled)
-                } else {
+                } else if entry.author == owner {
                     // A photo or voice without words: the place for them is visible, not hidden behind Edit.
                     Button {
                         text = ""
@@ -105,7 +114,7 @@ struct LineView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     if !entry.notes.isEmpty {
-                        ReplyThread(notes: entry.notes, owner: owner, calendar: model.calendar)
+                        ReplyThread(notes: entry.notes, model: model)
                     }
                     HStack(alignment: .top, spacing: 10) {
                         Theme.square(4)
@@ -169,10 +178,13 @@ struct LineView: View {
 
                 HStack(spacing: 18) {
                     Button("Copy") { UIPasteboard.general.string = entry.text }
-                    Button("Edit") { text = entry.text; editing = true; focused = true }
-                    Button("Delete", role: .destructive) {
-                        model.delete(entry.id)
-                        dismiss()
+                    // Only the line's own author changes it or takes it away.
+                    if entry.author == owner {
+                        Button("Edit") { text = entry.text; editing = true; focused = true }
+                        Button("Delete", role: .destructive) {
+                            model.delete(entry.id)
+                            dismiss()
+                        }
                     }
                 }
                 .font(Theme.mono)
@@ -216,7 +228,7 @@ struct LineView: View {
         let done = entry.activity.map { HistoryItem(id: $0.id, at: $0.at, text: describe($0, owner: owner), before: $0.before) }
         let read = model.notebook.reads(of: entry, calendar: model.calendar).map { visit in
             HistoryItem(id: visit.id, at: visit.at,
-                        text: "\(visit.author.rawValue) \(visit.read.what == .photo ? "looked at a photo" : "read this"), via \(visit.device.rawValue)")
+                        text: "\(who(visit.author)) \(visit.read.what == .photo ? "looked at a photo" : "read this"), via \(visit.device.rawValue)")
         }
         return (done + read).sorted { $0.id < $1.id }
     }
@@ -225,7 +237,12 @@ struct LineView: View {
         if item.author == owner {
             return "you \(item.what)"
         }
-        return "\(item.author.rawValue) \(item.what), via \(item.device.rawValue)"
+        return "\(who(item.author)) \(item.what), via \(item.device.rawValue)"
+    }
+
+    /// In a sentence, someone with no name yet is "someone": the mark cannot sit inside text.
+    private func who(_ author: Author) -> String {
+        model.notebook.name(of: author) ?? "someone"
     }
 }
 

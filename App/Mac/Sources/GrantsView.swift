@@ -80,7 +80,7 @@ struct GrantsView: View {
                     .font(MacTheme.mono)
                     .foregroundStyle(MacTheme.foreground)
             }
-            Text("Only a program holding one of the keys below gets in. It can read the notebook and write notes, labels and links between lines in its own ink. It cannot touch your lines.")
+            Text("Only a program holding one of the keys below gets in. It can read the notebook, write notes, labels and links between lines, keep a page of its own lines, and choose its name. It cannot touch your lines.")
                 .font(MacTheme.body)
                 .foregroundStyle(MacTheme.muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -95,7 +95,7 @@ struct GrantsView: View {
                     .foregroundStyle(MacTheme.muted)
             }
             ForEach(model.grants) { grant in
-                GrantCard(grant: grant, command: model.connectCommand(for: grant), copied: copied == grant.id) {
+                GrantCard(grant: grant, name: model.notebook?.name(of: grant.author), command: model.connectCommand(for: grant), copied: copied == grant.id) {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(model.connectCommand(for: grant), forType: .string)
                     copied = grant.id
@@ -175,7 +175,7 @@ struct GrantsView: View {
                         .frame(width: 96, alignment: .leading)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
-                            Text(trace.author.rawValue)
+                            Text(model.name(of: trace.author))
                                 .foregroundStyle(trace.author == model.notebook?.owner ? MacTheme.foreground : MacTheme.agent)
                             Text(trace.what)
                                 .foregroundStyle(MacTheme.muted)
@@ -227,6 +227,8 @@ struct Section<Content: View>: View {
 
 struct GrantCard: View {
     let grant: Grant
+    /// What the grant's author has chosen to be called, if anything yet.
+    let name: String?
     let command: String
     let copied: Bool
     let onCopy: () -> Void
@@ -244,9 +246,9 @@ struct GrantCard: View {
             }
             HStack(spacing: 8) {
                 MacTheme.square(8)
-                    .fill(grant.author == .weeju ? MacTheme.agent : MacTheme.accent)
+                    .fill(MacTheme.agent)
                     .frame(width: 8, height: 8)
-                Text("writes as \(grant.author.rawValue)")
+                Text(name.map { "called \($0)" } ?? "no name yet · id \(grant.author.rawValue)")
                     .font(MacTheme.mono)
                     .foregroundStyle(MacTheme.muted)
                 Text("·")

@@ -176,12 +176,22 @@ public struct Day: Hashable, Sendable, Identifiable {
 /// edits are ordered by event id, tombstones are final, a note removed before it
 /// arrived stays removed, and anything about an entry not yet created waits for it.
 ///
-/// The one rule it enforces: only the owner writes entries and attaches media.
-/// Every other author only ever adds notes, labels and links.
+/// The one rule it enforces: a line belongs to whoever wrote it. Only its author edits it,
+/// deletes it or puts media behind it. Anyone may write lines of their own, which make up
+/// their own page; the owner's page is the notebook. Notes, labels and links go anywhere.
 public struct Notebook: Sendable {
     public let owner: Author
 
     private var table: [ULID: Entry] = [:]
+    /// Per author, the latest name chosen.
+    private var names: [Author: NameMark] = [:]
+    /// Everyone other than the owner who has left anything, in order of first appearance.
+    public private(set) var others: [Author] = []
+
+    private struct NameMark: Hashable, Sendable {
+        let id: ULID
+        let name: String
+    }
     private var noteToEntry: [ULID: ULID] = [:]
     private var removedNotes: Set<ULID> = []
     /// Per pair of lines, the latest add or remove seen, so order of arrival does not matter.
@@ -224,10 +234,10 @@ public struct Notebook: Sendable {
         guard !seen.contains(event.id) else { return }
         seen.insert(event.id)
         eventCount += 1
+        if event.author != owner, !others.contains(event.author) { others.append(event.author) }
 
         switch event.payload {
         case .entryCreate(let p):
-            guard event.author == owner else { return }
             if table[p.entry] != nil { return }
             table[p.entry] = Entry(
                 id: p.entry,
@@ -244,15 +254,12 @@ public struct Notebook: Sendable {
             }
 
         case .entryEdit(let p):
-            guard event.author == owner else { return }
             applyOrWait(event, entry: p.entry)
 
         case .entryDelete(let p):
-            guard event.author == owner else { return }
             applyOrWait(event, entry: p.entry)
 
         case .mediaAttach(let p):
-            guard event.author == owner else { return }
             applyOrWait(event, entry: p.entry)
 
         case .noteAdd(let p):
@@ -283,7 +290,25 @@ public struct Notebook: Sendable {
             visits.append(visit)
             visits.sort { $0.id < $1.id }
             trace(event, visit.what, entry: p.entry)
+
+        case .nameSet(let p):
+            let name = p.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return }
+            if names[event.author].map({ $0.id < event.id }) ?? true {
+                names[event.author] = NameMark(id: event.id, name: name)
+            }
+            if event.author != owner { trace(event, "chose the name \(name)", entry: nil) }
         }
+    }
+
+    /// What an author is called, if they have chosen. Nobody is called anything until then.
+    public func name(of author: Author) -> String? {
+        names[author]?.name
+    }
+
+    /// Every chosen name, by author id.
+    public var chosenNames: [Author: String] {
+        names.mapValues(\.name)
     }
 
     /// Something done to one line: on the line's own trail and on the notebook's.
@@ -354,6 +379,14 @@ public struct Notebook: Sendable {
         defer { table[entryID] = entry }
 
         switch event.payload {
+        case .entryEdit, .entryDelete, .mediaAttach:
+            // The line is its author's. Anyone else's edit, deletion or media is ignored.
+            guard event.author == entry.author else { return }
+        default:
+            break
+        }
+
+        switch event.payload {
         case .entryEdit(let p):
             guard event.id > entry.lastTextEvent else { return }
             let before = entry.text
@@ -395,7 +428,7 @@ public struct Notebook: Sendable {
                 note(&entry, event, "took #\(label) off")
             }
 
-        case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .visit:
+        case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .visit, .nameSet:
             break
         }
     }
@@ -416,16 +449,26 @@ public struct Notebook: Sendable {
         return entry
     }
 
-    /// Live entries, oldest first.
+    /// The owner's live entries, oldest first.
     public var entries: [Entry] {
+        entries(of: owner)
+    }
+
+    /// One author's live entries, oldest first: their page.
+    public func entries(of author: Author) -> [Entry] {
         table.values
-            .filter { !$0.isDeleted }
+            .filter { !$0.isDeleted && $0.author == author }
             .sorted { ($0.startedAt, $0.id) < ($1.startedAt, $1.id) }
     }
 
-    /// Live entries grouped by the day they started, in the calendar's time zone, oldest day first.
+    /// The owner's live entries grouped by the day they started, in the calendar's time zone, oldest day first.
     public func days(calendar: Calendar) -> [Day] {
         Self.days(of: entries, calendar: calendar)
+    }
+
+    /// One author's page, by day.
+    public func days(of author: Author, calendar: Calendar) -> [Day] {
+        Self.days(of: entries(of: author), calendar: calendar)
     }
 
     /// Live entries filed under `label`, grouped by day.
@@ -458,7 +501,8 @@ public struct Notebook: Sendable {
         }
     }
 
-    private static func days(of entries: [Entry], calendar: Calendar) -> [Day] {
+    /// Any entries grouped by the day they started, oldest day first.
+    public static func days(of entries: [Entry], calendar: Calendar) -> [Day] {
         let grouped = Dictionary(grouping: entries) { DayKey($0.startedAt, calendar: calendar) }
         return grouped.keys.sorted().map { Day(key: $0, entries: grouped[$0]!) }
     }

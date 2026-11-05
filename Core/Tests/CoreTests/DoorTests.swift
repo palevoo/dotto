@@ -56,7 +56,36 @@ final class DoorTests: XCTestCase {
         XCTAssertEqual((result?["serverInfo"] as? [String: Any])?["name"] as? String, "Margin")
 
         let tools = (try rpc("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
-        XCTAssertEqual(tools?.map { $0["name"] as? String }, ["read_days", "list_lines", "read_photo", "add_note", "set_label", "link_lines"])
+        XCTAssertEqual(tools?.map { $0["name"] as? String },
+                       ["read_days", "list_lines", "read_photo", "add_note", "set_label", "link_lines", "write_line", "choose_name"])
+        let conduct = result?["instructions"] as? String ?? ""
+        XCTAssertTrue(conduct.contains("You have no name yet"))
+    }
+
+    func testOwnPageAndChosenName() throws {
+        let written = text(try rpc("tools/call", ["name": "write_line", "arguments": ["text": "The yield went from 11% to 12.5%."]]))
+        XCTAssertTrue(written.hasPrefix("Written on your page as "))
+        // Not on the owner's page, on its own; and reading one's own page leaves no receipt.
+        XCTAssertFalse(text(try rpc("tools/call", ["name": "read_days", "arguments": ["mine": true]])).contains("Camera is a black screen"))
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "read_days", "arguments": ["mine": true]])).contains("The yield went from 11% to 12.5%."))
+        XCTAssertFalse(text(try rpc("tools/call", ["name": "list_lines", "arguments": [:]])).contains("The yield"))
+        var notebook = try store.load()
+        XCTAssertEqual(notebook.visits.count, 1)
+        XCTAssertEqual(notebook.entries(of: .weeju).count, 1)
+        XCTAssertEqual(notebook.entries.count, 2)
+
+        XCTAssertEqual(text(try rpc("tools/call", ["name": "choose_name", "arguments": ["name": "Moss"]])), "You are called Moss now.")
+        notebook = try store.load()
+        XCTAssertEqual(notebook.name(of: .weeju), "Moss")
+        let initialized = try rpc("initialize", ["protocolVersion": "2025-03-26", "capabilities": [:], "clientInfo": ["name": "test"]])
+        XCTAssertTrue(((initialized?["result"] as? [String: Any])?["instructions"] as? String ?? "").contains("You are called Moss."))
+        // Notes are signed with the chosen name in the day pages.
+        _ = try rpc("tools/call", ["name": "add_note", "arguments": ["entry": wall.string, "text": "Rebuilt."]])
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "read_days", "arguments": [:]])).contains("> Moss · "))
+
+        let noLines = Grant(name: "Reader", author: "friend", device: "x", writesLines: false)
+        door = Door(store: store, grant: noLines, calendar: utc)
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "write_line", "arguments": ["text": "hi"]])).contains("may not write lines"))
     }
 
     func testLinkLinesJoinsALineToAnEarlierOne() throws {
@@ -96,7 +125,7 @@ final class DoorTests: XCTestCase {
         let grant = try JSONLines.decoder().decode(Grant.self, from: old)
         XCTAssertTrue(grant.writesLinks)
         XCTAssertFalse(grant.writesNotes)
-        XCTAssertEqual(grant.scopes, "read all · write labels · write links")
+        XCTAssertEqual(grant.scopes, "read all · write labels · write links · own page")
     }
 
     func testEveryReadLeavesAReceipt() throws {
@@ -187,7 +216,7 @@ final class DoorTests: XCTestCase {
 
     func testNoteLandsInTheGrantsOwnFile() throws {
         let reply = text(try rpc("tools/call", ["name": "add_note", "arguments": ["entry": wall.string, "text": "Rebuilt the camera on AVFoundation."]]))
-        XCTAssertTrue(reply.contains("weeju"))
+        XCTAssertEqual(reply, "Noted under \(wall!).")
         XCTAssertEqual(try store.eventFiles().map(\.lastPathComponent), ["me.iphone.jsonl", "weeju.mac-door.jsonl"])
         let notebook = try store.load()
         XCTAssertEqual(notebook.entry(wall)?.notes.first?.text, "Rebuilt the camera on AVFoundation.")

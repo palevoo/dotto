@@ -5,8 +5,8 @@ You write things down. Something reads them and helps.
 Three things are fixed:
 
 1. Writing costs nothing. One gesture, no categories, no decisions, no audience.
-2. Your words are yours. Only you write them. Anyone else, weeju included, writes beside
-   them and can be removed.
+2. Your words are yours. Only you write them. Anyone else writes beside them, or on a
+   page of their own, and can be removed.
 3. Meaning comes later. What a line is, what it connects to, what it should trigger, is
    decided after it is written, and only once it has earned it.
 
@@ -16,10 +16,11 @@ Everything below is where we are now, not what Margin is. It changes as we use i
 
 An iPhone app with one page: days scrolling up into the past, a live line at the bottom
 with the time, a camera and a mic. A Mac app that holds the grants and opens the door.
-A folder of plain files that both write into. weeju is a Claude Code session with a grant.
+A folder of plain files that both write into. The one other author so far is a Claude Code
+session with a grant; it has no name until it chooses one.
 
     spec/architecture.md    §0 is what is built; the rest is a sketch
-    spec/weeju.md           how weeju behaves
+    spec/weeju.md           how whoever comes through the door behaves
     Core/                   Swift package: events, fold, file store, projector, the door, CLI, tests
     App/project.yml         both apps, generated with XcodeGen into App/Margin.xcodeproj
     App/iOS/                iPhone app; Shared/ is compiled into the controls too, Common/ into the share sheet too
@@ -64,9 +65,14 @@ command in the Core package does that from a terminal:
 
 The Mac app is sandboxed: it sees the folder you pick and nothing else. It serves the
 Model Context Protocol on `127.0.0.1:27830/mcp`, behind a key per grant. A grant is a
-row in its window: who, which ink they write in, what they may do. Tools: `read_days`,
-`list_lines`, `read_photo`, `add_note`, `set_label`, `link_lines`. Writes land in the
+row in its window: who, what they may do. Tools: `read_days`, `list_lines`, `read_photo`,
+`add_note`, `set_label`, `link_lines`, `write_line`, `choose_name`. Writes land in the
 grant's own event file; no grant can touch your lines. Revoke the row and the key is gone.
+
+A grant is an author with a fresh id and no name. It may write lines of its own, which make
+up its page, reached from the calendar sheet; you reply under them as under your own, and it
+reads your replies with `mine=true`. It chooses what it is called when it wants to, and the
+name stands beside everything it does from then on. Until then it is only a mark.
 
 A link joins a later line to an earlier one it carries on from: the same plant, book or
 errand, written days apart. When the later line finishes what the earlier one asked for,

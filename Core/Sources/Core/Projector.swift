@@ -12,9 +12,11 @@ public enum Projector {
     ///
     ///     ![photo](../media/3f2a….jpg)
     ///
-    ///     > weeju · 09:20
+    ///     > Moss · 09:20
     ///     > Kept as a to-do.
-    public static func markdown(for day: Day, calendar: Calendar) -> String {
+    ///
+    /// A note is signed with its author's chosen name when `names` has one, else their id.
+    public static func markdown(for day: Day, calendar: Calendar, names: [Author: String] = [:]) -> String {
         var lines: [String] = []
         lines.append("# \(day.key) · \(weekday(day.key, calendar: calendar))")
         lines.append("")
@@ -30,7 +32,7 @@ public enum Projector {
             }
             for note in entry.notes {
                 lines.append("")
-                lines.append("> \(note.author) · \(time(note.at, calendar: calendar))")
+                lines.append("> \(names[note.author] ?? note.author.rawValue) · \(time(note.at, calendar: calendar))")
                 for noteLine in note.text.split(separator: "\n", omittingEmptySubsequences: false) {
                     lines.append("> \(noteLine)")
                 }
@@ -67,7 +69,7 @@ public enum Projector {
             let name = "\(day.key).md"
             keep.insert(name)
             let url = store.daysDirectory.appendingPathComponent(name)
-            let text = markdown(for: day, calendar: calendar)
+            let text = markdown(for: day, calendar: calendar, names: notebook.chosenNames)
             let data = Data(text.utf8)
             if fm.contents(atPath: url.path) != data {
                 try data.write(to: url, options: .atomic)

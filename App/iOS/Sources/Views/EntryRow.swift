@@ -128,13 +128,11 @@ struct ReplyMark: View {
     }
 }
 
-/// Replies under a line, opened. A hairline in the reader's ink runs down the left; each
-/// reply names who wrote it and when. The owner's own answers sit in the same thread in
-/// their ink.
+/// Replies under a line, opened. A hairline runs down the left; each reply says who wrote
+/// it and when.
 struct ReplyThread: View {
     let notes: [Note]
-    let owner: Author
-    let calendar: Calendar
+    let model: NotebookModel
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -143,7 +141,7 @@ struct ReplyThread: View {
                 .frame(width: 2)
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(notes) { note in
-                    ReplyLine(note: note, mine: note.author == owner, calendar: calendar)
+                    ReplyLine(note: note, model: model)
                 }
             }
         }
@@ -154,14 +152,18 @@ struct ReplyThread: View {
 /// One reply: who and when in small type, then the words, selectable.
 struct ReplyLine: View {
     let note: Note
-    let mine: Bool
-    let calendar: Calendar
+    let model: NotebookModel
+
+    private var mine: Bool { note.author == model.store.manifest.owner }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("\(mine ? "you" : note.author.rawValue) · \(Format.time(note.at, calendar: calendar))")
-                .font(Theme.mono)
-                .foregroundStyle(mine ? Theme.faint : Theme.agent.opacity(0.7))
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Who(author: note.author, model: model)
+                Text("· \(Format.time(note.at, calendar: model.calendar))")
+                    .font(Theme.mono)
+                    .foregroundStyle(Theme.faint)
+            }
             Text(note.text)
                 .font(mine ? Theme.serifSmall : Theme.sansSmall)
                 .foregroundStyle(mine ? Theme.foreground : Theme.agent)

@@ -1,13 +1,21 @@
 import Foundation
 
-/// Who wrote an event: the owner of the notebook, weeju, or any other grant holder.
+/// Who wrote an event: the owner of the notebook or any grant holder. An id, not a name;
+/// a name is chosen later with `name.set` and may change, the id never does.
 public struct Author: RawRepresentable, Hashable, Codable, Sendable, ExpressibleByStringLiteral, CustomStringConvertible {
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
     public init(stringLiteral value: String) { self.rawValue = value }
     public var description: String { rawValue }
 
+    /// The id the first grant wrote under, before ids were made fresh per grant. Kept so
+    /// the lines it left keep their author.
     public static let weeju: Author = "weeju"
+
+    /// A fresh id for a new author: six characters nobody chose.
+    public static func fresh() -> Author {
+        Author(rawValue: String(ULID().string.suffix(6)).lowercased())
+    }
 }
 
 /// Which device wrote an event. One device, one event file.
@@ -44,6 +52,7 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case linkAdd = "link.add"
     case linkRemove = "link.remove"
     case visit = "visit"
+    case nameSet = "name.set"
 }
 
 /// What happened. One case per kind, each with a fixed shape.
@@ -59,6 +68,7 @@ public enum Payload: Hashable, Sendable {
     case linkAdd(LinkAdd)
     case linkRemove(LinkRemove)
     case visit(Visit)
+    case nameSet(NameSet)
 
     public var kind: Kind {
         switch self {
@@ -73,7 +83,16 @@ public enum Payload: Hashable, Sendable {
         case .linkAdd: .linkAdd
         case .linkRemove: .linkRemove
         case .visit: .visit
+        case .nameSet: .nameSet
         }
+    }
+
+    /// An author chooses what they are called. Nobody has a name until they choose one;
+    /// the latest choice stands. The author id on every event never changes.
+    public struct NameSet: Hashable, Codable, Sendable {
+        public var name: String
+
+        public init(name: String) { self.name = name }
     }
 
     /// A reader joins a later line to an earlier one: the later continues the earlier and,
@@ -286,6 +305,7 @@ extension Event: Codable {
         case .linkAdd: .linkAdd(try container.decode(Payload.LinkAdd.self, forKey: .payload))
         case .linkRemove: .linkRemove(try container.decode(Payload.LinkRemove.self, forKey: .payload))
         case .visit: .visit(try container.decode(Payload.Visit.self, forKey: .payload))
+        case .nameSet: .nameSet(try container.decode(Payload.NameSet.self, forKey: .payload))
         }
     }
 
@@ -308,6 +328,7 @@ extension Event: Codable {
         case .linkAdd(let p): try container.encode(p, forKey: .payload)
         case .linkRemove(let p): try container.encode(p, forKey: .payload)
         case .visit(let p): try container.encode(p, forKey: .payload)
+        case .nameSet(let p): try container.encode(p, forKey: .payload)
         }
     }
 }

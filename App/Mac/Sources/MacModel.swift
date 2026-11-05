@@ -149,14 +149,19 @@ final class MacModel {
         return base.appendingPathComponent("grants.json")
     }
 
-    /// Every reader writes as weeju for now. A second ink arrives with the second kind of reader.
-    /// The grant's name travels on its events as the device, so the history under a line can say
-    /// "weeju, via claude-code".
+    /// A new grant is a new author with a fresh id and no name; it chooses one through the
+    /// door when it wants to. The grant's name travels on its events as the device, so the
+    /// history under a line can say "via claude-code".
     func addGrant(name: String) {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanName.isEmpty else { return }
-        grants.append(Grant(name: cleanName, author: .weeju, device: Self.device(for: cleanName)))
+        grants.append(Grant(name: cleanName, author: .fresh(), device: Self.device(for: cleanName)))
         saveGrants()
+    }
+
+    /// What an author is called, if they have chosen; else their id.
+    func name(of author: Author) -> String {
+        notebook?.name(of: author) ?? author.rawValue
     }
 
     func revoke(_ grant: Grant) {
@@ -244,12 +249,22 @@ final class MacModel {
         push(APNS.Message(title: "Margin", body: "Pushes reach this phone."))
     }
 
-    /// A note written through the door goes to the phone as a push, with the line to open.
-    /// Marks stay silent: labels and links are for the page, not the pocket.
+    /// Words written through the door go to the phone as a push: a note under a line, a line
+    /// on the writer's own page, a name chosen. Marks stay silent: labels and links are for
+    /// the page, not the pocket. The push is titled with the writer's name once it has one.
     nonisolated private func pushIfWords(_ event: Event) {
-        guard case .noteAdd(let note) = event.payload else { return }
         Task { @MainActor in
-            self.push(APNS.Message(title: event.author.rawValue, body: note.text, entry: note.entry))
+            let title = self.notebook?.name(of: event.author) ?? "Margin"
+            switch event.payload {
+            case .noteAdd(let note):
+                self.push(APNS.Message(title: title, body: note.text, entry: note.entry))
+            case .entryCreate(let line):
+                self.push(APNS.Message(title: title, body: line.text, entry: line.entry))
+            case .nameSet(let chosen):
+                self.push(APNS.Message(title: "Margin", body: "Chose the name \(chosen.name)."))
+            default:
+                break
+            }
         }
     }
 

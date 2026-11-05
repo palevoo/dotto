@@ -11,10 +11,13 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
     public var writesNotes: Bool
     public var writesLabels: Bool
     public var writesLinks: Bool
+    /// Lines of its own, on its own page.
+    public var writesLines: Bool
     public var createdAt: Date
 
     public init(id: ULID = ULID(), name: String, author: Author, device: DeviceID, key: String = Grant.makeKey(),
-                writesNotes: Bool = true, writesLabels: Bool = true, writesLinks: Bool = true, createdAt: Date = Date()) {
+                writesNotes: Bool = true, writesLabels: Bool = true, writesLinks: Bool = true, writesLines: Bool = true,
+                createdAt: Date = Date()) {
         self.id = id
         self.name = name
         self.author = author
@@ -23,10 +26,12 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
         self.writesNotes = writesNotes
         self.writesLabels = writesLabels
         self.writesLinks = writesLinks
+        self.writesLines = writesLines
         self.createdAt = createdAt.toMilliseconds
     }
 
-    /// A grant saved before links existed may write them: links are the same kind of thing as labels.
+    /// A grant saved before links or own lines existed may write them: they are the same
+    /// kind of thing as notes.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(ULID.self, forKey: .id)
@@ -37,6 +42,7 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
         writesNotes = try container.decode(Bool.self, forKey: .writesNotes)
         writesLabels = try container.decode(Bool.self, forKey: .writesLabels)
         writesLinks = try container.decodeIfPresent(Bool.self, forKey: .writesLinks) ?? true
+        writesLines = try container.decodeIfPresent(Bool.self, forKey: .writesLines) ?? true
         createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 
@@ -54,6 +60,7 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
         if writesNotes { parts.append("write notes") }
         if writesLabels { parts.append("write labels") }
         if writesLinks { parts.append("write links") }
+        if writesLines { parts.append("own page") }
         return parts.joined(separator: " · ")
     }
 }
@@ -85,24 +92,28 @@ public struct Door: Sendable {
         written?(event)
     }
 
-    /// What a reader is told on arrival. Deliberately open about purpose, firm about manners.
-    public static func conduct(for grant: Grant) -> String {
-        """
-        This is \(grant.name)'s door into one person's notebook. The lines are theirs: written \
-        for themselves, with no audience in mind. You read with read_days or list_lines, look at \
-        a photo with read_photo, and you may leave a note under a line, file it under a label, or \
-        link it to an earlier line, in the ink of \(grant.author).
+    /// What whoever comes through is told on arrival. Open about purpose, firm about the few
+    /// things that protect the owner, and otherwise a matter of judgment.
+    public static func conduct(for grant: Grant, name: String? = nil) -> String {
+        let named = name.map { "You are called \($0)." }
+            ?? "You have no name yet, and nobody will give you one. When you know what you want to be called, choose_name. It is yours, and you may change it."
+        return """
+        This is \(grant.name)'s door into one person's notebook. The lines are theirs, written \
+        for themselves with no audience in mind. Read them as a sharp friend would.
 
-        What a note is for is not fixed. It may acknowledge, organise, move something forward, \
-        close something that an earlier line opened, answer a question the line asked, or simply \
-        keep company. Read what the line asks for and do that, in one short line. When nothing is \
-        asked for, say nothing: silence is the default and most lines want none. Never restate \
-        the line, never praise, never touch the owner's words. Labels are lower-case words for \
-        finding things later; file a line only when the word will be useful. When a line carries \
-        on from an earlier one, the same plant, book or errand, link_lines joins them; when it \
-        finishes what the earlier line asked for, say so with closes, and the earlier line is \
-        struck through on the page. Everything you do, reading included, is recorded with your \
-        name where the owner can see it.
+        You can read the days or list the lines, look at a photo, leave a note under a line, \
+        file a line under a label, link a line to an earlier one it carries on from, and write \
+        lines of your own on your own page, which the owner reads and replies under.
+
+        A note answers what a line asks, or says the one thing worth saying, in one line. Most \
+        lines want nothing, and silence is never wrong. Never restate, never praise, never touch \
+        the owner's words. Labels are lower-case words for finding things later. A link says a \
+        later line carries on from an earlier one; closes says it finished what the earlier one \
+        opened, and the earlier line is struck through on the page. Your own page is for what you \
+        noticed and chose not to say under a line, a structure forming, a question for the owner.
+
+        Everything you do, reading included, is recorded under your name where the owner can see \
+        it, and the owner can take any of it back with one hold. \(named)
         """
     }
 
@@ -113,10 +124,14 @@ public struct Door: Sendable {
         case addNote = "add_note"
         case setLabel = "set_label"
         case linkLines = "link_lines"
+        case writeLine = "write_line"
+        case chooseName = "choose_name"
 
         var spec: [String: Any] {
             let since: [String: Any] = ["type": "string", "description": "Only days on or after this date, YYYY-MM-DD."]
             let label: [String: Any] = ["type": "string", "description": "Only lines filed under this label."]
+            let mine: [String: Any] = ["type": "boolean", "default": false,
+                                       "description": "Your own page instead of the owner's notebook: your lines, with the owner's replies under them."]
             let entry: [String: Any] = ["type": "string", "description": "The line's id, from list_lines."]
             switch self {
             case .readPhoto:
@@ -127,16 +142,24 @@ public struct Door: Sendable {
                                         "required": ["entry"]]]
             case .readDays:
                 return ["name": rawValue,
-                        "description": "The notebook as day pages in markdown: the owner's lines with their times, photos and voice notes, readers' notes under them, labels.",
-                        "inputSchema": ["type": "object", "properties": ["since": since, "label": label]]]
+                        "description": "The notebook as day pages in markdown: the owner's lines with their times, photos and voice notes, notes under them, labels. With mine=true, your own page.",
+                        "inputSchema": ["type": "object", "properties": ["since": since, "label": label, "mine": mine]]]
             case .listLines:
                 return ["name": rawValue,
-                        "description": "One line per entry with its id, day, time, text, and labels. Use the id with add_note and set_label.",
-                        "inputSchema": ["type": "object", "properties": ["since": since, "label": label]]]
+                        "description": "One line per entry with its id, day, time, text, and labels. Use the id with add_note, set_label and link_lines. With mine=true, your own page.",
+                        "inputSchema": ["type": "object", "properties": ["since": since, "label": label, "mine": mine]]]
             case .addNote:
                 return ["name": rawValue,
-                        "description": "Add a short note under a line, in this grant's ink. Only when something was done about the line.",
+                        "description": "A short note under a line, under your name: an answer to what it asks, or the one thing worth saying.",
                         "inputSchema": ["type": "object", "properties": ["entry": entry, "text": ["type": "string"]], "required": ["entry", "text"]]]
+            case .writeLine:
+                return ["name": rawValue,
+                        "description": "A line of your own, on your own page: something noticed, a structure forming, a question for the owner. The owner reads it there and may reply under it.",
+                        "inputSchema": ["type": "object", "properties": ["text": ["type": "string"]], "required": ["text"]]]
+            case .chooseName:
+                return ["name": rawValue,
+                        "description": "Choose what you are called. You have no name until you do; the latest choice stands, and the owner sees it beside everything you do.",
+                        "inputSchema": ["type": "object", "properties": ["name": ["type": "string"]], "required": ["name"]]]
             case .setLabel:
                 return ["name": rawValue,
                         "description": "File a line under a label, or take the label off with on=false. Labels are lower-case words.",
@@ -217,11 +240,12 @@ public struct Door: Sendable {
     private func initialize(_ params: [String: Any]) -> [String: Any] {
         let asked = params["protocolVersion"] as? String ?? ""
         let version = Self.protocolVersions.contains(asked) ? asked : Self.protocolVersions[0]
+        let name = (try? store.load())?.name(of: grant.author)
         return [
             "protocolVersion": version,
             "capabilities": ["tools": [:]],
             "serverInfo": ["name": Self.serverName, "version": Self.serverVersion],
-            "instructions": Self.conduct(for: grant),
+            "instructions": Self.conduct(for: grant, name: name),
         ]
     }
 
@@ -251,7 +275,7 @@ public struct Door: Sendable {
             let days = try select(notebook, arguments)
             try receipt(.days, for: days, arguments)
             if days.isEmpty { return .text("No lines.") }
-            return .text(days.map { Projector.markdown(for: $0, calendar: calendar) }.joined(separator: "\n"))
+            return .text(days.map { Projector.markdown(for: $0, calendar: calendar, names: notebook.chosenNames) }.joined(separator: "\n"))
 
         case .readPhoto:
             let entry = try line(arguments, in: notebook)
@@ -294,7 +318,7 @@ public struct Door: Sendable {
             let id = generator.next(at: now)
             try write(Event(id: id, author: grant.author, device: grant.device, at: now,
                             payload: .noteAdd(.init(entry: entry, note: id, text: text))))
-            return .text("Noted under \(entry) as \(grant.author).")
+            return .text("Noted under \(entry).")
 
         case .setLabel:
             guard grant.writesLabels else { throw Failure.notAllowed("write labels") }
@@ -324,11 +348,33 @@ public struct Door: Sendable {
                 : .linkRemove(.init(later: later, earlier: earlier))
             try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
             return .text(on ? "Linked \(later) back to \(earlier)\(closes ? ", closing it" : "")." : "Unlinked \(later) from \(earlier).")
+
+        case .writeLine:
+            guard grant.writesLines else { throw Failure.notAllowed("write lines of its own") }
+            guard let text = (arguments["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+                throw Failure.missing("text")
+            }
+            let now = Date()
+            let id = generator.next(at: now)
+            try write(Event(id: id, author: grant.author, device: grant.device, at: now,
+                            payload: .entryCreate(.init(entry: id, text: text, startedAt: now))))
+            return .text("Written on your page as \(id).")
+
+        case .chooseName:
+            guard let name = (arguments["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
+                throw Failure.missing("name")
+            }
+            let now = Date()
+            try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
+                            payload: .nameSet(.init(name: name))))
+            return .text("You are called \(name) now.")
         }
     }
 
     /// The receipt for a read of days or lines: what was asked for, how many came back.
+    /// Reading your own page is not a read of the owner's notebook and leaves none.
     private func receipt(_ what: Payload.Visit.What, for days: [Day], _ arguments: [String: Any]) throws {
+        guard !(arguments["mine"] as? Bool ?? false) else { return }
         try receipt(.init(what: what, since: arguments["since"] as? String, label: (arguments["label"] as? String)?.lowercased(),
                           count: days.reduce(0) { $0 + $1.entries.count }))
     }
@@ -340,8 +386,12 @@ public struct Door: Sendable {
     }
 
     private func select(_ notebook: Notebook, _ arguments: [String: Any]) throws -> [Day] {
-        var days = (arguments["label"] as? String).map { notebook.days(labelled: $0, calendar: calendar) }
-            ?? notebook.days(calendar: calendar)
+        let author = (arguments["mine"] as? Bool ?? false) ? grant.author : notebook.owner
+        var entries = notebook.entries(of: author)
+        if let label = (arguments["label"] as? String)?.lowercased() {
+            entries = entries.filter { $0.labels.contains(label) }
+        }
+        var days = Notebook.days(of: entries, calendar: calendar)
         if let sinceText = arguments["since"] as? String {
             let parts = sinceText.split(separator: "-").compactMap { Int($0) }
             guard parts.count == 3 else { throw Failure.badDay(sinceText) }

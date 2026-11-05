@@ -5,6 +5,37 @@ import SwiftUI
 enum Route: Hashable {
     case log
     case setup
+    /// Someone else's page: their own lines, with your replies under them.
+    case author(Author)
+}
+
+/// Who did something, as the page says it: "you", the name they chose, or, until they
+/// choose one, only their mark. Nobody is called anything by default.
+struct Who: View {
+    let author: Author
+    let model: NotebookModel
+    var font: Font = Theme.mono
+
+    var body: some View {
+        if author == model.store.manifest.owner {
+            Text("you").font(font).foregroundStyle(Theme.foreground)
+        } else if let name = model.notebook.name(of: author) {
+            Text(name).font(font).foregroundStyle(Theme.foreground)
+        } else {
+            AuthorMark()
+        }
+    }
+}
+
+/// The square that stands for someone who has not chosen a name.
+struct AuthorMark: View {
+    var side: CGFloat = 10
+
+    var body: some View {
+        Theme.square(side)
+            .fill(Theme.agent)
+            .frame(width: side, height: side)
+    }
 }
 
 /// Everything anyone else did in the notebook, newest first: each read, note, label and
@@ -55,10 +86,13 @@ struct LogView: View {
                 .frame(width: 44, alignment: .leading)
             VStack(alignment: .leading, spacing: 4) {
                 // One sentence: who, what, and from where.
-                let who = trace.author == owner ? "you" : trace.author.rawValue
                 let via = trace.author == owner ? "" : ", via \(trace.device.rawValue)"
-                (Text(who).foregroundStyle(Theme.foreground) + Text(" \(trace.what)\(via)").foregroundStyle(Theme.muted))
-                    .font(Theme.mono)
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Who(author: trace.author, model: model)
+                    Text("\(trace.what)\(via)")
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.muted)
+                }
                 if let line {
                     Text(line.text.isEmpty ? "a photo" : line.text)
                         .font(Theme.serifSmall)
@@ -100,12 +134,13 @@ struct LogView: View {
         return days
     }
 
-    /// "weeju · 13:21 · read 4 lines", or with the day when it was not today.
+    /// "13:21 · read 4 lines", or with the day when it was not today. Who comes before it,
+    /// as a name or a mark.
     static func summary(of visit: Visit, calendar: Calendar) -> String {
         let today = DayKey(Date(), calendar: calendar) == DayKey(visit.at, calendar: calendar)
         let when = today
             ? Format.time(visit.at, calendar: calendar)
             : "\(Format.shortDay(visit.at, calendar: calendar)) \(Format.time(visit.at, calendar: calendar))"
-        return "\(visit.author.rawValue) · \(when) · \(visit.what)"
+        return "\(when) · \(visit.what)"
     }
 }

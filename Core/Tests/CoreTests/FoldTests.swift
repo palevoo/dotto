@@ -38,18 +38,48 @@ final class FoldTests: XCTestCase {
         XCTAssertEqual(notebook.eventCount, 3)
     }
 
-    func testOnlyTheOwnerWritesEntries() {
+    func testALineBelongsToWhoeverWroteIt() {
         let id = ULID()
         var notebook = Notebook(owner: me)
-        notebook.apply(event(.entryCreate(.init(entry: id, text: "Weeju wrote this", startedAt: clock)), author: .weeju))
-        XCTAssertNil(notebook.entry(id))
-
         notebook.apply(event(.entryCreate(.init(entry: id, text: "I wrote this", startedAt: clock))))
         notebook.apply(event(.entryEdit(.init(entry: id, text: "Weeju changed it")), author: .weeju))
         notebook.apply(event(.entryDelete(.init(entry: id)), author: .weeju))
         notebook.apply(event(.mediaAttach(.init(entry: id, hash: "x", mime: "image/jpeg")), author: .weeju))
         XCTAssertEqual(notebook.entry(id)?.text, "I wrote this")
         XCTAssertEqual(notebook.entry(id)?.media, [])
+
+        // Another author's line is theirs: on their page, not the owner's, and only they change it.
+        let theirs = ULID()
+        notebook.apply(event(.entryCreate(.init(entry: theirs, text: "Noticed the yield went up", startedAt: clock)), author: .weeju))
+        notebook.apply(event(.entryEdit(.init(entry: theirs, text: "Owner changed it"))))
+        notebook.apply(event(.entryDelete(.init(entry: theirs))))
+        XCTAssertEqual(notebook.entry(theirs)?.text, "Noticed the yield went up")
+        XCTAssertEqual(notebook.entries.map(\.id), [id])
+        XCTAssertEqual(notebook.entries(of: .weeju).map(\.id), [theirs])
+        XCTAssertEqual(notebook.days(of: .weeju, calendar: .current).count, 1)
+        XCTAssertEqual(notebook.others, [.weeju])
+        // The owner may still reply under it.
+        notebook.apply(event(.noteAdd(.init(entry: theirs, note: ULID(), text: "Good eye"))))
+        XCTAssertEqual(notebook.entry(theirs)?.notes.map(\.text), ["Good eye"])
+        notebook.apply(event(.entryEdit(.init(entry: theirs, text: "Noticed the yield went up, 11% to 12.5%")), author: .weeju))
+        XCTAssertEqual(notebook.entry(theirs)?.text, "Noticed the yield went up, 11% to 12.5%")
+    }
+
+    func testNamesAreChosenAndTheLatestStands() {
+        var notebook = Notebook(owner: me)
+        XCTAssertNil(notebook.name(of: .weeju))
+        let first = event(.nameSet(.init(name: "Fern")), author: .weeju)
+        let second = event(.nameSet(.init(name: "Moss")), author: .weeju)
+        notebook.apply(second)
+        notebook.apply(first)
+        XCTAssertEqual(notebook.name(of: .weeju), "Moss")
+        XCTAssertEqual(notebook.trail.map(\.what), ["chose the name Fern", "chose the name Moss"])
+        notebook.apply(event(.nameSet(.init(name: "  ")), author: .weeju))
+        XCTAssertEqual(notebook.name(of: .weeju), "Moss")
+        // The owner may choose one too, quietly.
+        notebook.apply(event(.nameSet(.init(name: "Nikita"))))
+        XCTAssertEqual(notebook.name(of: me), "Nikita")
+        XCTAssertEqual(notebook.trail.count, 2)
     }
 
     func testLateOlderEditDoesNotWin() {

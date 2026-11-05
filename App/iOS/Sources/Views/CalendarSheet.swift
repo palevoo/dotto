@@ -10,29 +10,37 @@ struct CalendarSheet: View {
     let calendar: Calendar
     let labels: [String: Int]
     let filter: String?
-    /// The latest read by a reader, as one line. Nil until someone has been.
-    let lastVisit: String?
+    /// The latest read, as who and one line. Nil until someone has been.
+    let lastVisit: (author: Author, text: String)?
+    /// Everyone else who has left anything, each with a page of their own.
+    let others: [Author]
+    let model: NotebookModel
     let onPick: (DayKey) -> Void
     let onFilter: (String?) -> Void
     let onLog: () -> Void
     let onSetup: () -> Void
+    let onAuthor: (Author) -> Void
 
     @State private var month: DateComponents
     @State private var height: CGFloat = 480
 
-    init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?, lastVisit: String?,
+    init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?,
+         lastVisit: (author: Author, text: String)?, others: [Author], model: NotebookModel,
          onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void,
-         onLog: @escaping () -> Void, onSetup: @escaping () -> Void) {
+         onLog: @escaping () -> Void, onSetup: @escaping () -> Void, onAuthor: @escaping (Author) -> Void) {
         self.days = days
         self.today = today
         self.calendar = calendar
         self.labels = labels
         self.filter = filter
         self.lastVisit = lastVisit
+        self.others = others
+        self.model = model
         self.onPick = onPick
         self.onFilter = onFilter
         self.onLog = onLog
         self.onSetup = onSetup
+        self.onAuthor = onAuthor
         _month = State(initialValue: DateComponents(year: today.year, month: today.month))
     }
 
@@ -100,14 +108,38 @@ struct CalendarSheet: View {
                 }
             }
 
-            // The latest read, in the reader's ink, and the way to everything else.
+            // Everyone else's page, by name or mark.
+            if !others.isEmpty {
+                HStack(spacing: 14) {
+                    ForEach(others, id: \.rawValue) { author in
+                        Button { onAuthor(author) } label: {
+                            HStack(spacing: 6) {
+                                AuthorMark(side: 8)
+                                if let name = model.notebook.name(of: author) {
+                                    Text(name)
+                                        .font(Theme.mono)
+                                        .foregroundStyle(Theme.foreground)
+                                }
+                            }
+                            .frame(minHeight: 30)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Spacer()
+                }
+            }
+
+            // The latest read, and the way to everything else.
             HStack(alignment: .firstTextBaseline) {
                 if let lastVisit {
                     Button(action: onLog) {
-                        Text(lastVisit)
-                            .font(Theme.mono)
-                            .foregroundStyle(Theme.agent)
-                            .lineLimit(1)
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            Who(author: lastVisit.author, model: model)
+                            Text("· \(lastVisit.text)")
+                                .font(Theme.mono)
+                                .foregroundStyle(Theme.agent)
+                                .lineLimit(1)
+                        }
                     }
                     .buttonStyle(.plain)
                 }

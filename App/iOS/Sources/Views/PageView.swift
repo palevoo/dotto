@@ -116,7 +116,9 @@ struct PageView: View {
                     calendar: model.calendar,
                     labels: model.notebook.labelCounts,
                     filter: filter,
-                    lastVisit: model.notebook.visits.last.map { LogView.summary(of: $0, calendar: model.calendar) },
+                    lastVisit: model.notebook.visits.last.map { ($0.author, LogView.summary(of: $0, calendar: model.calendar)) },
+                    others: model.notebook.others,
+                    model: model,
                     onPick: { key in
                         showCalendar = false
                         withAnimation(Motion.settle) { position.scrollTo(id: key, anchor: .top) }
@@ -131,6 +133,10 @@ struct PageView: View {
                     },
                     onSetup: {
                         afterCalendar = .setup
+                        showCalendar = false
+                    },
+                    onAuthor: { author in
+                        afterCalendar = .author(author)
                         showCalendar = false
                     }
                 )
@@ -192,6 +198,7 @@ struct PageView: View {
                 switch route {
                 case .log: LogView(model: model)
                 case .setup: SetupView(model: model, onRelocate: onRelocate)
+                case .author(let author): AuthorPage(author: author, model: model)
                 }
             }
         }
@@ -266,12 +273,12 @@ struct PageView: View {
     /// The day as the same markdown the folder holds.
     private func copy(day key: DayKey) {
         guard let day = model.days.first(where: { $0.key == key }) else { return }
-        UIPasteboard.general.string = Projector.markdown(for: day, calendar: model.calendar)
+        UIPasteboard.general.string = Projector.markdown(for: day, calendar: model.calendar, names: model.notebook.chosenNames)
     }
 
     private func copyAll() {
         UIPasteboard.general.string = model.days
-            .map { Projector.markdown(for: $0, calendar: model.calendar) }
+            .map { Projector.markdown(for: $0, calendar: model.calendar, names: model.notebook.chosenNames) }
             .joined(separator: "\n")
     }
 }
