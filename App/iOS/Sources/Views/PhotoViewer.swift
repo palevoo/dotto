@@ -51,8 +51,10 @@ struct PhotoViewer: View {
     @State private var settledPan: CGSize = .zero
     @State private var words = ""
     @State private var editing = false
-    /// Words selected in the photo, to take as a quote from a page.
-    @State private var selected = ""
+    /// Whether words are selected in the photo, to take as a quote from a page, and the way
+    /// to read and clear them.
+    @State private var hasSelection = false
+    @State private var selection: LiveTextView.Selection?
     @FocusState private var focused: Bool
 
     private let gap: CGFloat = 24
@@ -109,7 +111,7 @@ struct PhotoViewer: View {
             withAnimation(.snappy(duration: 0.38, extraBounce: 0)) { shown = true }
         }
         .task(id: index) { await loadFull() }
-        .onChange(of: index) { _, _ in selected = "" }
+        .onChange(of: index) { _, _ in hasSelection = false }
         .onChange(of: focused) { _, isFocused in
             if !isFocused, editing { store() }
         }
@@ -132,7 +134,7 @@ struct PhotoViewer: View {
             // Once the photo is settled and at full size its words are live; the thumbnail
             // carries the way in and out.
             if current, shown, full.contains(photo.hash), LiveTextView.isSupported, let image = images[photo.hash] {
-                LiveTextView(image: image, selected: $selected)
+                LiveTextView(image: image, hasSelection: $hasSelection) { selection = $0 }
             } else if let image = images[photo.hash] {
                 Image(uiImage: image)
                     .resizable()
@@ -196,7 +198,7 @@ struct PhotoViewer: View {
     /// selected in the photo, Quote takes them into the line.
     private var top: some View {
         HStack(spacing: 8) {
-            if !selected.isEmpty {
+            if hasSelection {
                 Button {
                     quote()
                 } label: {
@@ -209,10 +211,6 @@ struct PhotoViewer: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.leading, 12)
-                Text("\(selected.split(whereSeparator: \.isWhitespace).count) words")
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(1)
             } else if photos.count > 1 {
                 Text("\(index + 1) / \(photos.count)")
                     .font(Theme.mono)
@@ -225,7 +223,7 @@ struct PhotoViewer: View {
         }
         .padding(.top, 8)
         .padding(.trailing, 12)
-        .animation(.easeOut(duration: 0.15), value: selected.isEmpty)
+        .animation(.easeOut(duration: 0.15), value: hasSelection)
     }
 
     private func button(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
@@ -243,13 +241,15 @@ struct PhotoViewer: View {
     /// The selected words join the line's, in quotes. An edit like any other: the words
     /// before stay in the line's history.
     private func quote() {
-        let passage = selected.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ")
+        guard let selection else { return }
+        let passage = selection.words().trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ")
         guard !passage.isEmpty else { return }
         let quoted = "\u{201C}\(passage)\u{201D}"
         let words = (entry?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         model.edit(opening.entry, text: words.isEmpty ? quoted : "\(words) \(quoted)")
         Haptic.store()
-        selected = ""
+        selection.clear()
+        hasSelection = false
     }
 
     /// The words of the line, or the place for them. Return stores.
@@ -372,7 +372,7 @@ struct PhotoViewer: View {
     /// page comes through behind, and only then does the cover go, with no motion of its own.
     private func close() {
         if editing { store() }
-        selected = ""
+        hasSelection = false
         withAnimation(.snappy(duration: 0.36, extraBounce: 0)) {
             shown = false
             drag = .zero
