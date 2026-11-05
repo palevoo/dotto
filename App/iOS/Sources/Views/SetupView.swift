@@ -132,6 +132,9 @@ struct SetupView: View {
             switch pushes.status {
             case .authorized, .provisional, .ephemeral:
                 Status("A reply under a line reaches you here")
+                // Where the address stands, so a push that never comes can be traced.
+                Status(pushes.token == nil ? "Waiting for Apple to give this phone an address" : "Address written to the folder for the Mac",
+                       pending: pushes.token == nil)
             case .notDetermined:
                 Status("A reply under a line could reach you here")
                 Action("Allow notifications") { pushes.allow() }
