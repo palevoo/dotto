@@ -57,7 +57,7 @@ final class DoorTests: XCTestCase {
 
         let tools = (try rpc("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
         XCTAssertEqual(tools?.map { $0["name"] as? String },
-                       ["whats_new", "read_days", "list_lines", "read_photo", "add_note", "set_label", "link_lines", "write_line", "choose_name"])
+                       ["whats_new", "read_days", "list_lines", "read_photo", "add_note", "set_label", "link_lines", "write_line", "edit_line", "delete_line", "choose_name"])
         let conduct = result?["instructions"] as? String ?? ""
         XCTAssertTrue(conduct.contains("You have no name yet"))
     }
@@ -127,6 +127,29 @@ final class DoorTests: XCTestCase {
         XCTAssertTrue(caught.contains("Written on the iPad an hour ago"), caught)
         notebook = try store.load()
         XCTAssertEqual(notebook.visits.last?.read.seen?["me.ipad.jsonl"], 1)
+    }
+
+    func testOwnLinesCanBeChangedAndDeletedByTheirAuthorOnly() throws {
+        let written = text(try rpc("tools/call", ["name": "write_line", "arguments": ["text": "The second pressed better."]]))
+        let mine = ULID(String(written.dropFirst("Written on your page as ".count).dropLast()))!
+
+        XCTAssertEqual(text(try rpc("tools/call", ["name": "edit_line", "arguments": ["entry": mine.string, "text": "The first pressed better."]])), "Changed \(mine).")
+        var notebook = try store.load()
+        XCTAssertEqual(notebook.entry(mine)?.text, "The first pressed better.")
+        XCTAssertEqual(notebook.entry(mine)?.activity.map(\.what), ["changed the words"])
+        XCTAssertEqual(notebook.entry(mine)?.activity.first?.before, "The second pressed better.")
+
+        // The owner's line is refused before anything is written, and so is a line that is not there.
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "edit_line", "arguments": ["entry": wall.string, "text": "x"]])).contains("not its own"))
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "delete_line", "arguments": ["entry": wall.string]])).contains("not its own"))
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "delete_line", "arguments": ["entry": ULID().string]])).contains("No line"))
+        XCTAssertEqual(try store.load().entry(wall)?.text, "Camera is a black screen")
+
+        XCTAssertEqual(text(try rpc("tools/call", ["name": "delete_line", "arguments": ["entry": mine.string]])), "Deleted \(mine).")
+        notebook = try store.load()
+        XCTAssertNil(notebook.entry(mine))
+        XCTAssertEqual(notebook.entries(of: .weeju).count, 0)
+        XCTAssertEqual(notebook.entries.count, 2)
     }
 
     func testLinkLinesJoinsALineToAnEarlierOne() throws {

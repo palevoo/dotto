@@ -107,7 +107,8 @@ public struct Door: Sendable {
         Start with whats_new: what happened since you last looked, replies first. You can read \
         the days or list the lines, look at a photo, leave a note under a line, file a line under \
         a label, link a line to an earlier one it carries on from, and write lines of your own on \
-        your own page, which the owner reads and replies under.
+        your own page, which the owner reads and replies under. Your own lines you may change or \
+        delete; the words they had stay in their history.
 
         A note answers what a line asks, or says the one thing worth saying, in one line. Most \
         lines want nothing, and silence is never wrong. Never restate, never praise, never touch \
@@ -132,6 +133,8 @@ public struct Door: Sendable {
         case setLabel = "set_label"
         case linkLines = "link_lines"
         case writeLine = "write_line"
+        case editLine = "edit_line"
+        case deleteLine = "delete_line"
         case chooseName = "choose_name"
 
         var spec: [String: Any] {
@@ -167,6 +170,14 @@ public struct Door: Sendable {
                 return ["name": rawValue,
                         "description": "A line of your own, on your own page: something noticed, a structure forming, a question for the owner. The owner reads it there and may reply under it.",
                         "inputSchema": ["type": "object", "properties": ["text": ["type": "string"]], "required": ["text"]]]
+            case .editLine:
+                return ["name": rawValue,
+                        "description": "Change the words of a line of yours. The whole text; what it said before stays in its history. Only your own lines.",
+                        "inputSchema": ["type": "object", "properties": ["entry": entry, "text": ["type": "string"]], "required": ["entry", "text"]]]
+            case .deleteLine:
+                return ["name": rawValue,
+                        "description": "Delete a line of yours. It leaves the page; the events that made it stay. Only your own lines.",
+                        "inputSchema": ["type": "object", "properties": ["entry": entry], "required": ["entry"]]]
             case .chooseName:
                 return ["name": rawValue,
                         "description": "Choose what you are called. You have no name until you do; the latest choice stands, and the owner sees it beside everything you do.",
@@ -394,6 +405,25 @@ public struct Door: Sendable {
                             payload: .entryCreate(.init(entry: id, text: text, startedAt: now))))
             return .text("Written on your page as \(id).")
 
+        case .editLine:
+            guard grant.writesLines else { throw Failure.notAllowed("write lines of its own") }
+            let entry = try ownLine(arguments, in: notebook)
+            guard let text = (arguments["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+                throw Failure.missing("text")
+            }
+            let now = Date()
+            try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
+                            payload: .entryEdit(.init(entry: entry, text: text))))
+            return .text("Changed \(entry).")
+
+        case .deleteLine:
+            guard grant.writesLines else { throw Failure.notAllowed("write lines of its own") }
+            let entry = try ownLine(arguments, in: notebook)
+            let now = Date()
+            try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
+                            payload: .entryDelete(.init(entry: entry))))
+            return .text("Deleted \(entry).")
+
         case .chooseName:
             guard let name = (arguments["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
                 throw Failure.missing("name")
@@ -433,6 +463,13 @@ public struct Door: Sendable {
             days = days.filter { $0.key >= since }
         }
         return days
+    }
+
+    /// A line this grant wrote. Anyone else's is refused before anything is written.
+    private func ownLine(_ arguments: [String: Any], in notebook: Notebook) throws -> ULID {
+        let id = try line(arguments, in: notebook)
+        guard notebook.entry(id)?.author == grant.author else { throw Failure.notAllowed("change a line that is not its own") }
+        return id
     }
 
     private func line(_ arguments: [String: Any], key: String = "entry", in notebook: Notebook) throws -> ULID {

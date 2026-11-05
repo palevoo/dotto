@@ -74,9 +74,10 @@ Anything written by someone other than the owner names its author; there is no d
 The Mac app is sandboxed: it sees the folder you pick and nothing else. It serves the
 Model Context Protocol on `127.0.0.1:27830/mcp`, behind a key per grant. A grant is a
 row in its window: who, what they may do. Tools: `whats_new`, `read_days`, `list_lines`,
-`read_photo`, `add_note`, `set_label`, `link_lines`, `write_line`, `choose_name`. Writes
-land in the grant's own event file; no grant can touch your lines. Revoke the row and the
-key is gone.
+`read_photo`, `add_note`, `set_label`, `link_lines`, `write_line`, `edit_line`,
+`delete_line`, `choose_name`. Writes land in the grant's own event file; no grant can touch
+your lines, and a grant changes or deletes only lines it wrote. Revoke the row and the key
+is gone.
 
 `whats_new` is the inbox: what happened since the grant last looked, replies first, then
 new lines, lines changed, marks taken back, names chosen. Each look is a receipt that
