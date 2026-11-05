@@ -23,6 +23,8 @@ struct PageView: View {
     @State private var viewing: PhotoOpening?
     @State private var filter: String?
     @State private var revealed: ULID?
+    /// The line whose words are being changed on the page, if any.
+    @State private var editingRow: ULID?
     @State private var launch = Launch.shared
     @State private var recorder = VoiceRecorder()
     @FocusState private var liveFocused: Bool
@@ -47,6 +49,7 @@ struct PageView: View {
                                 model: model,
                                 isToday: filter == nil && day.key == model.today,
                                 revealed: revealed,
+                                editingRow: $editingRow,
                                 onOpen: { id in open { path.append(id) } },
                                 onOpenPhoto: { opening in open { withoutAnimation { viewing = opening } } }
                             )
@@ -62,7 +65,7 @@ struct PageView: View {
                     .scrollTargetLayout()
                     .padding(.bottom, 12)
                     .contentShape(Rectangle())
-                    .onTapGesture { liveFocused = false }
+                    .onTapGesture { putKeyboardAway() }
                 }
                 .scrollPosition($position, anchor: .top)
                 .defaultScrollAnchor(.bottom)
@@ -196,11 +199,17 @@ struct PageView: View {
     /// With the keyboard up, the first tap anywhere on the page puts it away. Nothing opens
     /// until the next tap.
     private func open(_ action: () -> Void) {
-        if liveFocused {
-            liveFocused = false
+        if liveFocused || editingRow != nil {
+            putKeyboardAway()
         } else {
             action()
         }
+    }
+
+    /// Whichever field has the keyboard, the live line or a line being edited, lets it go.
+    private func putKeyboardAway() {
+        liveFocused = false
+        editingRow = nil
     }
 
     /// Stores the live line and settles the page on it, one short motion. A line stored on an
@@ -354,6 +363,7 @@ struct DaySection: View {
     @Bindable var model: NotebookModel
     let isToday: Bool
     let revealed: ULID?
+    @Binding var editingRow: ULID?
     let onOpen: (ULID) -> Void
     let onOpenPhoto: (PhotoOpening) -> Void
 
@@ -367,6 +377,7 @@ struct DaySection: View {
                     entry: entry,
                     model: model,
                     revealed: revealed == entry.id,
+                    editingRow: $editingRow,
                     onOpen: { onOpen(entry.id) },
                     onOpenPhoto: onOpenPhoto
                 )

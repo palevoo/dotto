@@ -3,13 +3,20 @@ import SwiftUI
 import UIKit
 
 /// One line on the page: its time in the margin, its words, what sits behind them, and the
-/// thread of replies under it. Tap anywhere to open the line; tap a photo to see it.
+/// thread of replies under it. Tap anywhere to open the line; tap a photo to see it; hold
+/// for Edit, which changes the words where they are.
 struct EntryRow: View {
     let entry: Entry
     @Bindable var model: NotebookModel
     var revealed = false
+    /// The line being edited on the page, if any. The page clears it when a tap lands
+    /// elsewhere, and the row lets go of the keyboard.
+    @Binding var editingRow: ULID?
     let onOpen: () -> Void
     let onOpenPhoto: (PhotoOpening) -> Void
+    @State private var editing = false
+    @State private var text = ""
+    @FocusState private var focused: Bool
 
     private var photos: [Media] { entry.media.filter { $0.mime.hasPrefix("image") } }
     private var voices: [Media] { entry.media.filter { $0.mime.hasPrefix("audio") } }
@@ -40,7 +47,24 @@ struct EntryRow: View {
                 ForEach(voices) { voice in
                     VoiceChip(hash: voice.hash, duration: voice.duration ?? 0, url: model.mediaURL(voice))
                 }
-                if !entry.text.isEmpty {
+                if editing {
+                    // The words stay where they are, at their size and spacing, on paper.
+                    WordsField(placeholder: "Words for this", text: $text, font: Theme.serif,
+                               color: Theme.foreground, focused: $focused) {
+                        focused = false
+                    }
+                    .lineSpacing(4)
+                    .editingSurface()
+                    .onChange(of: focused) { _, isFocused in
+                        guard !isFocused else { return }
+                        editing = false
+                        if editingRow == entry.id { editingRow = nil }
+                        model.edit(entry.id, text: text)
+                    }
+                    .onChange(of: editingRow) { _, row in
+                        if row != entry.id { focused = false }
+                    }
+                } else if !entry.text.isEmpty {
                     // A line a later line finished is struck through, and that is all the page says.
                     let done = entry.closedBy != nil
                     Text(entry.text)
@@ -70,6 +94,12 @@ struct EntryRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
         .contextMenu {
+            Button("Edit", systemImage: "pencil") {
+                text = entry.text
+                editing = true
+                editingRow = entry.id
+                focused = true
+            }
             Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
             Button("Delete", systemImage: "trash", role: .destructive) { model.delete(entry.id) }
         }

@@ -29,6 +29,8 @@ final class FoldTests: XCTestCase {
         notebook.apply(event(.entryEdit(.init(entry: id, text: "Measure the wall for the repairs"))))
         XCTAssertEqual(notebook.entry(id)?.text, "Measure the wall for the repairs")
         XCTAssertNotNil(notebook.entry(id)?.editedAt)
+        // The words before the change stay on the line's history.
+        XCTAssertEqual(notebook.entry(id)?.activity.last?.before, "Measure the wall")
 
         notebook.apply(event(.entryDelete(.init(entry: id))))
         XCTAssertNil(notebook.entry(id))

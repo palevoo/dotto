@@ -88,6 +88,9 @@ public struct Activity: Hashable, Sendable, Identifiable {
     public let device: DeviceID
     public let at: Date
     public let what: String
+    /// What was there before, when the thing done replaced something: the words an edit
+    /// took the place of. Nothing is lost by changing a line.
+    public let before: String?
 }
 
 /// A reader read something: the receipt as folded.
@@ -284,13 +287,13 @@ public struct Notebook: Sendable {
     }
 
     /// Something done to one line: on the line's own trail and on the notebook's.
-    private mutating func note(_ entry: inout Entry, _ event: Event, _ what: String) {
-        record(&entry, event, what)
+    private mutating func note(_ entry: inout Entry, _ event: Event, _ what: String, before: String? = nil) {
+        record(&entry, event, what, before: before)
         trace(event, what, entry: entry.id)
     }
 
-    private func record(_ entry: inout Entry, _ event: Event, _ what: String) {
-        entry.activity.append(Activity(id: event.id, author: event.author, device: event.device, at: event.at, what: what))
+    private func record(_ entry: inout Entry, _ event: Event, _ what: String, before: String? = nil) {
+        entry.activity.append(Activity(id: event.id, author: event.author, device: event.device, at: event.at, what: what, before: before))
         entry.activity.sort { $0.id < $1.id }
     }
 
@@ -353,10 +356,11 @@ public struct Notebook: Sendable {
         switch event.payload {
         case .entryEdit(let p):
             guard event.id > entry.lastTextEvent else { return }
+            let before = entry.text
             entry.text = p.text
             entry.editedAt = event.at
             entry.lastTextEvent = event.id
-            note(&entry, event, "changed the words")
+            note(&entry, event, "changed the words", before: before.isEmpty ? nil : before)
 
         case .entryDelete:
             entry.isDeleted = true

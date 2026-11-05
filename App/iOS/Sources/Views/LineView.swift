@@ -149,9 +149,18 @@ struct LineView: View {
                                     .font(Theme.mono)
                                     .foregroundStyle(Theme.faint)
                                     .frame(width: 44, alignment: .leading)
-                                Text(item.text)
-                                    .font(Theme.mono)
-                                    .foregroundStyle(Theme.muted)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(item.text)
+                                        .font(Theme.mono)
+                                        .foregroundStyle(Theme.muted)
+                                    if let before = item.before {
+                                        // The words as they were, so nothing is lost by changing them.
+                                        Text(before)
+                                            .font(Theme.serifSmall)
+                                            .foregroundStyle(Theme.muted)
+                                            .textSelection(.enabled)
+                                    }
+                                }
                             }
                         }
                     }
@@ -199,11 +208,12 @@ struct LineView: View {
         let id: ULID
         let at: Date
         let text: String
+        var before: String? = nil
     }
 
     /// What was done to the line and who read it, in one order.
     private func history(of entry: Entry, owner: Author) -> [HistoryItem] {
-        let done = entry.activity.map { HistoryItem(id: $0.id, at: $0.at, text: describe($0, owner: owner)) }
+        let done = entry.activity.map { HistoryItem(id: $0.id, at: $0.at, text: describe($0, owner: owner), before: $0.before) }
         let read = model.notebook.reads(of: entry, calendar: model.calendar).map { visit in
             HistoryItem(id: visit.id, at: visit.at,
                         text: "\(visit.author.rawValue) \(visit.read.what == .photo ? "looked at a photo" : "read this"), via \(visit.device.rawValue)")
