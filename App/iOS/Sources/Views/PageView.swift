@@ -180,6 +180,8 @@ struct PageView: View {
                 case .write: liveFocused = true
                 case .photo: showCamera = true
                 case .speak: speak()
+                case .line(let raw):
+                    if let id = ULID(raw), model.notebook.entry(id) != nil { path.append(id) }
                 }
             }
             .toolbar(.hidden, for: .navigationBar)

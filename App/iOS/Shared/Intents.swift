@@ -9,10 +9,12 @@ import Observation
 final class Launch {
     static let shared = Launch()
 
-    enum Request {
+    enum Request: Equatable {
         case write
         case photo
         case speak
+        /// A push was tapped: open this line, by its id.
+        case line(String)
     }
 
     var request: Request?

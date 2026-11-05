@@ -64,6 +64,10 @@ Kinds, first vocabulary:
     grant.create   {grant, to, slice, mode, scopes}  see §4
     grant.revoke   {grant}
 
+Beside the events, not among them: `devices/<device>.json`, where a phone leaves the
+address Apple gave it for pushes. Whoever holds the folder and the account's push key can
+reach the phone; today that is the Mac, when a note lands through the door.
+
 An entry is the fold of its events, ordered by id with device time as tiebreaker. A day
 is a group of entries. Nothing is overwritten. Edits are events, so history exists
 without a versions feature.

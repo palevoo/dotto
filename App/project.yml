@@ -38,6 +38,8 @@ targets:
           - group.social.interface.notebook
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.background-delivery: true
+        # Pushes. Xcode turns this into production for TestFlight and the store on its own.
+        aps-environment: development
     info:
       path: iOS/Sources/Info.plist
       properties:
@@ -136,6 +138,8 @@ targets:
         CFBundleDisplayName: Margin
         LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: ""
+        # The team the push key belongs to, for the claim Apple checks.
+        MarginTeamID: $(DEVELOPMENT_TEAM)
     entitlements:
       path: Mac/Margin.entitlements
       properties:
@@ -143,6 +147,8 @@ targets:
         com.apple.security.files.user-selected.read-write: true
         com.apple.security.files.bookmarks.app-scope: true
         com.apple.security.network.server: true
+        # To reach Apple's push servers.
+        com.apple.security.network.client: true
     settings:
       groups: [signing]
       base:

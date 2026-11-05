@@ -20,10 +20,17 @@ final class MacModel {
     private(set) var grants: [Grant] = []
     private(set) var port: UInt16?
     private(set) var problem: String?
+    /// The push key on this Mac, if one has been chosen.
+    private(set) var pushKey: PushKey? = PushKeyStore.load()
+    /// The phones the folder says can be reached.
+    private(set) var pushAddresses: [PushAddress] = []
+    /// What happened to the last push, in a sentence.
+    private(set) var pushReport: String?
 
     private let bookmarkKey = "margin.folder.bookmark"
     private let ownerKey = "margin.owner"
     private let shared = DoorState()
+    private let pusher = Pusher()
     private var server: DoorServer?
     private var watcher: FolderWatcher?
     private var cloud: CloudWatcher?
@@ -32,7 +39,10 @@ final class MacModel {
     init() {
         loadGrants()
         restoreFolder()
-        Task { await openDoor() }
+        Task {
+            await pusher.use(pushKey)
+            await openDoor()
+        }
     }
 
     // MARK: - The folder
@@ -112,6 +122,7 @@ final class MacModel {
             return
         }
         self.notebook = notebook
+        pushAddresses = (try? store.pushAddresses()) ?? []
         let days = notebook.days(calendar: .current)
         var text = "\(notebook.entries.count) lines over \(days.count) days"
         if let last = days.last?.key { text += " · last \(last)" }
@@ -188,11 +199,84 @@ final class MacModel {
         shared.update(store: store, grants: grants)
     }
 
+    // MARK: - Pushes
+
+    /// The `.p8` Apple hands out once, named AuthKey_<id>.p8. The id is read from the name,
+    /// the team from this app's own signing. The key goes into the keychain.
+    func choosePushKey() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Use This Key"
+        panel.message = "Pick the push key downloaded from the developer account, AuthKey_<id>.p8."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard let keyID = PushKey.keyID(fromFileName: url.lastPathComponent) else {
+            pushReport = "The file should be named as Apple named it, AuthKey_<id>.p8, so the key's id is known."
+            return
+        }
+        guard let teamID = Bundle.main.object(forInfoDictionaryKey: "MarginTeamID") as? String, !teamID.isEmpty else {
+            pushReport = "This build carries no team id, so the claim could not be signed."
+            return
+        }
+        do {
+            let pem = try String(contentsOf: url, encoding: .utf8)
+            // Refuse early what Apple would refuse later.
+            _ = try APNS.token(for: PushKey(keyID: keyID, teamID: teamID, pem: pem))
+            let key = PushKey(keyID: keyID, teamID: teamID, pem: pem)
+            try PushKeyStore.save(key)
+            pushKey = key
+            pushReport = nil
+            Task { await pusher.use(key) }
+        } catch {
+            pushReport = "Could not take the key: \(error.localizedDescription)"
+        }
+    }
+
+    func removePushKey() {
+        PushKeyStore.remove()
+        pushKey = nil
+        pushReport = nil
+        Task { await pusher.use(nil) }
+    }
+
+    /// One push to every phone, to see it arrive.
+    func sendTestPush() {
+        push(APNS.Message(title: "Margin", body: "Pushes reach this phone."))
+    }
+
+    /// A note written through the door goes to the phone as a push, with the line to open.
+    /// Marks stay silent: labels and links are for the page, not the pocket.
+    nonisolated private func pushIfWords(_ event: Event) {
+        guard case .noteAdd(let note) = event.payload else { return }
+        Task { @MainActor in
+            self.push(APNS.Message(title: event.author.rawValue, body: note.text, entry: note.entry))
+        }
+    }
+
+    private func push(_ message: APNS.Message) {
+        guard pushKey != nil else {
+            pushReport = "No push key on this Mac yet."
+            return
+        }
+        let addresses = (try? store?.pushAddresses()) ?? []
+        guard !addresses.isEmpty else {
+            pushReport = "No phone has written its address to the folder yet. Allow notifications in the phone's Setup."
+            return
+        }
+        Task {
+            let outcomes = await pusher.send(message, to: addresses)
+            pushReport = outcomes.map { outcome in
+                outcome.ok ? "Sent to \(outcome.device.rawValue)." : "\(outcome.device.rawValue): \(outcome.reason ?? "refused")."
+            }.joined(separator: " ")
+        }
+    }
+
     // MARK: - The door
 
     private func openDoor() async {
         let shared = self.shared
-        let router = DoorRouter(calendar: .current) { key in shared.resolve(key) }
+        let router = DoorRouter(calendar: .current, resolve: { key in shared.resolve(key) },
+                                written: { [weak self] event in self?.pushIfWords(event) })
         do {
             let server = try DoorServer(port: Self.defaultPort) { router.respond($0) }
             self.server = server

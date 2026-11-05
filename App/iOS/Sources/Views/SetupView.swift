@@ -20,6 +20,7 @@ struct SetupView: View {
                 notebook
                 cloud
                 location
+                notifications
                 walks
                 presses
                 logs
@@ -89,6 +90,29 @@ struct SetupView: View {
                 Action("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                 }
+            }
+        }
+    }
+
+    /// A note written under a line reaches the phone, if the phone allows it.
+    private var notifications: some View {
+        let pushes = Pushes.shared
+        return Step("Notifications", done: pushes.allowed) {
+            switch pushes.status {
+            case .authorized, .provisional, .ephemeral:
+                Status("A reply under a line reaches you here")
+            case .notDetermined:
+                Status("A reply under a line could reach you here")
+                Action("Allow notifications") { pushes.allow() }
+            default:
+                Status("Refused. Replies wait on the page")
+                Action("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                }
+            }
+            if let trouble = pushes.trouble {
+                // Apple's refusal, in its words, where it can be read and reported.
+                Status("Apple: \(trouble)")
             }
         }
     }

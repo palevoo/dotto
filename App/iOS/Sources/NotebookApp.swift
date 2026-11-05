@@ -3,6 +3,7 @@ import SwiftUI
 
 @main
 struct NotebookApp: App {
+    @UIApplicationDelegateAdaptor(PushDelegate.self) private var pushDelegate
     @State private var model: NotebookModel? = Library.openRememberedNotebook()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -28,6 +29,7 @@ struct NotebookApp: App {
                 case .active:
                     model?.reload()
                     model?.takeInbox()
+                    Pushes.shared.refresh()
                 case .background, .inactive: model?.commitDraft()
                 @unknown default: break
                 }

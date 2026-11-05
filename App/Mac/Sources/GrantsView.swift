@@ -15,6 +15,7 @@ struct GrantsView: View {
                 notebookSection
                 doorSection
                 grantsSection
+                pushSection
                 logSection
             }
             .padding(28)
@@ -111,6 +112,49 @@ struct GrantsView: View {
                 .disabled(model.store == nil)
             }
             .padding(.top, 6)
+        }
+    }
+
+    /// A note written through the door reaches the phone, if this Mac holds the push key.
+    private var pushSection: some View {
+        Section("Pushes") {
+            if let key = model.pushKey {
+                Text("Key \(key.keyID) · team \(key.teamID)")
+                    .font(MacTheme.mono)
+                    .foregroundStyle(MacTheme.foreground)
+                if model.pushAddresses.isEmpty {
+                    Text("No phone has written its address yet. On the phone, Setup · Notifications · Allow.")
+                        .font(MacTheme.body)
+                        .foregroundStyle(MacTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    ForEach(model.pushAddresses) { address in
+                        Text("\(address.device.rawValue) · \(address.environment) · \(Self.stamp(address.updatedAt))")
+                            .font(MacTheme.mono)
+                            .foregroundStyle(MacTheme.muted)
+                    }
+                }
+                HStack(spacing: 8) {
+                    Button("Send Test Push") { model.sendTestPush() }
+                        .controlSize(.small)
+                        .disabled(model.pushAddresses.isEmpty)
+                    Button("Remove Key", role: .destructive) { model.removePushKey() }
+                        .controlSize(.small)
+                }
+            } else {
+                Text("A note written under a line reaches the phone as a push. The key comes from the developer account: Certificates, Identifiers & Profiles · Keys · a key with Apple Push Notifications service, downloaded once as AuthKey_<id>.p8. It stays in this Mac's keychain.")
+                    .font(MacTheme.body)
+                    .foregroundStyle(MacTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Choose Push Key…") { model.choosePushKey() }
+                    .controlSize(.small)
+            }
+            if let report = model.pushReport {
+                Text(report)
+                    .font(MacTheme.mono)
+                    .foregroundStyle(MacTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

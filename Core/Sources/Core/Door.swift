@@ -68,12 +68,21 @@ public struct Door: Sendable {
     public let store: FileStore
     public let grant: Grant
     public let calendar: Calendar
+    /// Told of every event a call writes, once it is on disk. Receipts for reads included.
+    /// The one holding the door decides what deserves a push.
+    public var written: (@Sendable (Event) -> Void)?
     private let generator = ULIDGenerator()
 
-    public init(store: FileStore, grant: Grant, calendar: Calendar) {
+    public init(store: FileStore, grant: Grant, calendar: Calendar, written: (@Sendable (Event) -> Void)? = nil) {
         self.store = store
         self.grant = grant
         self.calendar = calendar
+        self.written = written
+    }
+
+    private func write(_ event: Event) throws {
+        try store.append(event)
+        written?(event)
     }
 
     /// What a reader is told on arrival. Deliberately open about purpose, firm about manners.
@@ -283,8 +292,8 @@ public struct Door: Sendable {
             }
             let now = Date()
             let id = generator.next(at: now)
-            try store.append(Event(id: id, author: grant.author, device: grant.device, at: now,
-                                   payload: .noteAdd(.init(entry: entry, note: id, text: text))))
+            try write(Event(id: id, author: grant.author, device: grant.device, at: now,
+                            payload: .noteAdd(.init(entry: entry, note: id, text: text))))
             return .text("Noted under \(entry) as \(grant.author).")
 
         case .setLabel:
@@ -298,7 +307,7 @@ public struct Door: Sendable {
             let payload: Payload = on
                 ? .labelAttach(.init(entry: entry, label: label))
                 : .labelDetach(.init(entry: entry, label: label))
-            try store.append(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
+            try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
             return .text("\(on ? "Filed" : "Unfiled") \(entry) \(on ? "under" : "from") #\(label).")
 
         case .linkLines:
@@ -313,7 +322,7 @@ public struct Door: Sendable {
             let payload: Payload = on
                 ? .linkAdd(.init(later: later, earlier: earlier, closes: closes))
                 : .linkRemove(.init(later: later, earlier: earlier))
-            try store.append(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
+            try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
             return .text(on ? "Linked \(later) back to \(earlier)\(closes ? ", closing it" : "")." : "Unlinked \(later) from \(earlier).")
         }
     }
@@ -327,7 +336,7 @@ public struct Door: Sendable {
     /// Lands in the grant's own file like a note would. A read is a fact about the notebook too.
     private func receipt(_ visit: Payload.Visit) throws {
         let now = Date()
-        try store.append(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: .visit(visit)))
+        try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: .visit(visit)))
     }
 
     private func select(_ notebook: Notebook, _ arguments: [String: Any]) throws -> [Day] {
@@ -369,11 +378,15 @@ public struct DoorRouter: Sendable {
     public let calendar: Calendar
     /// Looks a key up. Nil means no such grant, and the request is refused.
     public let resolve: @Sendable (_ key: String) -> (FileStore, Grant)?
+    /// Told of every event any door writes. See `Door.written`.
+    public var written: (@Sendable (Event) -> Void)?
 
-    public init(path: String = "/mcp", calendar: Calendar, resolve: @escaping @Sendable (String) -> (FileStore, Grant)?) {
+    public init(path: String = "/mcp", calendar: Calendar, resolve: @escaping @Sendable (String) -> (FileStore, Grant)?,
+                written: (@Sendable (Event) -> Void)? = nil) {
         self.path = path
         self.calendar = calendar
         self.resolve = resolve
+        self.written = written
     }
 
     public func respond(_ request: HTTPRequest) -> HTTPResponse {
@@ -390,7 +403,7 @@ public struct DoorRouter: Sendable {
         else {
             return HTTPResponse(status: 401, text: "No grant for that key.")
         }
-        let door = Door(store: store, grant: grant, calendar: calendar)
+        let door = Door(store: store, grant: grant, calendar: calendar, written: written)
         if let body = door.handle(request.body) {
             return HTTPResponse(status: 200, json: body)
         }

@@ -64,6 +64,8 @@ final class NotebookModel {
         location.onChange = { [weak self] status in self?.locationStatus = status }
         reload()
         takeInbox()
+        Pushes.shared.onToken = { [weak self] token in self?.savePushAddress(token) }
+        if let token = Pushes.shared.token { savePushAddress(token) }
         watcher = FolderWatcher(directory: store.eventsDirectory) { [weak self] in
             self?.reloadSoon()
         }
@@ -73,6 +75,22 @@ final class NotebookModel {
             reloadSoon()
         }
         walks.resume { [weak self] walks in self?.add(walks) }
+    }
+
+    /// Where this phone can be reached, kept in the folder for whoever holds it and the key.
+    /// A build run from Xcode is on Apple's development side; TestFlight and the store are not.
+    private func savePushAddress(_ token: String) {
+        #if DEBUG
+        let environment = "development"
+        #else
+        let environment = "production"
+        #endif
+        do {
+            try store.savePushAddress(PushAddress(device: device, token: token, environment: environment,
+                                                 topic: Bundle.main.bundleIdentifier ?? "", updatedAt: Date()))
+        } catch {
+            NSLog("push address failed: \(error)")
+        }
     }
 
     /// Asks the phone, once, whether lines may keep their place. Refused, the answer lives in Settings.

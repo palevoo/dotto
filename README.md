@@ -75,7 +75,12 @@ shows its thread in the reader's ink; hold a row there to take the link back.
 
 Every read leaves a receipt: a `visit` event in the grant's file saying what was asked for
 and how much came back. The phone shows the latest one on the calendar sheet and the whole
-log behind it; a line's History says who read it. The Mac window has the same log.
+log behind it, called Logs; a line's History says who read it. The Mac window has the same log.
+
+A note written through the door reaches the phone as a push. The phone writes its push
+address into the folder as `devices/<device>.json` once notifications are allowed in
+Setup; the Mac, holding the developer account's push key in its keychain, hands the note
+to Apple. Marks stay silent: labels and links are for the page, not the pocket.
 
 ## Building Margin with Margin
 
