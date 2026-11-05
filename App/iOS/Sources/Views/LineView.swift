@@ -12,8 +12,7 @@ struct LineView: View {
     @State private var editing = false
     @State private var text = ""
     @State private var replyText = ""
-    @State private var viewing: PhotoSelection?
-    @Namespace private var zoom
+    @State private var viewing: PhotoOpening?
     @FocusState private var focused: Bool
     @FocusState private var replying: Bool
 
@@ -54,8 +53,9 @@ struct LineView: View {
 
                 ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                     LargePhoto(media: photo, url: model.mediaURL(photo))
-                        .matchedTransitionSource(id: photo.hash, in: zoom)
-                        .onTapGesture { viewing = PhotoSelection(index: index) }
+                        .onPhotoTap(radius: LargePhoto.radius) { source in
+                            withoutAnimation { viewing = PhotoOpening(entry: entry.id, index: index, sources: [photo.hash: source]) }
+                        }
                 }
 
                 ForEach(entry.media.filter { $0.mime.hasPrefix("audio") }) { voice in
@@ -63,10 +63,14 @@ struct LineView: View {
                 }
 
                 if editing {
+                    // The words stay where they are, at their size and spacing; the paper
+                    // under them says they are being changed.
                     WordsField(placeholder: "Words for this", text: $text, font: .system(size: 20, design: .serif),
                                color: Theme.foreground, focused: $focused) {
                         focused = false
                     }
+                    .lineSpacing(5)
+                    .editingSurface()
                     .id("words")
                     .onChange(of: focused) { _, isFocused in
                         if !isFocused {
@@ -179,9 +183,8 @@ struct LineView: View {
         .background(Theme.background.ignoresSafeArea())
         .toolbarBackground(Theme.background, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
-        .fullScreenCover(item: $viewing) { selection in
-            PhotoViewer(entryID: entry.id, index: selection.index, model: model)
-                .navigationTransition(.zoom(sourceID: photos[selection.index].hash, in: zoom))
+        .fullScreenCover(item: $viewing) { opening in
+            PhotoViewer(opening: opening, model: model) { withoutAnimation { viewing = nil } }
         }
     }
 
@@ -214,11 +217,6 @@ struct LineView: View {
         }
         return "\(item.author.rawValue) \(item.what), via \(item.device.rawValue)"
     }
-}
-
-struct PhotoSelection: Identifiable {
-    let index: Int
-    var id: Int { index }
 }
 
 /// The lines this one carries on from, and the ones that carry on from it, as a reader
@@ -301,6 +299,8 @@ struct LargePhoto: View {
     let url: URL
     @State private var image: UIImage?
 
+    static let radius: CGFloat = 96 * 0.22
+
     private var ratio: CGFloat {
         guard let width = media.width, let height = media.height, width > 0, height > 0 else { return 1 }
         return CGFloat(width) / CGFloat(height)
@@ -318,9 +318,8 @@ struct LargePhoto: View {
         }
         .aspectRatio(ratio, contentMode: .fit)
         .frame(maxWidth: .infinity)
-        .clipShape(Theme.square(96))
-        .overlay(Theme.square(96).strokeBorder(Theme.line, lineWidth: 1))
-        .contentShape(Theme.square(96))
+        .clipShape(RoundedRectangle(cornerRadius: Self.radius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Self.radius, style: .continuous).strokeBorder(Theme.line, lineWidth: 1))
         .task(id: media.hash) {
             image = await Photo.load(url, maxSide: 1600)
         }

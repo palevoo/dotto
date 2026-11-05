@@ -7,10 +7,9 @@ import UIKit
 struct EntryRow: View {
     let entry: Entry
     @Bindable var model: NotebookModel
-    let zoom: Namespace.ID
     var revealed = false
     let onOpen: () -> Void
-    let onOpenPhoto: (Int) -> Void
+    let onOpenPhoto: (PhotoOpening) -> Void
 
     private var photos: [Media] { entry.media.filter { $0.mime.hasPrefix("image") } }
     private var voices: [Media] { entry.media.filter { $0.mime.hasPrefix("audio") } }
@@ -30,8 +29,9 @@ struct EntryRow: View {
                         HStack(spacing: 10) {
                             ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                                 ThumbView(hash: photo.hash, original: model.mediaURL(photo), side: 180)
-                                    .matchedTransitionSource(id: photo.hash, in: zoom)
-                                    .onTapGesture { onOpenPhoto(index) }
+                                    .onPhotoTap(radius: 180 * 0.22) { source in
+                                        onOpenPhoto(PhotoOpening(entry: entry.id, index: index, sources: [photo.hash: source]))
+                                    }
                             }
                         }
                     }

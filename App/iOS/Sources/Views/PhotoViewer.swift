@@ -2,51 +2,94 @@ import Core
 import SwiftUI
 import UIKit
 
-/// Photos of one line, full screen, with one hand on all of it. A sideways drag pages; a
-/// drag in any other direction, at any angle, throws the photo while the page shows through
-/// behind it, and letting go past a point closes it back into its thumbnail. Pinch or
-/// double-tap to zoom. No pager of its own, so nothing competes for the first movement.
+/// Where a photo sits on the page at the moment it is tapped, in the window's coordinates,
+/// so the viewer can grow out of that place and shrink back into it.
+struct PhotoSource: Hashable {
+    var frame: CGRect
+    var radius: CGFloat
+}
+
+/// A line's photo, opened, with the place it was opened from.
+struct PhotoOpening: Identifiable {
+    let entry: ULID
+    let index: Int
+    /// The place of the photo that was tapped, by hash. Other photos of the line, reached by
+    /// paging, have no place and fade out instead.
+    let sources: [String: PhotoSource]
+    var id: String { "\(entry)-\(index)" }
+}
+
+/// The viewer draws its own way in and out, so the cover that holds it must not.
+func withoutAnimation(_ change: () -> Void) {
+    var transaction = Transaction()
+    transaction.disablesAnimations = true
+    withTransaction(transaction, change)
+}
+
+/// Photos of one line, on the page's own background. The photo lifts off its thumbnail and
+/// settles fitted to the screen; a drag in any direction carries it, the page showing
+/// through, and letting go past a point sets it back where it came from. A sideways drag
+/// pages. Pinch or double-tap to zoom. No pager of its own, so nothing competes for the
+/// first movement.
 struct PhotoViewer: View {
-    let entryID: ULID
-    @State var index: Int
+    let opening: PhotoOpening
     let model: NotebookModel
-    @Environment(\.dismiss) private var dismiss
+    let onClose: () -> Void
+
+    @State private var index: Int
+    /// False while the photo is at its place on the page, before it has grown and after it
+    /// has shrunk back.
+    @State private var shown = false
+    @State private var images: [String: UIImage]
+    @State private var full: Set<String> = []
     @State private var drag: CGSize = .zero
     @State private var axis: Axis?
-    @State private var zoomed = false
+    @State private var scale: CGFloat = 1
+    @State private var settledScale: CGFloat = 1
+    @State private var pan: CGSize = .zero
+    @State private var settledPan: CGSize = .zero
     @State private var words = ""
     @State private var editing = false
     @FocusState private var focused: Bool
 
-    private var entry: Entry? { model.notebook.entry(entryID) }
+    private let gap: CGFloat = 24
+
+    init(opening: PhotoOpening, model: NotebookModel, onClose: @escaping () -> Void) {
+        self.opening = opening
+        self.model = model
+        self.onClose = onClose
+        _index = State(initialValue: opening.index)
+        // The first frame must be the thumbnail the page already shows, with no wait.
+        var first: [String: UIImage] = [:]
+        for photo in model.notebook.entry(opening.entry)?.media ?? [] where photo.mime.hasPrefix("image") {
+            if let thumb = Thumbs.cached(photo.hash) { first[photo.hash] = thumb }
+        }
+        _images = State(initialValue: first)
+    }
+
+    private var entry: Entry? { model.notebook.entry(opening.entry) }
     private var photos: [Media] { entry?.media.filter { $0.mime.hasPrefix("image") } ?? [] }
+    private var zoomed: Bool { scale > 1 }
 
     private var thrown: CGFloat { axis == .vertical ? abs(drag.height) : 0 }
     private var fade: Double { 1 - min(Double(thrown) / 320, 0.85) }
     private var shrink: CGFloat { 1 - min(thrown / 1200, 0.25) }
-    private var neighbours: [Int] { [index - 1, index, index + 1].filter { $0 >= 0 && $0 < photos.count } }
+    private var neighbours: [Int] { [index, index - 1, index + 1].filter { $0 >= 0 && $0 < photos.count } }
+    private var calm: Bool { shown && axis == nil }
 
     var body: some View {
         ZStack {
             GeometryReader { geometry in
-                let width = geometry.size.width
-                let gap: CGFloat = 24
+                let size = geometry.size
                 ZStack {
+                    Theme.background.opacity(shown ? fade : 0)
                     ForEach(neighbours, id: \.self) { position in
-                        let photo = photos[position]
-                        let current = position == index
-                        ZoomableImage(hash: photo.hash, url: model.mediaURL(photo), zoomed: current ? $zoomed : .constant(false))
-                            .frame(width: width, height: geometry.size.height)
-                            .scaleEffect(current ? shrink : 1)
-                            .offset(
-                                x: CGFloat(position - index) * (width + gap) + (axis == .horizontal ? drag.width : 0),
-                                y: current && axis == .vertical ? drag.height : 0
-                            )
+                        photo(at: position, in: size)
                     }
                 }
-                .frame(width: width, height: geometry.size.height)
+                .frame(width: size.width, height: size.height)
                 .contentShape(Rectangle())
-                .gesture(hand(step: width + gap, width: width), isEnabled: !zoomed)
+                .gesture(hand(step: size.width + gap, width: size.width), isEnabled: !zoomed)
             }
             .ignoresSafeArea()
 
@@ -55,14 +98,89 @@ struct PhotoViewer: View {
                 Spacer(minLength: 0)
                 caption
             }
-            .opacity(axis == nil ? 1 : 0)
-            .animation(.easeOut(duration: 0.15), value: axis == nil)
+            .opacity(calm ? 1 : 0)
+            .animation(.easeOut(duration: 0.15), value: calm)
         }
-        .background(Color.black.opacity(fade).ignoresSafeArea())
         .presentationBackground(.clear)
-        .statusBarHidden()
+        .onAppear {
+            withAnimation(.snappy(duration: 0.38, extraBounce: 0)) { shown = true }
+        }
+        .task(id: index) { await loadFull() }
         .onChange(of: focused) { _, isFocused in
             if !isFocused, editing { store() }
+        }
+    }
+
+    /// One photo where it belongs now: at its place on the page before it is shown and after
+    /// it is closed, fitted to the screen in between, a page-width to the side when it is a
+    /// neighbour. The frame and corners animate between the two, so the thumbnail becomes
+    /// the photo and back.
+    @ViewBuilder
+    private func photo(at position: Int, in size: CGSize) -> some View {
+        let photo = photos[position]
+        let current = position == index
+        let fitted = fitted(photo, in: size)
+        let source = current && !shown ? opening.sources[photo.hash] : nil
+        let rect = source?.frame ?? (current && !shown ? fitted.shrunk(to: 0.6) : fitted)
+        let radius = source?.radius ?? 0
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        Group {
+            if let image = images[photo.hash] {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Theme.paper
+            }
+        }
+        .frame(width: rect.width, height: rect.height)
+        .clipShape(shape)
+        .contentShape(shape)
+        // A photo with no place to go back to fades out instead.
+        .opacity(current && !shown && source == nil ? 0 : 1)
+        .scaleEffect(current ? scale * shrink : 1)
+        .offset(current ? pan : .zero)
+        .position(
+            x: rect.midX + CGFloat(position - index) * (size.width + gap) + (axis == .horizontal ? drag.width : 0),
+            y: rect.midY + (current && axis == .vertical ? drag.height : 0)
+        )
+        .gesture(pinch, isEnabled: current && calm)
+        .simultaneousGesture(panning, isEnabled: current && zoomed)
+        .onTapGesture(count: 2) {
+            guard current, calm else { return }
+            withAnimation(Motion.settle) {
+                if zoomed {
+                    resetZoom()
+                } else {
+                    scale = 2.5
+                    settledScale = 2.5
+                }
+            }
+        }
+    }
+
+    /// The photo at the width or height of the screen, whichever it reaches first, centred.
+    private func fitted(_ photo: Media, in size: CGSize) -> CGRect {
+        var ratio: CGFloat = 1
+        if let width = photo.width, let height = photo.height, width > 0, height > 0 {
+            ratio = CGFloat(width) / CGFloat(height)
+        } else if let image = images[photo.hash], image.size.height > 0 {
+            ratio = image.size.width / image.size.height
+        }
+        let width = min(size.width, size.height * ratio)
+        let height = width / ratio
+        return CGRect(x: (size.width - width) / 2, y: (size.height - height) / 2, width: width, height: height)
+    }
+
+    /// The photo on screen at viewing size, then its neighbours, each once.
+    private func loadFull() async {
+        for position in neighbours {
+            let photo = photos[position]
+            guard !full.contains(photo.hash) else { continue }
+            if let image = await Photo.load(model.mediaURL(photo)) {
+                images[photo.hash] = image
+                full.insert(photo.hash)
+            }
         }
     }
 
@@ -72,7 +190,7 @@ struct PhotoViewer: View {
             if photos.count > 1 {
                 Text("\(index + 1) / \(photos.count)")
                     .font(Theme.mono)
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(Theme.muted)
                     .monospacedDigit()
                     .padding(.leading, 20)
             }
@@ -82,9 +200,9 @@ struct PhotoViewer: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.85))
+                    .foregroundStyle(Theme.foreground)
                     .frame(width: 44, height: 44)
-                    .background(Theme.square(44).fill(Color.white.opacity(0.12)))
+                    .background(Theme.square(44).fill(Theme.background.opacity(0.85)))
             }
             .buttonStyle(.plain)
             .padding(.trailing, 12)
@@ -97,9 +215,11 @@ struct PhotoViewer: View {
     private var caption: some View {
         Group {
             if editing {
-                WordsField(placeholder: "Words for this", text: $words, font: Theme.serif, color: .white, focused: $focused) {
+                WordsField(placeholder: "Words for this", text: $words, font: Theme.serif, color: Theme.foreground, focused: $focused) {
                     store()
                 }
+                .lineSpacing(4)
+                .editingSurface()
             } else {
                 Button {
                     words = entry?.text ?? ""
@@ -109,7 +229,7 @@ struct PhotoViewer: View {
                     let text = entry?.text ?? ""
                     Text(text.isEmpty ? "Words for this" : text)
                         .font(Theme.serif)
-                        .foregroundStyle(Color.white.opacity(text.isEmpty ? 0.4 : 0.92))
+                        .foregroundStyle(text.isEmpty ? Theme.faint : Theme.foreground)
                         .lineSpacing(4)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -122,15 +242,19 @@ struct PhotoViewer: View {
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            LinearGradient(colors: [.black.opacity(0), .black.opacity(0.75)], startPoint: .top, endPoint: .bottom)
+            // So the words read over a photo that reaches the bottom.
+            LinearGradient(colors: [Theme.background.opacity(0), Theme.background.opacity(0.92)], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea(edges: .bottom)
         )
     }
+
+    // MARK: - Hands
 
     /// One drag for paging and closing. The first movement decides which it is.
     private func hand(step: CGFloat, width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 8, coordinateSpace: .local)
             .onChanged { value in
+                guard shown else { return }
                 if axis == nil {
                     axis = abs(value.translation.width) > abs(value.translation.height) ? .horizontal : .vertical
                 }
@@ -166,95 +290,85 @@ struct PhotoViewer: View {
             }
     }
 
+    private var pinch: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                scale = max(1, min(5, settledScale * value.magnification))
+            }
+            .onEnded { _ in
+                settledScale = scale
+                if scale <= 1.02 {
+                    withAnimation(Motion.settle) { resetZoom() }
+                }
+            }
+    }
+
+    private var panning: some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onChanged { value in
+                pan = CGSize(width: settledPan.width + value.translation.width,
+                             height: settledPan.height + value.translation.height)
+            }
+            .onEnded { _ in
+                settledPan = pan
+            }
+    }
+
+    private func resetZoom() {
+        scale = 1
+        settledScale = 1
+        pan = .zero
+        settledPan = .zero
+    }
+
     private func store() {
         editing = false
         focused = false
-        model.edit(entryID, text: words)
+        model.edit(opening.entry, text: words)
     }
 
+    /// Back to the page: the photo returns to its place from wherever the hand left it, the
+    /// page comes through behind, and only then does the cover go, with no motion of its own.
     private func close() {
         if editing { store() }
-        dismiss()
+        withAnimation(.snappy(duration: 0.36, extraBounce: 0)) {
+            shown = false
+            drag = .zero
+            resetZoom()
+        } completion: {
+            onClose()
+        }
     }
 }
 
-/// One photo: pinch or double-tap to zoom, drag to pan when zoomed. Unzoomed it has no
-/// drag of its own; the viewer's one hand does the rest. The first frame is the thumbnail
-/// already in memory; the full photo replaces it.
-struct ZoomableImage: View {
-    let hash: String
-    let url: URL
-    @Binding var zoomed: Bool
-    @State private var image: UIImage?
-    @State private var scale: CGFloat = 1
-    @State private var settledScale: CGFloat = 1
-    @State private var offset: CGSize = .zero
-    @State private var settledOffset: CGSize = .zero
+private extension CGRect {
+    /// The same centre, a share of the size.
+    func shrunk(to share: CGFloat) -> CGRect {
+        insetBy(dx: width * (1 - share) / 2, dy: height * (1 - share) / 2)
+    }
+}
 
-    var body: some View {
-        GeometryReader { geometry in
-            Group {
-                if let image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFit()
-                } else {
-                    Color.clear
-                }
+extension View {
+    /// A tap on a photo that also says where the photo is on screen at that moment.
+    func onPhotoTap(radius: CGFloat, _ action: @escaping (PhotoSource) -> Void) -> some View {
+        overlay {
+            GeometryReader { geometry in
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        action(PhotoSource(frame: geometry.frame(in: .global), radius: radius))
+                    }
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .scaleEffect(scale)
-            .offset(offset)
-            .gesture(
-                MagnifyGesture()
-                    .onChanged { value in
-                        scale = max(1, min(5, settledScale * value.magnification))
-                        zoomed = scale > 1
-                    }
-                    .onEnded { _ in
-                        settledScale = scale
-                        if scale <= 1.02 {
-                            withAnimation(Motion.settle) { reset() }
-                        }
-                    }
-            )
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 10)
-                    .onChanged { value in
-                        offset = CGSize(width: settledOffset.width + value.translation.width,
-                                        height: settledOffset.height + value.translation.height)
-                    }
-                    .onEnded { _ in
-                        settledOffset = offset
-                    },
-                isEnabled: scale > 1
-            )
-            .onTapGesture(count: 2) {
-                withAnimation(Motion.settle) {
-                    if scale > 1 {
-                        reset()
-                    } else {
-                        scale = 2.5
-                        settledScale = 2.5
-                        zoomed = true
-                    }
-                }
-            }
-        }
-        .onAppear {
-            if image == nil { image = Thumbs.cached(hash) }
-        }
-        .task(id: url) {
-            if let full = await Photo.load(url) { image = full }
         }
     }
 
-    private func reset() {
-        scale = 1
-        settledScale = 1
-        offset = .zero
-        settledOffset = .zero
-        zoomed = false
+    /// Words being changed: in the same place at the same size, on a sheet of paper that
+    /// says so.
+    func editingSurface() -> some View {
+        padding(10)
+            .background(Theme.square(44).fill(Theme.paper))
+            .overlay(Theme.square(44).strokeBorder(Theme.line, lineWidth: 1))
+            .padding(-10)
     }
 }
 

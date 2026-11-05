@@ -9,7 +9,10 @@ struct PageView: View {
     @Bindable var model: NotebookModel
     let onRelocate: (URL) -> Void
     @State private var path = NavigationPath()
-    @State private var visibleDay: DayKey?
+    /// Where the page is: read for the pinned date, set to move it. The page opens at the
+    /// bottom. A move set here is made when the page next lays out, so a day that is only
+    /// just being added is found.
+    @State private var position = ScrollPosition(edge: .bottom)
     @State private var atBottom = true
     @State private var showCalendar = false
     /// What the calendar sheet asked for, done once it has gone: a page is pushed on a
@@ -22,8 +25,9 @@ struct PageView: View {
     @State private var revealed: ULID?
     @State private var launch = Launch.shared
     @State private var recorder = VoiceRecorder()
-    @Namespace private var zoom
     @FocusState private var liveFocused: Bool
+
+    private var visibleDay: DayKey { position.viewID(type: DayKey.self) ?? model.today }
 
     private var days: [Day] {
         if let filter {
@@ -34,153 +38,145 @@ struct PageView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollViewReader { proxy in
-                VStack(spacing: 0) {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(days) { day in
-                                DaySection(
-                                    day: day,
-                                    model: model,
-                                    isToday: filter == nil && day.key == model.today,
-                                    zoom: zoom,
-                                    revealed: revealed,
-                                    onOpen: { id in open { path.append(id) } },
-                                    onOpenPhoto: { id, index in open { viewing = PhotoOpening(entry: id, index: index) } }
-                                )
-                                .id(day.key)
-                            }
-                            if days.isEmpty {
-                                Text(filter == nil ? "Nothing yet. The line below is yours." : "Nothing filed here yet.")
-                                    .font(Theme.serifSmall)
-                                    .foregroundStyle(Theme.muted)
-                                    .padding(20)
-                            }
+            VStack(spacing: 0) {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        ForEach(days) { day in
+                            DaySection(
+                                day: day,
+                                model: model,
+                                isToday: filter == nil && day.key == model.today,
+                                revealed: revealed,
+                                onOpen: { id in open { path.append(id) } },
+                                onOpenPhoto: { opening in open { withoutAnimation { viewing = opening } } }
+                            )
+                            .id(day.key)
                         }
-                        .scrollTargetLayout()
-                        .padding(.bottom, 12)
-                        .contentShape(Rectangle())
-                        .onTapGesture { liveFocused = false }
+                        if days.isEmpty {
+                            Text(filter == nil ? "Nothing yet. The line below is yours." : "Nothing filed here yet.")
+                                .font(Theme.serifSmall)
+                                .foregroundStyle(Theme.muted)
+                                .padding(20)
+                        }
                     }
-                    .scrollPosition(id: $visibleDay, anchor: .top)
-                    .defaultScrollAnchor(.bottom)
-                    .scrollDismissesKeyboard(.interactively)
-                    .onScrollGeometryChange(for: Bool.self) { geometry in
-                        geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 2
-                    } action: { _, isAtBottom in
-                        atBottom = isAtBottom
-                    }
-                    .safeAreaInset(edge: .top, spacing: 0) {
-                        PinnedHeader(
-                            day: visibleDay ?? model.today,
-                            today: model.today,
-                            calendar: model.calendar,
-                            filter: filter,
-                            onTap: { showCalendar = true },
-                            onClearFilter: { withAnimation(Motion.settle) { filter = nil } },
-                            onCopyDay: { copy(day: visibleDay ?? model.today) },
-                            onCopyAll: { copyAll() }
-                        )
-                    }
-
-                    // The live line is the last row of the page, a sibling of the scroll, so the
-                    // keyboard lifts it and a push and pop can never lose it.
-                    LiveLine(
-                        model: model,
-                        focused: $liveFocused,
-                        recorder: recorder,
-                        onReturn: { storeDraft(proxy) },
-                        onCamera: { showCamera = true },
-                        onSpeak: { speak() },
-                        onStopSpeaking: { finishVoice() }
-                    )
-                    .background(Theme.background)
-                    .overlay(alignment: .top) {
-                        Theme.line.frame(height: 1).opacity(atBottom ? 0 : 1)
-                    }
+                    .scrollTargetLayout()
+                    .padding(.bottom, 12)
+                    .contentShape(Rectangle())
+                    .onTapGesture { liveFocused = false }
                 }
-                .background(Theme.background.ignoresSafeArea())
-                .sheet(isPresented: $showCalendar, onDismiss: {
-                    guard let next = afterCalendar else { return }
-                    afterCalendar = nil
-                    path.append(next)
-                }) {
-                    CalendarSheet(
-                        days: model.days,
+                .scrollPosition($position, anchor: .top)
+                .defaultScrollAnchor(.bottom)
+                .scrollDismissesKeyboard(.interactively)
+                .onScrollGeometryChange(for: Bool.self) { geometry in
+                    geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 2
+                } action: { _, isAtBottom in
+                    atBottom = isAtBottom
+                }
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    PinnedHeader(
+                        day: visibleDay,
                         today: model.today,
                         calendar: model.calendar,
-                        labels: model.notebook.labelCounts,
                         filter: filter,
-                        lastVisit: model.notebook.visits.last.map { LogView.summary(of: $0, calendar: model.calendar) },
-                        onPick: { key in
-                            showCalendar = false
-                            withAnimation(Motion.settle) { proxy.scrollTo(key, anchor: .top) }
-                        },
-                        onFilter: { label in
-                            showCalendar = false
-                            withAnimation(Motion.settle) { filter = label }
-                        },
-                        onLog: {
-                            afterCalendar = .log
-                            showCalendar = false
-                        },
-                        onSetup: {
-                            afterCalendar = .setup
-                            showCalendar = false
-                        }
+                        onTap: { showCalendar = true },
+                        onClearFilter: { withAnimation(Motion.settle) { filter = nil } },
+                        onCopyDay: { copy(day: visibleDay) },
+                        onCopyAll: { copyAll() }
                     )
-                    .presentationBackground(Theme.paper)
                 }
-                .fullScreenCover(isPresented: $showCamera) {
-                    CameraView(picked: $picked) { data in
-                        showCamera = false
-                        guard let data else { return }
-                        Task {
-                            await model.addPhoto(data)
-                            Haptic.touch()
-                            liveFocused = true
-                        }
+
+                // The live line is the last row of the page, a sibling of the scroll, so the
+                // keyboard lifts it and a push and pop can never lose it.
+                LiveLine(
+                    model: model,
+                    focused: $liveFocused,
+                    recorder: recorder,
+                    onReturn: { storeDraft() },
+                    onCamera: { showCamera = true },
+                    onSpeak: { speak() },
+                    onStopSpeaking: { finishVoice() }
+                )
+                .background(Theme.background)
+                .overlay(alignment: .top) {
+                    Theme.line.frame(height: 1).opacity(atBottom ? 0 : 1)
+                }
+            }
+            .background(Theme.background.ignoresSafeArea())
+            .sheet(isPresented: $showCalendar, onDismiss: {
+                guard let next = afterCalendar else { return }
+                afterCalendar = nil
+                path.append(next)
+            }) {
+                CalendarSheet(
+                    days: model.days,
+                    today: model.today,
+                    calendar: model.calendar,
+                    labels: model.notebook.labelCounts,
+                    filter: filter,
+                    lastVisit: model.notebook.visits.last.map { LogView.summary(of: $0, calendar: model.calendar) },
+                    onPick: { key in
+                        showCalendar = false
+                        withAnimation(Motion.settle) { position.scrollTo(id: key, anchor: .top) }
+                    },
+                    onFilter: { label in
+                        showCalendar = false
+                        withAnimation(Motion.settle) { filter = label }
+                    },
+                    onLog: {
+                        afterCalendar = .log
+                        showCalendar = false
+                    },
+                    onSetup: {
+                        afterCalendar = .setup
+                        showCalendar = false
                     }
-                }
-                .fullScreenCover(item: $viewing) { opening in
-                    if let entry = model.notebook.entry(opening.entry) {
-                        let photos = entry.media.filter { $0.mime.hasPrefix("image") }
-                        let index = min(opening.index, photos.count - 1)
-                        PhotoViewer(entryID: entry.id, index: index, model: model)
-                            .navigationTransition(.zoom(sourceID: photos[index].hash, in: zoom))
-                    }
-                }
-                .onChange(of: picked) { _, items in
-                    guard !items.isEmpty else { return }
+                )
+                .presentationBackground(Theme.paper)
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraView(picked: $picked) { data in
                     showCamera = false
+                    guard let data else { return }
                     Task {
-                        // Into the live line, like the camera: the words come next, Return stores.
-                        for item in items {
-                            if let photo = await PhotoLibrary.load(item) {
-                                await model.importPhoto(photo.data, takenAt: photo.takenAt, location: photo.location)
-                            }
-                        }
-                        picked = []
+                        await model.addPhoto(data)
                         Haptic.touch()
                         liveFocused = true
                     }
                 }
-                .onChange(of: liveFocused) { _, focused in
-                    if !focused { storeDraft(proxy) }
-                }
-                // A press from outside: the Action button, a control, Siri. Back to the
-                // page, then the line or the camera.
-                .onChange(of: launch.request, initial: true) { _, request in
-                    guard let request else { return }
-                    launch.request = nil
-                    path = NavigationPath()
-                    viewing = nil
-                    showCalendar = false
-                    switch request {
-                    case .write: liveFocused = true
-                    case .photo: showCamera = true
-                    case .speak: speak()
+            }
+            .fullScreenCover(item: $viewing) { opening in
+                PhotoViewer(opening: opening, model: model) { withoutAnimation { viewing = nil } }
+            }
+            .onChange(of: picked) { _, items in
+                guard !items.isEmpty else { return }
+                showCamera = false
+                Task {
+                    // Into the live line, like the camera: the words come next, Return stores.
+                    for item in items {
+                        if let photo = await PhotoLibrary.load(item) {
+                            await model.importPhoto(photo.data, takenAt: photo.takenAt, location: photo.location)
+                        }
                     }
+                    picked = []
+                    Haptic.touch()
+                    liveFocused = true
+                }
+            }
+            .onChange(of: liveFocused) { _, focused in
+                if !focused { storeDraft() }
+            }
+            // A press from outside: the Action button, a control, Siri. Back to the
+            // page, then the line or the camera.
+            .onChange(of: launch.request, initial: true) { _, request in
+                guard let request else { return }
+                launch.request = nil
+                path = NavigationPath()
+                viewing = nil
+                showCalendar = false
+                switch request {
+                case .write: liveFocused = true
+                case .photo: showCamera = true
+                case .speak: speak()
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -209,7 +205,7 @@ struct PageView: View {
 
     /// Stores the live line and settles the page on it, one short motion. A line stored on an
     /// earlier day, from a photo's own moment, is shown where it landed.
-    private func storeDraft(_ proxy: ScrollViewProxy) {
+    private func storeDraft() {
         var stored: ULID?
         withAnimation(Motion.settle) { stored = model.commitDraft() }
         guard let stored else { return }
@@ -217,16 +213,17 @@ struct PageView: View {
         guard filter == nil else { return }
         let day = model.notebook.entry(stored).map { DayKey($0.startedAt, calendar: model.calendar) } ?? model.today
         if day == model.today {
-            withAnimation(Motion.settle) { proxy.scrollTo(model.today, anchor: .bottom) }
+            // The end of the page, wherever that is once the new line is in it.
+            withAnimation(Motion.settle) { position.scrollTo(edge: .bottom) }
         } else {
-            reveal(stored, on: day, proxy)
+            reveal(stored, on: day)
         }
     }
 
     /// The page goes to the day in one motion and marks the line for a moment.
-    private func reveal(_ id: ULID, on day: DayKey, _ proxy: ScrollViewProxy) {
+    private func reveal(_ id: ULID, on day: DayKey) {
         withAnimation(Motion.settle) {
-            proxy.scrollTo(day, anchor: .top)
+            position.scrollTo(id: day, anchor: .top)
             revealed = id
         }
         Task {
@@ -266,12 +263,6 @@ struct PageView: View {
             .map { Projector.markdown(for: $0, calendar: model.calendar) }
             .joined(separator: "\n")
     }
-}
-
-struct PhotoOpening: Identifiable {
-    let entry: ULID
-    let index: Int
-    var id: String { "\(entry)-\(index)" }
 }
 
 enum Motion {
@@ -362,10 +353,9 @@ struct DaySection: View {
     let day: Day
     @Bindable var model: NotebookModel
     let isToday: Bool
-    let zoom: Namespace.ID
     let revealed: ULID?
     let onOpen: (ULID) -> Void
-    let onOpenPhoto: (ULID, Int) -> Void
+    let onOpenPhoto: (PhotoOpening) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -376,10 +366,9 @@ struct DaySection: View {
                 EntryRow(
                     entry: entry,
                     model: model,
-                    zoom: zoom,
                     revealed: revealed == entry.id,
                     onOpen: { onOpen(entry.id) },
-                    onOpenPhoto: { index in onOpenPhoto(entry.id, index) }
+                    onOpenPhoto: onOpenPhoto
                 )
                 .id(entry.id)
             }
@@ -531,7 +520,8 @@ struct LiveLine: View {
     }
 }
 
-/// What has landed in the live line before its words. Hold one to take it out again.
+/// What has landed in the live line before its words. Each has an x at its corner to take it
+/// out again.
 struct DraftMediaRow: View {
     let model: NotebookModel
 
@@ -546,13 +536,25 @@ struct DraftMediaRow: View {
                             VoiceChip(hash: item.hash, duration: item.duration ?? 0, url: model.mediaURL(item))
                         }
                     }
-                    .contextMenu {
-                        Button("Take out", systemImage: "minus.circle", role: .destructive) {
+                    .overlay(alignment: .topTrailing) {
+                        Button {
+                            Haptic.touch()
                             withAnimation(Motion.settle) { model.removeDraftMedia(item) }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(Theme.background)
+                                .frame(width: 22, height: 22)
+                                .background(Theme.square(22).fill(Theme.foreground.opacity(0.85)))
                         }
+                        .buttonStyle(.plain)
+                        .offset(x: 6, y: -6)
+                        .accessibilityLabel("Take out")
                     }
                 }
             }
+            .padding(.top, 6)
+            .padding(.trailing, 6)
         }
         .scrollClipDisabled()
     }
