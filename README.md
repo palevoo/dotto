@@ -21,7 +21,7 @@ session with a grant; it has no name until it chooses one.
 
     spec/architecture.md    §0 is what is built; the rest is a sketch
     spec/weeju.md           how whoever comes through the door behaves
-    spec/system.md          the parts, as they are shaping: captures, what happens after, kits; a sketch
+    spec/system.md          the direction: an operating system that begins with capture; no implementation
     Core/                   Swift package: events, fold, file store, projector, the door, CLI, tests
     App/project.yml         both apps, generated with XcodeGen into App/Margin.xcodeproj
     App/iOS/                iPhone app; Shared/ is compiled into the controls too, Common/ into the share sheet too
