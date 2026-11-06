@@ -199,6 +199,9 @@ struct LineView: View {
         .background(Theme.background.ignoresSafeArea())
         .toolbarBackground(Theme.background, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
+        // Opening the line reads whatever the inbox holds about it.
+        .onAppear { model.lookAt(entry.id) }
+        .onDisappear { focused = false }
         .fullScreenCover(item: $viewing) { opening in
             PhotoViewer(opening: opening, model: model) { withoutAnimation { viewing = nil } }
         }

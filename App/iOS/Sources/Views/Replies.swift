@@ -125,6 +125,8 @@ struct ReplyBar: View {
         .padding(.bottom, 8)
         .background(Theme.background)
         .overlay(alignment: .top) { Theme.line.frame(height: 1) }
+        // The keyboard goes with the page it was raised on, not back to the main page.
+        .onDisappear { focused = false }
     }
 }
 

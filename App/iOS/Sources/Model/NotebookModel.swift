@@ -172,12 +172,19 @@ final class NotebookModel {
         inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: calendar)
     }
 
-    /// You looked at the inbox. The receipt records how long every event file was, so
-    /// unread starts after it on every device, and a reply that reaches this phone late
-    /// is still new. Nothing is written when there was nothing new.
+    /// You opened the inbox. What is about no one line, labels folded together, a name, is
+    /// read from here: the receipt records how long every event file was, so the same holds
+    /// on every device. What is about a line stays until you open the line. Nothing is
+    /// written when there was nothing of that kind new.
     func lookAtInbox() {
-        guard unread > 0, let files = try? store.loadEventsByFile() else { return }
+        guard inbox.contains(where: { $0.entry == nil && $0.unread }), let files = try? store.loadEventsByFile() else { return }
         record(.visit(Core.Inbox.look(files: files, unread: unread)))
+    }
+
+    /// You opened a line. Everything in the inbox about it is read, on every device.
+    func lookAt(_ entry: ULID) {
+        guard inbox.contains(where: { $0.entry == entry && $0.unread }) else { return }
+        record(.visit(Core.Inbox.look(at: entry)))
     }
 
     private func reloadSoon() {

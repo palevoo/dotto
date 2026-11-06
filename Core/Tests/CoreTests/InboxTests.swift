@@ -123,28 +123,50 @@ final class InboxTests: XCTestCase {
         XCTAssertEqual(inbox[1].about, "done by this: Need to pot this")
     }
 
-    func testTheOwnersLookSettlesUnreadByFileCount() {
+    func testOpeningTheLineReadsWhatIsAboutIt() {
         let line = ULID()
         write(.entryCreate(.init(entry: line, text: "Potted the fig", startedAt: clock)), by: me)
         write(.noteAdd(.init(entry: line, note: ULID(), text: "Nice")), by: moss)
-        XCTAssertEqual(items().filter(\.unread).count, 1)
+        write(.noteAdd(.init(entry: line, note: ULID(), text: "Which pot?")), by: anna)
+        XCTAssertEqual(items().filter(\.unread).count, 2)
 
-        // The owner looks, from the phone. The receipt records every file's length.
-        let look = Inbox.look(files: byFile, unread: 1)
-        write(.visit(look), by: me, device: "phone")
+        // Opening the inbox alone reads nothing that is about a line.
+        write(.visit(Inbox.look(files: byFile, unread: 2)), by: me, device: "phone")
+        XCTAssertEqual(items().filter(\.unread).count, 2)
+        XCTAssertFalse(notebook.trail.contains { $0.author == me }, "the owner's looks are not in the log of what others did")
+
+        // Opening the line reads both replies under it, on every device.
+        write(.visit(Inbox.look(at: line)), by: me, device: "phone")
         XCTAssertEqual(items().filter(\.unread).count, 0)
-        XCTAssertFalse(notebook.trail.contains { $0.author == me }, "the owner's look is not in the log of what others did")
+        XCTAssertEqual(notebook.reads(of: notebook.entry(line)!, calendar: .current), [], "an opening is not a read through the door")
 
-        // A reply written on the Mac side before the look but arriving after it, with an older id, is still new.
+        // A reply that arrives after the opening, even with an older id from a late file, is new again.
         let late = Event(id: generator.next(at: clock.addingTimeInterval(-3600)), author: moss, device: "mac-door",
                          at: clock.addingTimeInterval(-3600), payload: .noteAdd(.init(entry: line, note: ULID(), text: "Late")))
         files["moss.mac-door.jsonl", default: []].append(late)
-        let fresh = items().filter(\.unread)
-        XCTAssertEqual(fresh.map(\.text), ["Late"])
-
-        // Looking again from the Mac counts the new file too.
-        write(.visit(Inbox.look(files: byFile, unread: 1)), by: me, device: "mac")
+        XCTAssertEqual(items().filter(\.unread).map(\.text), ["Late"])
+        write(.visit(Inbox.look(at: line)), by: me, device: "mac")
         XCTAssertEqual(items().filter(\.unread).count, 0)
+    }
+
+    func testOpeningTheInboxReadsWhatIsAboutNoOneLine() {
+        let a = ULID(), b = ULID()
+        write(.entryCreate(.init(entry: a, text: "Cut two sticks", startedAt: clock)), by: me)
+        write(.entryCreate(.init(entry: b, text: "Roots on one", startedAt: clock)), by: me)
+        write(.labelAttach(.init(entry: a, label: "nursery")), by: moss)
+        write(.labelAttach(.init(entry: b, label: "nursery")), by: moss)
+        write(.nameSet(.init(name: "Moss")), by: moss)
+        XCTAssertEqual(items().filter(\.unread).count, 2)
+
+        write(.visit(Inbox.look(files: byFile, unread: 2)), by: me)
+        XCTAssertEqual(items().filter(\.unread).count, 0)
+
+        // A label the author puts on their own line is not news at all.
+        let theirs = ULID()
+        write(.entryCreate(.init(entry: theirs, text: "Noticed something", startedAt: clock)), by: moss)
+        write(.labelAttach(.init(entry: theirs, label: "idea")), by: moss)
+        XCTAssertEqual(items().filter { $0.kind == .label }.count, 1)
+        XCTAssertEqual(items().filter(\.unread).map(\.kind), [.line])
     }
 
     func testNewestFirstAndTheOwnersOwnDoingsAreNotItems() {

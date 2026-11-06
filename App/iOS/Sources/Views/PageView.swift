@@ -183,6 +183,12 @@ struct PageView: View {
             .onChange(of: liveFocused) { _, focused in
                 if !focused { storeDraft() }
             }
+            // Back on the page from a line or the inbox: a keyboard raised there has no field
+            // here to belong to, so it goes.
+            .onChange(of: path.count) { _, count in
+                guard count == 0, !liveFocused, editingRow == nil else { return }
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            }
             // A press from outside: the Action button, a control, Siri. Back to the
             // page, then the line or the camera.
             .onChange(of: launch.request, initial: true) { _, request in

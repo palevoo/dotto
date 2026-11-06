@@ -2,16 +2,14 @@ import Core
 import SwiftUI
 
 /// What others left that may want you, in one place. What asks and has no answer yet comes
-/// first; then everything else, newest first, with a mark on what arrived since you last
-/// looked. Each row is a door to the line it is about, where you answer. Opening the inbox is
-/// the look: what is new now stays marked while you read, and is read from then on.
+/// first; then everything else, newest first, with a mark on what you have not opened. Each
+/// row is a door to the line it is about, where you answer; opening the line is what reads
+/// it. What is about no one line is read by opening the inbox.
 struct InboxView: View {
     @Bindable var model: NotebookModel
-    /// The inbox as it was when this page opened, so the marks do not vanish under your eyes.
-    @State private var shown: [InboxItem]?
 
     var body: some View {
-        let items = shown ?? model.inbox
+        let items = model.inbox
         let asks = items.filter(\.wantsYou)
         let rest = items.filter { !$0.wantsYou }
         ScrollView {
@@ -48,30 +46,23 @@ struct InboxView: View {
         .background(Theme.background.ignoresSafeArea())
         .toolbarBackground(Theme.background, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            guard shown == nil else { return }
-            shown = model.inbox
-            model.lookAtInbox()
-        }
+        .onAppear { model.lookAtInbox() }
     }
 
     @ViewBuilder
     private func row(_ item: InboxItem) -> some View {
         let content = HStack(alignment: .top, spacing: 10) {
-            // The time, with a mark before it while the item is new.
-            ZStack(alignment: .leading) {
+            // The time, with a mark before it until the line is opened.
+            HStack(spacing: 5) {
+                Theme.square(5)
+                    .fill(item.unread ? Theme.accent : .clear)
+                    .frame(width: 5, height: 5)
                 Text(Format.time(item.at, calendar: model.calendar))
                     .font(Theme.mono)
                     .foregroundStyle(item.unread ? Theme.muted : Theme.faint)
                     .monospacedDigit()
-                if item.unread {
-                    Theme.square(5)
-                        .fill(Theme.accent)
-                        .frame(width: 5, height: 5)
-                        .offset(x: -11, y: 5)
-                }
             }
-            .frame(width: 44, alignment: .leading)
+            .frame(width: 54, alignment: .leading)
             .padding(.top, 3)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {

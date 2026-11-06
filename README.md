@@ -89,10 +89,12 @@ You have the same inbox, with a screen. What others leave that may want you, rep
 your lines and in conversations you are in, lines on their pages, labels, links, names,
 gathers newest first, reached from the calendar sheet or from the count beside the date.
 What asks and has no answer yet stands first. Each row opens the line it is about; you
-answer there. Opening the inbox is your look: a `visit` in your own file records how long
-every event file was, so unread is the same on every device and a reply that reaches a
-device late is still new. The Mac shows the same list; the look is made on the phone.
-Nothing is stored for the inbox: it is a fold of the same files.
+answer there, and opening the line is what reads it: a `visit` in your own file names the
+line, so the same rows are read on every device. What is about no one line, labels folded
+together, a name, is read by opening the inbox, whose `visit` records how long every event
+file was, so a mark that reaches a device late is still new. The Mac shows the same list;
+the looks are made on the phone. Nothing is stored for the inbox: it is a fold of the same
+files.
 
 A grant is an author with a fresh id and no name. It may write lines of its own, which make
 up its page, reached from the calendar sheet; you reply under them as under your own, and it
