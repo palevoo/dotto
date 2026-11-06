@@ -7,6 +7,7 @@ struct GrantsView: View {
     @Bindable var model: MacModel
     @State private var newName = "Claude Code"
     @State private var copied: ULID?
+    @State private var readerAuthor: Author?
 
     var body: some View {
         ScrollView {
@@ -15,6 +16,7 @@ struct GrantsView: View {
                 notebookSection
                 doorSection
                 grantsSection
+                readerSection
                 pushSection
                 inboxSection
                 logSection
@@ -163,6 +165,101 @@ struct GrantsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// The reader: the author that wakes on its own when something lands, runs one headless
+    /// session through the door, and stops. Runs as one of the grants' authors.
+    private var readerSection: some View {
+        Section("Reader") {
+            switch model.readerState {
+            case .off:
+                Text("Wakes when something lands in the notebook and runs one Claude Code session through the door, with the door as its only tool, then stops. Runs as the author of a grant below, so it is the same being as a session started by hand; Logs say which hand.")
+                    .font(MacTheme.body)
+                    .foregroundStyle(MacTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.readerCandidates.isEmpty {
+                    Text("Make a grant first.")
+                        .font(MacTheme.mono)
+                        .foregroundStyle(MacTheme.faint)
+                } else {
+                    HStack(spacing: 8) {
+                        Picker("As", selection: $readerAuthor) {
+                            ForEach(model.readerCandidates) { grant in
+                                Text(grant.name).tag(Optional(grant.author))
+                            }
+                        }
+                        .frame(maxWidth: 220)
+                        Button("Turn On") {
+                            if let author = readerAuthor ?? model.readerCandidates.first?.author { model.turnReaderOn(as: author) }
+                        }
+                        .controlSize(.small)
+                        .disabled(model.folderURL == nil)
+                    }
+                }
+            case .needsApproval:
+                Text("Registered. macOS wants you to allow it under Login Items before it runs.")
+                    .font(MacTheme.body)
+                    .foregroundStyle(MacTheme.muted)
+                HStack(spacing: 8) {
+                    Button("Open Login Items") { model.openLoginItems() }.controlSize(.small)
+                    Button("Check Again") { model.refreshReader() }.controlSize(.small)
+                    Button("Turn Off", role: .destructive) { model.turnReaderOff() }.controlSize(.small)
+                }
+            case .missing:
+                Text("This build of the app has no reader inside it. Build it again from Xcode.")
+                    .font(MacTheme.body)
+                    .foregroundStyle(MacTheme.muted)
+                Button("Turn Off", role: .destructive) { model.turnReaderOff() }.controlSize(.small)
+            case .failed(let why):
+                Text("Could not register the reader: \(why)")
+                    .font(MacTheme.body)
+                    .foregroundStyle(MacTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Try Again") { model.refreshReader() }.controlSize(.small)
+            case .on:
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text("On, as")
+                            .foregroundStyle(MacTheme.muted)
+                        if let grant = model.readerGrant {
+                            Text(model.name(of: grant.author))
+                                .foregroundStyle(MacTheme.ink(for: grant.author, owner: model.notebook?.owner))
+                        }
+                        Text("· device reader")
+                            .foregroundStyle(MacTheme.faint)
+                    }
+                    .font(MacTheme.mono)
+                    if let status = model.readerStatus {
+                        Text(Self.readerLine(status))
+                            .font(MacTheme.mono)
+                            .foregroundStyle(status.ok ? MacTheme.muted : MacTheme.recording)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } else {
+                        Text("Has not run yet. It will, the next time something lands.")
+                            .font(MacTheme.mono)
+                            .foregroundStyle(MacTheme.faint)
+                    }
+                    HStack(spacing: 8) {
+                        TextField("Model (default)", text: $model.readerModel)
+                            .textFieldStyle(.roundedBorder)
+                            .font(MacTheme.mono)
+                            .frame(maxWidth: 220)
+                            .onSubmit { model.saveReaderModel() }
+                        Button("Show Log") { NSWorkspace.shared.activateFileViewerSelecting([model.readerLogURL]) }.controlSize(.small)
+                        Button("Turn Off", role: .destructive) { model.turnReaderOff() }.controlSize(.small)
+                    }
+                }
+            }
+        }
+    }
+
+    /// "4 Nov 13:21 · 6 turns · $0.31 · answered under two lines".
+    private static func readerLine(_ status: ReaderStatus) -> String {
+        var parts = [stamp(status.at)]
+        if let turns = status.turns { parts.append("\(turns) turn\(turns == 1 ? "" : "s")") }
+        if let cost = status.costUSD { parts.append(String(format: "$%.2f", cost)) }
+        parts.append(status.summary)
+        return parts.joined(separator: " · ")
     }
 
     /// What others left that may want the owner: what asks and has no answer first, then the

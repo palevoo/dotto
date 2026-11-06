@@ -17,6 +17,12 @@ final class InboxTests: XCTestCase {
         return clock
     }
 
+    /// A note's id, in order with every other id here. The apps make them the same way; two
+    /// bare ULIDs from the same millisecond would compare at random.
+    func noteID() -> ULID {
+        generator.next(at: clock)
+    }
+
     @discardableResult
     func write(_ payload: Payload, by author: Author, device: DeviceID = "phone", at: Date? = nil) -> Event {
         let when = at ?? tick()
@@ -40,8 +46,7 @@ final class InboxTests: XCTestCase {
     func testARepliedQuestionWantsTheOwnerUntilAnswered() {
         let line = ULID()
         write(.entryCreate(.init(entry: line, text: "Potted the fig", startedAt: clock)), by: me)
-        let note = ULID()
-        write(.noteAdd(.init(entry: line, note: note, text: "Which pot, the clay one?")), by: moss)
+        write(.noteAdd(.init(entry: line, note: noteID(), text: "Which pot, the clay one?")), by: moss)
 
         var inbox = items()
         XCTAssertEqual(inbox.count, 1)
@@ -53,7 +58,7 @@ final class InboxTests: XCTestCase {
         XCTAssertTrue(inbox[0].wantsYou)
         XCTAssertTrue(inbox[0].unread)
 
-        write(.noteAdd(.init(entry: line, note: ULID(), text: "The clay one")), by: me)
+        write(.noteAdd(.init(entry: line, note: noteID(), text: "The clay one")), by: me)
         inbox = items()
         XCTAssertEqual(inbox.count, 1)
         XCTAssertTrue(inbox[0].answered)
@@ -69,8 +74,8 @@ final class InboxTests: XCTestCase {
         XCTAssertTrue(inbox[0].wantsYou)
 
         // The owner replies on their page; the author answers back: that reply is for the owner.
-        write(.noteAdd(.init(entry: theirs, note: ULID(), text: "Yes")), by: me)
-        write(.noteAdd(.init(entry: theirs, note: ULID(), text: "Kept, on each line.")), by: moss)
+        write(.noteAdd(.init(entry: theirs, note: noteID(), text: "Yes")), by: me)
+        write(.noteAdd(.init(entry: theirs, note: noteID(), text: "Kept, on each line.")), by: moss)
         inbox = items()
         XCTAssertEqual(inbox.map(\.kind), [.reply, .line])
         XCTAssertFalse(inbox[1].wantsYou, "answered once the owner replied")
@@ -79,7 +84,7 @@ final class InboxTests: XCTestCase {
         // A reply on a page the owner has never joined is their own business.
         let aside = ULID()
         write(.entryCreate(.init(entry: aside, text: "Note to self", startedAt: clock)), by: anna)
-        write(.noteAdd(.init(entry: aside, note: ULID(), text: "Remember this")), by: anna)
+        write(.noteAdd(.init(entry: aside, note: noteID(), text: "Remember this")), by: anna)
         XCTAssertEqual(items().filter { $0.kind == .reply }.count, 1)
     }
 
@@ -126,8 +131,8 @@ final class InboxTests: XCTestCase {
     func testOpeningTheLineReadsWhatIsAboutIt() {
         let line = ULID()
         write(.entryCreate(.init(entry: line, text: "Potted the fig", startedAt: clock)), by: me)
-        write(.noteAdd(.init(entry: line, note: ULID(), text: "Nice")), by: moss)
-        write(.noteAdd(.init(entry: line, note: ULID(), text: "Which pot?")), by: anna)
+        write(.noteAdd(.init(entry: line, note: noteID(), text: "Nice")), by: moss)
+        write(.noteAdd(.init(entry: line, note: noteID(), text: "Which pot?")), by: anna)
         XCTAssertEqual(items().filter(\.unread).count, 2)
 
         // Opening the inbox alone reads nothing that is about a line.
@@ -142,7 +147,7 @@ final class InboxTests: XCTestCase {
 
         // A reply that arrives after the opening, even with an older id from a late file, is new again.
         let late = Event(id: generator.next(at: clock.addingTimeInterval(-3600)), author: moss, device: "mac-door",
-                         at: clock.addingTimeInterval(-3600), payload: .noteAdd(.init(entry: line, note: ULID(), text: "Late")))
+                         at: clock.addingTimeInterval(-3600), payload: .noteAdd(.init(entry: line, note: noteID(), text: "Late")))
         files["moss.mac-door.jsonl", default: []].append(late)
         XCTAssertEqual(items().filter(\.unread).map(\.text), ["Late"])
         write(.visit(Inbox.look(at: line)), by: me, device: "mac")
@@ -173,8 +178,8 @@ final class InboxTests: XCTestCase {
         let line = ULID()
         write(.entryCreate(.init(entry: line, text: "Mine", startedAt: clock)), by: me)
         write(.labelAttach(.init(entry: line, label: "mine")), by: me)
-        write(.noteAdd(.init(entry: line, note: ULID(), text: "First")), by: moss)
-        write(.noteAdd(.init(entry: line, note: ULID(), text: "Second")), by: anna)
+        write(.noteAdd(.init(entry: line, note: noteID(), text: "First")), by: moss)
+        write(.noteAdd(.init(entry: line, note: noteID(), text: "Second")), by: anna)
         let inbox = items()
         XCTAssertEqual(inbox.map(\.text), ["Second", "First"])
         XCTAssertEqual(inbox.map(\.author), [anna, moss])

@@ -295,24 +295,7 @@ public struct Door: Sendable {
         switch tool {
         case .whatsNew:
             let files = try store.loadEventsByFile()
-            let me = grant.author
-            let last = notebook.visits.last { $0.author == me && $0.read.what == .inbox }
-            var fresh: [Event] = []
-            if let seen = last?.read.seen {
-                // After the counts the last look took, file by file: a file that grew late still counts.
-                for (file, events) in files {
-                    fresh.append(contentsOf: events.dropFirst(min(seen[file] ?? 0, events.count)))
-                }
-            } else {
-                // The first look: since this grant last read anything, or since it was made.
-                let floor = notebook.visits.last { $0.author == me }?.id
-                for (_, events) in files {
-                    fresh.append(contentsOf: events.filter { event in floor.map { event.id > $0 } ?? (event.at >= grant.createdAt) })
-                }
-            }
-            fresh = fresh.filter { $0.author != me }.sorted { $0.id < $1.id }
-            let report = Inbox.report(fresh, all: files.flatMap(\.events), notebook: notebook, me: me,
-                                      since: last?.at ?? notebook.visits.last { $0.author == me }?.at, calendar: calendar)
+            let report = Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
             try receipt(.init(what: .inbox, count: report.count, seen: Dictionary(uniqueKeysWithValues: files.map { ($0.file, $0.events.count) })))
             return .text(report.text)
 

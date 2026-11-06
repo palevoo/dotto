@@ -38,6 +38,34 @@ public struct InboxItem: Hashable, Sendable, Identifiable {
 /// author knows where to go next. Replies first, since those are what it waits for; then
 /// new lines, lines changed, things taken back, marks others left, names chosen.
 public enum Inbox {
+    /// Everything a grant has not seen, by anyone else, oldest first, and when it last looked.
+    /// After the counts its last look took, file by file, so a file that grew late still
+    /// counts; on the first look, since the grant last read anything, or since it was made.
+    /// The same cursor whether the door answers whats_new or the reader asks whether to wake.
+    public static func fresh(files: [(file: String, events: [Event])], notebook: Notebook, grant: Grant) -> (events: [Event], since: Date?) {
+        let me = grant.author
+        let last = notebook.visits.last { $0.author == me && $0.read.what == .inbox && $0.read.seen != nil }
+        var fresh: [Event] = []
+        if let seen = last?.read.seen {
+            for (file, events) in files {
+                fresh.append(contentsOf: events.dropFirst(min(seen[file] ?? 0, events.count)))
+            }
+        } else {
+            let floor = notebook.visits.last { $0.author == me }?.id
+            for (_, events) in files {
+                fresh.append(contentsOf: events.filter { event in floor.map { event.id > $0 } ?? (event.at >= grant.createdAt) })
+            }
+        }
+        fresh = fresh.filter { $0.author != me }.sorted { $0.id < $1.id }
+        return (fresh, last?.at ?? notebook.visits.last { $0.author == me }?.at)
+    }
+
+    /// What a grant would be told by whats_new right now, without leaving a receipt.
+    public static func pending(files: [(file: String, events: [Event])], notebook: Notebook, grant: Grant, calendar: Calendar) -> Report {
+        let (events, since) = fresh(files: files, notebook: notebook, grant: grant)
+        return report(events, all: files.flatMap(\.events), notebook: notebook, me: grant.author, since: since, calendar: calendar)
+    }
+
     /// The owner's inbox, newest first. Everything other authors left that the owner might
     /// want to see: replies under the owner's lines and in conversations the owner is in,
     /// lines on other pages, labels and links placed on the owner's lines, names chosen.
