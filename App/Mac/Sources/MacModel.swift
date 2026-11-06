@@ -319,7 +319,8 @@ final class MacModel {
         case failed(String)
     }
 
-    static let readerAgent = "social.interface.margin.reader.plist"
+    /// The login item inside the app's bundle, by its bundle id.
+    static let readerItem = "social.interface.margin.reader"
     static let readerGrantName = "Reader"
 
     private var supportDirectory: URL {
@@ -360,7 +361,7 @@ final class MacModel {
     }
 
     func refreshReader() {
-        let service = SMAppService.agent(plistName: Self.readerAgent)
+        let service = SMAppService.loginItem(identifier: Self.readerItem)
         switch service.status {
         case .enabled: readerState = readerConfig == nil ? .off : .on
         case .requiresApproval: readerState = .needsApproval
@@ -372,8 +373,8 @@ final class MacModel {
     }
 
     /// Switches the reader on as one of the grants' authors: a grant of its own with the
-    /// same author and the device "reader", the config the agent reads, and the agent
-    /// registered with launchd.
+    /// same author and the device "reader", the config the reader reads, and the login item
+    /// registered with the system, which launches it now and at every login.
     func turnReaderOn(as author: Author) {
         guard let folderURL else { return }
         let grant = readerGrant ?? {
@@ -384,7 +385,7 @@ final class MacModel {
         }()
         writeReaderConfig(grant: grant, folder: folderURL)
         do {
-            try SMAppService.agent(plistName: Self.readerAgent).register()
+            try SMAppService.loginItem(identifier: Self.readerItem).register()
         } catch {
             readerState = .failed("\(error.localizedDescription)")
             return
@@ -393,7 +394,7 @@ final class MacModel {
     }
 
     func turnReaderOff() {
-        try? SMAppService.agent(plistName: Self.readerAgent).unregister()
+        try? SMAppService.loginItem(identifier: Self.readerItem).unregister()
         try? FileManager.default.removeItem(at: readerConfigURL)
         if let grant = readerGrant { revoke(grant) }
         refreshReader()

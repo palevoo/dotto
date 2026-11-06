@@ -3,11 +3,13 @@ import Foundation
 
 // The reader: the author that wakes on its own.
 //
-// A login agent the Mac app registers, kept alive by launchd, outside the app's sandbox so
-// it can run the Claude Code command the person already pays for. It watches the notebook's
-// events folder and, when something lands that its grant has not seen, runs one headless
-// session through the door, then goes back to waiting. The session has the door as its only
-// server and no built-in tools at all; its brief is the door's conduct.
+// A background app with no window, bundled inside the Mac app as a login item, the one
+// shape a sandboxed app may register with the system. It runs outside the app's sandbox so
+// it can run the Claude Code command the person already pays for, launched when the owner
+// switches it on and at every login. It watches the notebook's events folder and, when
+// something lands that its grant has not seen, runs one headless session through the door,
+// then goes back to waiting. The session has the door as its only server and no built-in
+// tools at all; its brief is the door's conduct.
 //
 // Everything it does is written down as it happens: its status (alive, woken, running) in
 // one file, each run step by step in a file of its own with the raw stream beside it, and a

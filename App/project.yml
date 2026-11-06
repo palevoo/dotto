@@ -129,17 +129,24 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: true
 
-  # The reader: a login agent outside the sandbox that wakes when something lands in the
-  # notebook and runs one headless Claude Code session through the door. Lives inside the
-  # Mac app's bundle; the app registers it with launchd.
+  # The reader: a background app with no window, outside the sandbox so it can run the
+  # claude command, that wakes when something lands in the notebook and runs one headless
+  # Claude Code session through the door. It lives inside the Mac app's bundle as a login
+  # item, the one shape a sandboxed app may register with the system.
   MarginReader:
-    type: tool
+    type: application
     platform: macOS
     sources:
       - path: Mac/Reader
     dependencies:
       - package: Core
         product: Core
+    info:
+      path: Mac/Reader/Info.plist
+      properties:
+        CFBundleDisplayName: Margin Reader
+        LSBackgroundOnly: true
+        NSHumanReadableCopyright: ""
     settings:
       groups: [signing]
       base:
@@ -147,21 +154,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: social.interface.margin.reader
         ENABLE_HARDENED_RUNTIME: false
         SKIP_INSTALL: true
-        # A bare executable has no bundle; launchd wants its identity anyway, so the
-        # Info.plist goes into the binary itself, as Apple's own sample agents do.
-        INFOPLIST_FILE: Mac/Reader/Info.plist
-        CREATE_INFOPLIST_SECTION_IN_BINARY: true
 
   MarginMac:
     type: application
     platform: macOS
     sources:
       - path: Mac/Sources
-      - path: Mac/LaunchAgents
-        buildPhase:
-          copyFiles:
-            destination: wrapper
-            subpath: Contents/Library/LaunchAgents
     dependencies:
       - package: Core
         product: Core
@@ -169,7 +167,8 @@ targets:
         embed: true
         codeSign: true
         copy:
-          destination: executables
+          destination: wrapper
+          subpath: Contents/Library/LoginItems
     info:
       path: Mac/Info.plist
       properties:

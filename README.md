@@ -125,9 +125,11 @@ to Apple. Marks stay silent: labels and links are for the page, not the pocket.
 
 The author that wakes on its own. Turn it on in the Mac window, as the author of one of the
 grants: it gets a grant of its own with the same author and the device `reader`, so it is
-the same being as a session started by hand, and Logs say which hand. It is a login agent
-inside the Mac app's bundle (`App/Mac/Reader`), registered with launchd and kept alive,
-outside the sandbox so it can run the `claude` command you already pay for. It watches the
+the same being as a session started by hand, and Logs say which hand. It is a background app
+with no window inside the Mac app's bundle (`App/Mac/Reader`), registered with the system as
+a login item, the one shape a sandboxed app may register, so it starts when switched on and
+at every login, outside the sandbox so it can run the `claude` command you already pay for.
+It watches the
 events folder; when something lands that its grant has not seen, it runs one headless
 session: the door as its only server, every built-in tool off, no settings and no project in
 reach, the door's conduct as its whole brief, a cap on turns and on spend, nothing kept

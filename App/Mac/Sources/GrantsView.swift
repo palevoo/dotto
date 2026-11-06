@@ -305,7 +305,7 @@ struct GrantsView: View {
 
     /// "Alive · pid 4812 · since 4 Nov 13:21", "Running since 13:40", or that it is gone.
     private func aliveLine(_ status: ReaderStatus) -> String {
-        guard model.readerAlive else { return "Not running. launchd should bring it back; if not, Turn Off and on again." }
+        guard model.readerAlive else { return "Not running. Turn Off and on again starts it; it also starts at every login." }
         switch status.state {
         case .running: return "Running since \(Self.clock(status.lastRun?.startedAt ?? status.startedAt)) · pid \(status.pid)"
         case .waiting: return "Alive, waiting · pid \(status.pid) · since \(Self.stamp(status.startedAt))\(status.build.map { " · build \($0)" } ?? "")"
