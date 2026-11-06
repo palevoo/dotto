@@ -206,11 +206,6 @@ struct GrantsView: View {
                     Button("Check Again") { model.refreshReader() }.controlSize(.small)
                     Button("Turn Off", role: .destructive) { model.turnReaderOff() }.controlSize(.small)
                 }
-            case .missing:
-                Text("This build of the app has no reader inside it. Build it again from Xcode.")
-                    .font(MacTheme.body)
-                    .foregroundStyle(MacTheme.muted)
-                Button("Turn Off", role: .destructive) { model.turnReaderOff() }.controlSize(.small)
             case .failed(let why):
                 Text("Could not register the reader: \(why)")
                     .font(MacTheme.body)

@@ -316,8 +316,6 @@ final class MacModel {
         /// Registered, but macOS wants the person to allow it under Login Items.
         case needsApproval
         case on
-        /// Registered, but the agent is not in this build of the app.
-        case missing
         case failed(String)
     }
 
@@ -366,8 +364,8 @@ final class MacModel {
         switch service.status {
         case .enabled: readerState = readerConfig == nil ? .off : .on
         case .requiresApproval: readerState = .needsApproval
-        case .notFound: readerState = readerConfig == nil ? .off : .missing
-        case .notRegistered: readerState = .off
+        // "Not found" is launchd's word for not registered.
+        case .notFound, .notRegistered: readerState = .off
         @unknown default: readerState = .off
         }
         refreshReaderFiles()

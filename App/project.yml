@@ -147,6 +147,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: social.interface.margin.reader
         ENABLE_HARDENED_RUNTIME: false
         SKIP_INSTALL: true
+        # A bare executable has no bundle; launchd wants its identity anyway, so the
+        # Info.plist goes into the binary itself, as Apple's own sample agents do.
+        INFOPLIST_FILE: Mac/Reader/Info.plist
+        CREATE_INFOPLIST_SECTION_IN_BINARY: true
 
   MarginMac:
     type: application
