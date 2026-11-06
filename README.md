@@ -131,10 +131,15 @@ outside the sandbox so it can run the `claude` command you already pay for. It w
 events folder; when something lands that its grant has not seen, it runs one headless
 session: the door as its only server, every built-in tool off, no settings and no project in
 reach, the door's conduct as its whole brief, a cap on turns and on spend, nothing kept
-afterwards. Then it waits again. Each run leaves one line in `reader-status.json` beside
-`grants.json`, shown in the window, and a log beside it. The Mac app must be running, since
-it is the door; the Mac must stay awake. The first time, macOS asks you to allow it under
-Login Items.
+afterwards. Then it waits again. The Mac app must be running, since it is the door; the Mac
+must stay awake. The first time, macOS asks you to allow it under Login Items.
+
+Everything it does is written down as it happens, beside `grants.json`: `reader-status.json`
+says whether it is alive and what woke it; `reader-runs/` holds each run step by step, every
+door tool it called with what it sent, what came back, what it said, and the cost, with the
+raw stream beside it; `reader.log` is the plain trail. The window shows the live state, the
+last wake, and the last runs with their steps, and Look Now makes it look without waiting for
+a line to land. What it did to the notebook is in Logs, stamped reader.
 
 ## Building Margin with Margin
 

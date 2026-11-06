@@ -30,11 +30,16 @@ final class MacModel {
     private(set) var pushAddresses: [PushAddress] = []
     /// What happened to the last push, in a sentence.
     private(set) var pushReport: String?
-    /// The reader: whether launchd has it, and what its last run said.
+    /// The reader: whether launchd has it, what it says it is doing, and its last runs.
     private(set) var readerState: ReaderState = .off
     private(set) var readerStatus: ReaderStatus?
+    private(set) var readerRuns: [ReaderRun] = []
+    /// Whether the process the status names is actually alive right now.
+    private(set) var readerAlive = false
     /// The model the reader runs, empty for Claude Code's default.
     var readerModel = ""
+    private var readerWatcher: PathWatcher?
+    private var runsWatcher: PathWatcher?
 
     private let bookmarkKey = "margin.folder.bookmark"
     private let ownerKey = "margin.owner"
@@ -49,6 +54,9 @@ final class MacModel {
         loadGrants()
         restoreFolder()
         readerModel = readerConfig?.model ?? ""
+        try? FileManager.default.createDirectory(at: readerRunsURL, withIntermediateDirectories: true)
+        readerWatcher = PathWatcher(path: supportDirectory.path) { [weak self] in self?.refreshReaderFiles() }
+        runsWatcher = PathWatcher(path: readerRunsURL.path) { [weak self] in self?.refreshReaderFiles() }
         refreshReader()
         Task {
             await pusher.use(pushKey)
@@ -136,7 +144,7 @@ final class MacModel {
         let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
         self.notebook = notebook
         inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: .current)
-        readerStatus = Self.loadReaderStatus()
+        refreshReaderFiles()
         pushAddresses = (try? store.pushAddresses()) ?? []
         let days = notebook.days(calendar: .current)
         var text = "\(notebook.entries.count) lines over \(days.count) days"
@@ -319,9 +327,10 @@ final class MacModel {
     private var supportDirectory: URL {
         grantsURL.deletingLastPathComponent()
     }
-    private var readerConfigURL: URL { supportDirectory.appendingPathComponent("reader.json") }
-    private var readerStatusURL: URL { supportDirectory.appendingPathComponent("reader-status.json") }
-    var readerLogURL: URL { supportDirectory.appendingPathComponent("reader.log") }
+    private var readerConfigURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.config) }
+    private var readerStatusURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.status) }
+    private var readerRunsURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.runs, isDirectory: true) }
+    var readerLogURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.log) }
 
     /// The grant the reader acts under: the same author as the hand sessions, so it is one
     /// being with two hands, told apart in Logs by the device stamp.
@@ -338,10 +347,18 @@ final class MacModel {
         (try? Data(contentsOf: readerConfigURL)).flatMap { try? JSONLines.decoder().decode(ReaderConfig.self, from: $0) }
     }
 
-    private static func loadReaderStatus() -> ReaderStatus? {
-        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Margin/reader-status.json")
-        return (try? Data(contentsOf: url)).flatMap { try? JSONLines.decoder().decode(ReaderStatus.self, from: $0) }
+    /// What the reader has written down: its status, and its last runs, each step by step.
+    /// The status names a process; whether that process is alive is asked of the system.
+    func refreshReaderFiles() {
+        readerStatus = (try? Data(contentsOf: readerStatusURL)).flatMap { try? JSONLines.decoder().decode(ReaderStatus.self, from: $0) }
+        readerAlive = readerStatus.map { kill($0.pid, 0) == 0 } ?? false
+        readerRuns = ReaderFiles.runs(in: readerRunsURL, limit: 6)
+    }
+
+    /// Rewrites the config, which the reader takes as: look now.
+    func lookNow() {
+        guard let grant = readerGrant, let folderURL else { return }
+        writeReaderConfig(grant: grant, folder: folderURL)
     }
 
     func refreshReader() {
@@ -353,7 +370,7 @@ final class MacModel {
         case .notRegistered: readerState = .off
         @unknown default: readerState = .off
         }
-        readerStatus = Self.loadReaderStatus()
+        refreshReaderFiles()
     }
 
     /// Switches the reader on as one of the grants' authors: a grant of its own with the
@@ -396,7 +413,7 @@ final class MacModel {
 
     private func writeReaderConfig(grant: Grant, folder: URL) {
         let config = ReaderConfig(folder: folder.path, door: "http://127.0.0.1:\(port ?? Self.defaultPort)/mcp",
-                                  grant: grant, model: readerModel.isEmpty ? nil : readerModel, maxTurns: 40, maxBudgetUSD: 2)
+                                  grant: grant, model: readerModel.isEmpty ? nil : readerModel)
         let encoder = JSONLines.encoder()
         encoder.outputFormatting.insert(.prettyPrinted)
         do {
@@ -422,26 +439,6 @@ final class MacModel {
             problem = "The door could not open on port \(Self.defaultPort): \(error)"
         }
     }
-}
-
-/// What the Mac writes for the reader. The same shape the reader decodes.
-struct ReaderConfig: Codable {
-    var folder: String
-    var door: String
-    var grant: Grant
-    var model: String?
-    var maxTurns: Int
-    var maxBudgetUSD: Double
-}
-
-/// One line about the reader's last run, as it wrote it.
-struct ReaderStatus: Codable {
-    var at: Date
-    var ok: Bool
-    var summary: String
-    var turns: Int?
-    var costUSD: Double?
-    var durationMs: Int?
 }
 
 /// What the server thread may see: the current store and grants, behind a lock.

@@ -1,5 +1,38 @@
 import Foundation
 
+/// Watches one path, a file or a directory, for any change, and keeps watching through a
+/// replacement of the file. Calls back on the main queue.
+public final class PathWatcher {
+    private var source: DispatchSourceFileSystemObject?
+    private let path: String
+    private let onChange: () -> Void
+
+    public init(path: String, onChange: @escaping () -> Void) {
+        self.path = path
+        self.onChange = onChange
+        arm()
+    }
+
+    deinit {
+        source?.cancel()
+    }
+
+    private func arm() {
+        source?.cancel()
+        source = nil
+        let descriptor = open(path, O_EVTONLY)
+        guard descriptor >= 0 else { return }
+        let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor, eventMask: [.write, .extend, .rename, .delete, .attrib], queue: .main)
+        source.setEventHandler { [weak self] in
+            self?.arm()
+            self?.onChange()
+        }
+        source.setCancelHandler { close(descriptor) }
+        source.resume()
+        self.source = source
+    }
+}
+
 /// Watches the events folder and every file in it, so a line appended from another
 /// device or through the door shows up without the app being told. Calls back on the main queue.
 public final class FolderWatcher {

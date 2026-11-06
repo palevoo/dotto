@@ -8,6 +8,7 @@ struct GrantsView: View {
     @State private var newName = "Claude Code"
     @State private var copied: ULID?
     @State private var readerAuthor: Author?
+    @State private var openRuns: Set<ULID> = []
 
     var body: some View {
         ScrollView {
@@ -217,7 +218,8 @@ struct GrantsView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Try Again") { model.refreshReader() }.controlSize(.small)
             case .on:
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
+                    // Who it is, and whether the process is actually there.
                     HStack(spacing: 6) {
                         Text("On, as")
                             .foregroundStyle(MacTheme.muted)
@@ -230,21 +232,70 @@ struct GrantsView: View {
                     }
                     .font(MacTheme.mono)
                     if let status = model.readerStatus {
-                        Text(Self.readerLine(status))
-                            .font(MacTheme.mono)
-                            .foregroundStyle(status.ok ? MacTheme.muted : MacTheme.recording)
-                            .fixedSize(horizontal: false, vertical: true)
+                        HStack(spacing: 6) {
+                            MacTheme.square(6)
+                                .fill(model.readerAlive ? (status.state == .running ? MacTheme.accent : MacTheme.muted) : MacTheme.recording)
+                                .frame(width: 6, height: 6)
+                            Text(aliveLine(status))
+                                .foregroundStyle(model.readerAlive ? MacTheme.muted : MacTheme.recording)
+                        }
+                        .font(MacTheme.mono)
+                        if let trouble = status.trouble {
+                            Text(trouble)
+                                .font(MacTheme.mono)
+                                .foregroundStyle(MacTheme.recording)
+                        }
+                        if let wake = status.lastWake {
+                            Text("Woke \(Self.stamp(wake.at)) · \(wake.new) new · \(wake.ran ? "ran" : "nothing to do")")
+                                .font(MacTheme.mono)
+                                .foregroundStyle(MacTheme.faint)
+                        }
                     } else {
-                        Text("Has not run yet. It will, the next time something lands.")
+                        Text("Registered. Waiting for it to start and say so.")
                             .font(MacTheme.mono)
                             .foregroundStyle(MacTheme.faint)
                     }
+
+                    // Each run, step by step, newest first. A run under way is at the top, growing.
+                    if !model.readerRuns.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(model.readerRuns) { run in
+                                DisclosureGroup(isExpanded: binding(for: run.id)) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        ForEach(Array(run.steps.enumerated()), id: \.offset) { _, step in
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Text(Self.clock(step.at))
+                                                    .foregroundStyle(MacTheme.faint)
+                                                    .frame(width: 60, alignment: .leading)
+                                                Text(step.what)
+                                                    .foregroundStyle(step.what == "got" || step.what == "said" ? MacTheme.faint : MacTheme.foreground)
+                                                    .frame(width: 84, alignment: .leading)
+                                                Text(step.detail)
+                                                    .foregroundStyle(MacTheme.muted)
+                                                    .lineLimit(2)
+                                                    .fixedSize(horizontal: false, vertical: true)
+                                            }
+                                            .font(MacTheme.mono)
+                                        }
+                                    }
+                                    .padding(.vertical, 4)
+                                } label: {
+                                    Text(Self.runLine(run))
+                                        .font(MacTheme.mono)
+                                        .foregroundStyle(run.isRunning ? MacTheme.accent : (run.ok == false ? MacTheme.recording : MacTheme.muted))
+                                        .lineLimit(1)
+                                }
+                            }
+                        }
+                    }
+
                     HStack(spacing: 8) {
                         TextField("Model (default)", text: $model.readerModel)
                             .textFieldStyle(.roundedBorder)
                             .font(MacTheme.mono)
-                            .frame(maxWidth: 220)
+                            .frame(maxWidth: 200)
                             .onSubmit { model.saveReaderModel() }
+                        Button("Look Now") { model.lookNow() }.controlSize(.small).disabled(!model.readerAlive)
                         Button("Show Log") { NSWorkspace.shared.activateFileViewerSelecting([model.readerLogURL]) }.controlSize(.small)
                         Button("Turn Off", role: .destructive) { model.turnReaderOff() }.controlSize(.small)
                     }
@@ -253,13 +304,41 @@ struct GrantsView: View {
         }
     }
 
-    /// "4 Nov 13:21 · 6 turns · $0.31 · answered under two lines".
-    private static func readerLine(_ status: ReaderStatus) -> String {
-        var parts = [stamp(status.at)]
-        if let turns = status.turns { parts.append("\(turns) turn\(turns == 1 ? "" : "s")") }
-        if let cost = status.costUSD { parts.append(String(format: "$%.2f", cost)) }
-        parts.append(status.summary)
+    private func binding(for id: ULID) -> Binding<Bool> {
+        Binding(get: { openRuns.contains(id) }, set: { open in if open { openRuns.insert(id) } else { openRuns.remove(id) } })
+    }
+
+    /// "Alive · pid 4812 · since 4 Nov 13:21", "Running since 13:40", or that it is gone.
+    private func aliveLine(_ status: ReaderStatus) -> String {
+        guard model.readerAlive else { return "Not running. launchd should bring it back; if not, Turn Off and on again." }
+        switch status.state {
+        case .running: return "Running since \(Self.clock(status.lastRun?.startedAt ?? status.startedAt)) · pid \(status.pid)"
+        case .waiting: return "Alive, waiting · pid \(status.pid) · since \(Self.stamp(status.startedAt))\(status.build.map { " · build \($0)" } ?? "")"
+        }
+    }
+
+    /// "4 Nov 13:21 · 6 turns · $0.31 · answered under two lines", or, while running, how far it is.
+    private static func runLine(_ run: ReaderRun) -> String {
+        var parts = [stamp(run.startedAt)]
+        if run.isRunning {
+            parts.append("running")
+            let calls = run.calls
+            if !calls.isEmpty { parts.append(calls.joined(separator: ", ")) }
+            return parts.joined(separator: " · ")
+        }
+        if let turns = run.turns { parts.append("\(turns) turn\(turns == 1 ? "" : "s")") }
+        if let cost = run.costUSD { parts.append(String(format: "$%.2f", cost)) }
+        let calls = run.calls
+        if !calls.isEmpty { parts.append(calls.joined(separator: ", ")) }
+        parts.append(run.summary)
         return parts.joined(separator: " · ")
+    }
+
+    /// "13:21:04".
+    private static func clock(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("HH:mm:ss")
+        return formatter.string(from: date)
     }
 
     /// What others left that may want the owner: what asks and has no answer first, then the
