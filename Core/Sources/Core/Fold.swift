@@ -304,7 +304,8 @@ public struct Notebook: Sendable {
             let visit = Visit(id: event.id, author: event.author, device: event.device, at: event.at, read: p)
             visits.append(visit)
             visits.sort { $0.id < $1.id }
-            trace(event, visit.what, entry: p.entry)
+            // The owner's own looks at the inbox are receipts for unread, not the log of what others did.
+            if event.author != owner { trace(event, visit.what, entry: p.entry) }
 
         case .nameSet(let p):
             let name = p.name.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -17,6 +17,9 @@ final class MacModel {
     private(set) var summary = ""
     /// The fold as last read, for the log and the words of the lines it names.
     private(set) var notebook: Notebook?
+    /// What others left that may want the owner, newest first. The Mac shows it; the look
+    /// that settles unread is the owner's, made on the phone.
+    private(set) var inbox: [InboxItem] = []
     private(set) var grants: [Grant] = []
     private(set) var port: UInt16?
     private(set) var problem: String?
@@ -116,12 +119,15 @@ final class MacModel {
     }
 
     func refreshSummary() {
-        guard let store, let notebook = try? store.load() else {
+        guard let store, let files = try? store.loadEventsByFile() else {
             summary = ""
             self.notebook = nil
+            inbox = []
             return
         }
+        let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
         self.notebook = notebook
+        inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: .current)
         pushAddresses = (try? store.pushAddresses()) ?? []
         let days = notebook.days(calendar: .current)
         var text = "\(notebook.entries.count) lines over \(days.count) days"

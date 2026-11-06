@@ -1,9 +1,146 @@
 import Foundation
 
+/// One thing someone else left that may want the owner: a reply, a line on their page, a
+/// label, a link, a name. A projection of the fold; nothing is stored for it.
+public struct InboxItem: Hashable, Sendable, Identifiable {
+    public enum Kind: Hashable, Sendable {
+        case reply, line, label, link, name
+    }
+
+    /// The event that made it, or the last of a group.
+    public let id: ULID
+    public let author: Author
+    public let at: Date
+    public let kind: Kind
+    /// The line to open: the one replied under, the author's own line, the line marked.
+    /// Nil when the item stands for several lines.
+    public let entry: ULID?
+    /// What the author did, as the page would say it: "replied", "wrote", "filed 3 lines
+    /// under #nursery", "is called Moss now".
+    public let what: String
+    /// The words: the reply's, the line's. Empty when the item stands for several lines.
+    public let text: String
+    /// What it is about, when that is another line: the owner's line a reply sits under,
+    /// the earlier line a link goes back to.
+    public let about: String?
+    /// The words ask something.
+    public let asks: Bool
+    /// The owner has replied since.
+    public let answered: Bool
+    /// The owner has not looked since it arrived.
+    public let unread: Bool
+
+    /// Asks and has not been answered: the part of the inbox that needs the owner.
+    public var wantsYou: Bool { asks && !answered }
+}
+
 /// What happened in the notebook since one author last looked, said in a few lines so the
 /// author knows where to go next. Replies first, since those are what it waits for; then
 /// new lines, lines changed, things taken back, marks others left, names chosen.
 public enum Inbox {
+    /// The owner's inbox, newest first. Everything other authors left that the owner might
+    /// want to see: replies under the owner's lines and in conversations the owner is in,
+    /// lines on other pages, labels and links placed, names chosen. Unread is measured the
+    /// way a grant's look is: the owner's last inbox visit recorded how long every event
+    /// file was, so an event that reached this device late is still new.
+    public static func items(files: [(file: String, events: [Event])], notebook: Notebook, calendar: Calendar) -> [InboxItem] {
+        let owner = notebook.owner
+        let look = notebook.visits.last { $0.author == owner && $0.read.what == .inbox }
+        let seen = look?.read.seen ?? [:]
+
+        func words(_ entry: Entry) -> String {
+            let text = entry.text.replacingOccurrences(of: "\n", with: " ")
+            return text.isEmpty ? "a photo" : text
+        }
+        func asks(_ text: String) -> Bool { text.contains("?") }
+
+        struct LabelKey: Hashable {
+            let author: Author
+            let label: String
+            let day: DayKey
+        }
+        struct LabelGroup {
+            var last: Event
+            var entries: [ULID] = []
+            var unread = false
+        }
+
+        var items: [InboxItem] = []
+        var labels: [LabelKey: LabelGroup] = [:]
+
+        for (file, events) in files {
+            let floor = seen[file] ?? 0
+            for (index, event) in events.enumerated() where event.author != owner {
+                let unread = index >= floor
+                switch event.payload {
+                case .noteAdd(let p):
+                    guard let entry = notebook.entry(p.entry), let note = entry.notes.first(where: { $0.id == p.note }) else { continue }
+                    let mine = entry.notes.filter { $0.author == owner }
+                    // Under the owner's line, or in a conversation the owner is part of.
+                    guard entry.author == owner || !mine.isEmpty else { continue }
+                    items.append(InboxItem(
+                        id: event.id, author: event.author, at: event.at, kind: .reply, entry: entry.id,
+                        what: "replied", text: note.text, about: entry.author == owner ? words(entry) : nil,
+                        asks: asks(note.text), answered: mine.contains { $0.id > note.id }, unread: unread))
+
+                case .entryCreate(let p):
+                    guard let entry = notebook.entry(p.entry) else { continue }
+                    items.append(InboxItem(
+                        id: event.id, author: event.author, at: event.at, kind: .line, entry: entry.id,
+                        what: "wrote", text: words(entry), about: nil,
+                        asks: asks(entry.text), answered: entry.notes.contains { $0.author == owner }, unread: unread))
+
+                case .labelAttach(let p):
+                    let label = p.label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    guard let entry = notebook.entry(p.entry), entry.labels.contains(label) else { continue }
+                    let key = LabelKey(author: event.author, label: label, day: DayKey(event.at, calendar: calendar))
+                    var group = labels[key] ?? LabelGroup(last: event)
+                    if event.id > group.last.id { group.last = event }
+                    if !group.entries.contains(entry.id) { group.entries.append(entry.id) }
+                    group.unread = group.unread || unread
+                    labels[key] = group
+
+                case .linkAdd(let p):
+                    guard let later = notebook.entry(p.later), let earlier = notebook.entry(p.earlier),
+                          later.earlier.contains(where: { $0.earlier == p.earlier }) else { continue }
+                    items.append(InboxItem(
+                        id: event.id, author: event.author, at: event.at, kind: .link, entry: later.id,
+                        what: p.closes ? "marked done" : "joined", text: words(later),
+                        about: (p.closes ? "done by this: " : "carries on from: ") + words(earlier),
+                        asks: false, answered: false, unread: unread))
+
+                case .nameSet(let p):
+                    let name = p.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !name.isEmpty, notebook.name(of: event.author) == name else { continue }
+                    items.append(InboxItem(
+                        id: event.id, author: event.author, at: event.at, kind: .name, entry: nil,
+                        what: "is called \(name) now", text: "", about: nil,
+                        asks: false, answered: false, unread: unread))
+
+                case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .visit:
+                    continue
+                }
+            }
+        }
+
+        for (key, group) in labels {
+            let one = group.entries.count == 1 ? group.entries[0] : nil
+            items.append(InboxItem(
+                id: group.last.id, author: key.author, at: group.last.at, kind: .label, entry: one,
+                what: one != nil ? "filed under #\(key.label)" : "filed \(group.entries.count) lines under #\(key.label)",
+                text: one.flatMap { notebook.entry($0) }.map(words) ?? "", about: nil,
+                asks: false, answered: false, unread: group.unread))
+        }
+
+        return items.sorted { $0.id > $1.id }
+    }
+
+    /// The receipt for the owner's look: how long every file was, so the next look starts
+    /// after it, and how much was new.
+    public static func look(files: [(file: String, events: [Event])], unread: Int) -> Payload.Visit {
+        .init(what: .inbox, count: unread, seen: Dictionary(uniqueKeysWithValues: files.map { ($0.file, $0.events.count) }))
+    }
+
     public struct Report: Sendable {
         /// How many things were worth a line.
         public let count: Int

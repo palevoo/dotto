@@ -14,9 +14,12 @@ struct CalendarSheet: View {
     let lastVisit: (author: Author, text: String)?
     /// Everyone else who has left anything, each with a page of their own.
     let others: [Author]
+    /// How much arrived for you since you last looked at the inbox.
+    let unread: Int
     let model: NotebookModel
     let onPick: (DayKey) -> Void
     let onFilter: (String?) -> Void
+    let onInbox: () -> Void
     let onLog: () -> Void
     let onSetup: () -> Void
     let onAuthor: (Author) -> Void
@@ -25,8 +28,8 @@ struct CalendarSheet: View {
     @State private var height: CGFloat = 480
 
     init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?,
-         lastVisit: (author: Author, text: String)?, others: [Author], model: NotebookModel,
-         onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void,
+         lastVisit: (author: Author, text: String)?, others: [Author], unread: Int, model: NotebookModel,
+         onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void, onInbox: @escaping () -> Void,
          onLog: @escaping () -> Void, onSetup: @escaping () -> Void, onAuthor: @escaping (Author) -> Void) {
         self.days = days
         self.today = today
@@ -35,9 +38,11 @@ struct CalendarSheet: View {
         self.filter = filter
         self.lastVisit = lastVisit
         self.others = others
+        self.unread = unread
         self.model = model
         self.onPick = onPick
         self.onFilter = onFilter
+        self.onInbox = onInbox
         self.onLog = onLog
         self.onSetup = onSetup
         self.onAuthor = onAuthor
@@ -121,6 +126,23 @@ struct CalendarSheet: View {
                     Spacer()
                 }
             }
+
+            // The inbox: what others left that may want you, with how much is new.
+            Button(action: onInbox) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("Inbox")
+                        .font(Theme.mono)
+                        .foregroundStyle(unread > 0 ? Theme.accent : Theme.muted)
+                    if unread > 0 {
+                        Text("\(unread)")
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.accent)
+                            .monospacedDigit()
+                    }
+                }
+                .frame(minHeight: 30)
+            }
+            .buttonStyle(.plain)
 
             // The latest read, and the way to everything else.
             HStack(alignment: .firstTextBaseline) {

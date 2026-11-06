@@ -16,6 +16,7 @@ struct GrantsView: View {
                 doorSection
                 grantsSection
                 pushSection
+                inboxSection
                 logSection
             }
             .padding(28)
@@ -160,6 +161,63 @@ struct GrantsView: View {
                     .font(MacTheme.mono)
                     .foregroundStyle(MacTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// What others left that may want the owner: what asks and has no answer first, then the
+    /// newest of the rest, with a mark on what the owner has not looked at.
+    private var inboxSection: some View {
+        Section("Inbox") {
+            let asks = model.inbox.filter(\.wantsYou)
+            let rest = Array(model.inbox.filter { !$0.wantsYou }.prefix(8))
+            let unread = model.inbox.filter(\.unread).count
+            if model.inbox.isEmpty {
+                Text("Nothing for you yet.")
+                    .font(MacTheme.body)
+                    .foregroundStyle(MacTheme.muted)
+            } else {
+                Text(unread == 0 ? "Nothing new since you last looked." : "\(unread) new since you last looked.")
+                    .font(MacTheme.mono)
+                    .foregroundStyle(unread == 0 ? MacTheme.muted : MacTheme.accent)
+            }
+            ForEach(asks + rest) { item in
+                HStack(alignment: .top, spacing: 12) {
+                    HStack(spacing: 6) {
+                        MacTheme.square(5)
+                            .fill(item.unread ? MacTheme.accent : .clear)
+                            .frame(width: 5, height: 5)
+                        Text(Self.stamp(item.at))
+                            .font(MacTheme.mono)
+                            .foregroundStyle(MacTheme.faint)
+                    }
+                    .frame(width: 96, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(model.name(of: item.author))
+                                .foregroundStyle(MacTheme.ink(for: item.author, owner: model.notebook?.owner))
+                            Text(item.what)
+                                .foregroundStyle(MacTheme.muted)
+                            if item.wantsYou {
+                                Text("for you")
+                                    .foregroundStyle(MacTheme.accent)
+                            }
+                        }
+                        .font(MacTheme.mono)
+                        if !item.text.isEmpty {
+                            Text(item.text)
+                                .font(MacTheme.body)
+                                .foregroundStyle(item.unread || item.wantsYou ? MacTheme.foreground : MacTheme.muted)
+                                .lineLimit(2)
+                        }
+                        if let about = item.about {
+                            Text(about)
+                                .font(MacTheme.mono)
+                                .foregroundStyle(MacTheme.faint)
+                                .lineLimit(1)
+                        }
+                    }
+                }
             }
         }
     }

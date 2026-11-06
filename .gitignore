@@ -12,3 +12,7 @@ DerivedData/
 
 # macOS
 .DS_Store
+
+# xcodebuild run without a scheme drops its output here
+App/build/
+Core/build/

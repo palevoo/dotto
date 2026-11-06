@@ -5,6 +5,8 @@ import SwiftUI
 enum Route: Hashable {
     case log
     case setup
+    /// What others left that may want you.
+    case inbox
     /// Someone else's page: their own lines, with your replies under them.
     case author(Author)
 }

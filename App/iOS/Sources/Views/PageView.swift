@@ -81,7 +81,9 @@ struct PageView: View {
                         today: model.today,
                         calendar: model.calendar,
                         filter: filter,
+                        unread: model.unread,
                         onTap: { showCalendar = true },
+                        onInbox: { open { path.append(Route.inbox) } },
                         onClearFilter: { withAnimation(Motion.settle) { filter = nil } },
                         onCopyDay: { copy(day: visibleDay) },
                         onCopyAll: { copyAll() }
@@ -116,8 +118,10 @@ struct PageView: View {
                     calendar: model.calendar,
                     labels: model.notebook.labelCounts,
                     filter: filter,
-                    lastVisit: model.notebook.visits.last.map { ($0.author, LogView.summary(of: $0, calendar: model.calendar)) },
+                    lastVisit: model.notebook.visits.last { $0.author != model.store.manifest.owner }
+                        .map { ($0.author, LogView.summary(of: $0, calendar: model.calendar)) },
                     others: model.notebook.others,
+                    unread: model.unread,
                     model: model,
                     onPick: { key in
                         showCalendar = false
@@ -126,6 +130,10 @@ struct PageView: View {
                     onFilter: { label in
                         showCalendar = false
                         withAnimation(Motion.settle) { filter = label }
+                    },
+                    onInbox: {
+                        afterCalendar = .inbox
+                        showCalendar = false
                     },
                     onLog: {
                         afterCalendar = .log
@@ -198,6 +206,7 @@ struct PageView: View {
             .navigationDestination(for: Route.self) { route in
                 switch route {
                 case .log: LogView(model: model)
+                case .inbox: InboxView(model: model)
                 case .setup: SetupView(model: model, onRelocate: onRelocate)
                 case .author(let author): AuthorPage(author: author, model: model)
                 }
@@ -290,13 +299,16 @@ enum Motion {
 }
 
 /// The date, pinned. Tap it for the calendar; hold it to copy the day as text.
-/// When the page is filtered by a label, the label sits here with its x.
+/// When the page is filtered by a label, the label sits here with its x. When something
+/// arrived for you since you last looked, its count stands at the end; tap it for the inbox.
 struct PinnedHeader: View {
     let day: DayKey
     let today: DayKey
     let calendar: Calendar
     let filter: String?
+    let unread: Int
     let onTap: () -> Void
+    let onInbox: () -> Void
     let onClearFilter: () -> Void
     let onCopyDay: () -> Void
     let onCopyAll: () -> Void
@@ -319,6 +331,23 @@ struct PinnedHeader: View {
                 Button("Copy every day", systemImage: "doc.on.doc.fill", action: onCopyAll)
             }
             Spacer()
+            if unread > 0 {
+                Button(action: onInbox) {
+                    HStack(spacing: 6) {
+                        Theme.square(6)
+                            .fill(Theme.accent)
+                            .frame(width: 6, height: 6)
+                        Text("\(unread)")
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.accent)
+                            .monospacedDigit()
+                    }
+                    .frame(height: 28)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Inbox, \(unread) new")
+            }
             if let filter {
                 Button(action: onClearFilter) {
                     HStack(spacing: 6) {

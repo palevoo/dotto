@@ -62,7 +62,8 @@ Kinds, as built:
     link.add       {later, earlier, closes}          a later line carries on from an earlier one;
                                                      closes: it finished what the earlier one opened
     link.remove    {later, earlier}                  a link taken back
-    visit          {what, since?, label?, count, …}  a receipt for a read through the door
+    visit          {what, since?, label?, count, …}  a receipt for a read through the door, or
+                                                     the owner's look at their inbox (what: inbox)
     name.set       {name}                            what its author is called from now on
 
 Sketched, not built: `media.caption`, `place.resolve` (someone names the coordinates),

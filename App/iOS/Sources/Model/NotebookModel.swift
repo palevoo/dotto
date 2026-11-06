@@ -50,6 +50,10 @@ final class NotebookModel {
     /// Where photos and voice notes stand with iCloud. Nil when the folder is not in iCloud
     /// Drive, or until iCloud has spoken.
     private(set) var cloud: CloudState?
+    /// What others left that may want you, newest first. A projection of the fold.
+    private(set) var inbox: [InboxItem] = []
+    /// How many of those arrived since you last looked, on any device.
+    var unread: Int { inbox.filter(\.unread).count }
     private var reloadTask: Task<Void, Never>?
     private var projectTask: Task<Void, Never>?
 
@@ -153,11 +157,27 @@ final class NotebookModel {
     /// Re-folds the whole folder. Cheap for years of a notebook.
     func reload() {
         do {
-            notebook = try store.load()
+            let files = try store.loadEventsByFile()
+            notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
             days = notebook.days(calendar: calendar)
+            inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: calendar)
         } catch {
             NSLog("reload failed: \(error)")
         }
+    }
+
+    /// The inbox again, after something was written: a reply of yours answers an ask.
+    private func refreshInbox() {
+        guard let files = try? store.loadEventsByFile() else { return }
+        inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: calendar)
+    }
+
+    /// You looked at the inbox. The receipt records how long every event file was, so
+    /// unread starts after it on every device, and a reply that reaches this phone late
+    /// is still new. Nothing is written when there was nothing new.
+    func lookAtInbox() {
+        guard unread > 0, let files = try? store.loadEventsByFile() else { return }
+        record(.visit(Core.Inbox.look(files: files, unread: unread)))
     }
 
     private func reloadSoon() {
@@ -362,6 +382,7 @@ final class NotebookModel {
         }
         for event in events { notebook.apply(event) }
         days = notebook.days(calendar: calendar)
+        refreshInbox()
         projectSoon()
     }
 
