@@ -25,9 +25,11 @@ author's own page. The door is the folder.
 
 In: the Core package (events, fold, file store, day projector, the door, pushes, tests),
 the iPhone app (page, pinned date and calendar, live line, photo, voice, replies, Setup,
-Logs, other authors' pages), and a Mac app that is the grant holder: sandboxed, sees the
-one folder you pick, shows the grants, serves the door (MCP over localhost, one key per
-grant), and holds the push key. Labels, links, notes and own lines through the door.
+Logs, other authors' pages), and a Mac app that is the grant holder: reads the one folder
+you pick (a promise of the code, not the sandbox, which it gave up to run the claude command),
+shows the grants, serves the door (MCP over localhost, one key per grant), holds the push
+key, and runs the reader: one headless claude session through the door when something lands
+that the reader's grant has not seen. Labels, links, notes and own lines through the door.
 SQLite as a derived index only when the in-memory fold gets slow.
 Out, so far: video, extensions beyond the share sheet and controls, accounts, a server,
 custom encryption, a fact primitive. All later readers of the same files.

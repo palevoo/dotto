@@ -1,28 +1,8 @@
 import Foundation
 
-// What the reader, the author that wakes on its own, and the Mac app share: the config the
-// app writes for it, the status it keeps while alive, and the record of each run, step by
-// step, so the owner can see exactly what it did.
-
-/// What the Mac app writes for the reader: where the notebook is, how to reach the door, the
-/// grant it acts under, and its limits. Removing the file stops the reader.
-public struct ReaderConfig: Codable, Sendable {
-    public var folder: String
-    public var door: String
-    public var grant: Grant
-    public var model: String?
-    public var maxTurns: Int
-    public var maxBudgetUSD: Double
-
-    public init(folder: String, door: String, grant: Grant, model: String? = nil, maxTurns: Int = 40, maxBudgetUSD: Double = 2) {
-        self.folder = folder
-        self.door = door
-        self.grant = grant
-        self.model = model
-        self.maxTurns = maxTurns
-        self.maxBudgetUSD = maxBudgetUSD
-    }
-}
+// The reader, the author that wakes on its own: its status while on, and the record of each
+// run, step by step, so the owner can see exactly what it did. Kept in Core so the record is
+// under test and any app can read it.
 
 /// One thing that happened inside a run: a tool the session called, what came back, words
 /// it said, the end.
@@ -152,7 +132,7 @@ public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
-/// What the reader is doing, written whenever that changes: alive and waiting, woken, running.
+/// What the reader is doing: waiting, woken, running, and what stands in its way.
 public struct ReaderStatus: Codable, Sendable {
     public enum State: String, Codable, Sendable {
         case waiting, running
@@ -188,10 +168,8 @@ public struct ReaderStatus: Codable, Sendable {
     }
 }
 
-/// The reader's files, beside the Mac app's grants. The app and the reader name them the same way.
+/// The reader's files, beside the Mac app's grants: a log, and a folder of runs.
 public enum ReaderFiles {
-    public static let config = "reader.json"
-    public static let status = "reader-status.json"
     public static let log = "reader.log"
     public static let runs = "reader-runs"
 

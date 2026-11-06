@@ -129,32 +129,6 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: true
 
-  # The reader: a background app with no window, outside the sandbox so it can run the
-  # claude command, that wakes when something lands in the notebook and runs one headless
-  # Claude Code session through the door. It lives inside the Mac app's bundle as a login
-  # item, the one shape a sandboxed app may register with the system.
-  MarginReader:
-    type: application
-    platform: macOS
-    sources:
-      - path: Mac/Reader
-    dependencies:
-      - package: Core
-        product: Core
-    info:
-      path: Mac/Reader/Info.plist
-      properties:
-        CFBundleDisplayName: Margin Reader
-        LSBackgroundOnly: true
-        NSHumanReadableCopyright: ""
-    settings:
-      groups: [signing]
-      base:
-        PRODUCT_NAME: MarginReader
-        PRODUCT_BUNDLE_IDENTIFIER: social.interface.margin.reader
-        ENABLE_HARDENED_RUNTIME: false
-        SKIP_INSTALL: true
-
   MarginMac:
     type: application
     platform: macOS
@@ -163,12 +137,6 @@ targets:
     dependencies:
       - package: Core
         product: Core
-      - target: MarginReader
-        embed: true
-        codeSign: true
-        copy:
-          destination: wrapper
-          subpath: Contents/Library/LoginItems
     info:
       path: Mac/Info.plist
       properties:
@@ -177,15 +145,8 @@ targets:
         NSHumanReadableCopyright: ""
         # The team the push key belongs to, for the claim Apple checks.
         MarginTeamID: $(DEVELOPMENT_TEAM)
-    entitlements:
-      path: Mac/Margin.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.files.user-selected.read-write: true
-        com.apple.security.files.bookmarks.app-scope: true
-        com.apple.security.network.server: true
-        # To reach Apple's push servers.
-        com.apple.security.network.client: true
+    # No sandbox: the app runs the claude command for the reader, which a sandboxed app may
+    # not. It still touches only the folder you picked; that is the code's promise now.
     postBuildScripts:
       - name: Stamp Build
         path: Scripts/stamp.sh

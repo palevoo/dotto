@@ -2,12 +2,13 @@ import AppKit
 import Core
 import Foundation
 import Observation
-import ServiceManagement
 
-/// The Mac's state: which folder, which grants, and whether the door is open.
+/// The Mac's state: which folder, which grants, whether the door is open, and the reader.
 ///
-/// The app is sandboxed. It can read exactly the folder the person picked in the open panel,
-/// remembered through a security-scoped bookmark, and nothing else on the disk.
+/// The app reads the folder the person picked in the open panel, remembered through a
+/// bookmark, and nothing else on the disk. That is a promise the code keeps rather than one
+/// macOS enforces: the app runs without the sandbox so that it can run the claude command
+/// for the reader, which a sandboxed app may not.
 @MainActor
 @Observable
 final class MacModel {
@@ -30,19 +31,21 @@ final class MacModel {
     private(set) var pushAddresses: [PushAddress] = []
     /// What happened to the last push, in a sentence.
     private(set) var pushReport: String?
-    /// The reader: whether launchd has it, what it says it is doing, and its last runs.
-    private(set) var readerState: ReaderState = .off
-    private(set) var readerStatus: ReaderStatus?
-    private(set) var readerRuns: [ReaderRun] = []
-    /// Whether the process the status names is actually alive right now.
-    private(set) var readerAlive = false
+    /// The reader, while it is on: the author that wakes on its own, run by this app.
+    private(set) var reader: ReaderRunner?
     /// The model the reader runs, empty for Claude Code's default.
-    var readerModel = ""
-    private var readerWatcher: PathWatcher?
-    private var runsWatcher: PathWatcher?
+    var readerModel = UserDefaults.standard.string(forKey: "margin.reader.model") ?? "" {
+        didSet {
+            UserDefaults.standard.set(readerModel, forKey: "margin.reader.model")
+            reader?.model = readerModel
+        }
+    }
+    /// Bumped whenever the reader's status or a run changes, so the window redraws.
+    private(set) var readerTick = 0
 
     private let bookmarkKey = "margin.folder.bookmark"
     private let ownerKey = "margin.owner"
+    private let readerOnKey = "margin.reader.on"
     private let shared = DoorState()
     private let pusher = Pusher()
     private var server: DoorServer?
@@ -53,11 +56,7 @@ final class MacModel {
     init() {
         loadGrants()
         restoreFolder()
-        readerModel = readerConfig?.model ?? ""
-        try? FileManager.default.createDirectory(at: readerRunsURL, withIntermediateDirectories: true)
-        readerWatcher = PathWatcher(path: supportDirectory.path) { [weak self] in self?.refreshReaderFiles() }
-        runsWatcher = PathWatcher(path: readerRunsURL.path) { [weak self] in self?.refreshReaderFiles() }
-        refreshReader()
+        if UserDefaults.standard.bool(forKey: readerOnKey), readerGrant != nil { startReader() }
         Task {
             await pusher.use(pushKey)
             await openDoor()
@@ -81,7 +80,9 @@ final class MacModel {
     private func restoreFolder() {
         guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return }
         var stale = false
-        guard let url = try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale) else {
+        // A bookmark made while the app was sandboxed carries a security scope; it still resolves.
+        guard let url = (try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale))
+            ?? (try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale)) else {
             UserDefaults.standard.removeObject(forKey: bookmarkKey)
             return
         }
@@ -89,17 +90,13 @@ final class MacModel {
     }
 
     private func adopt(_ url: URL, remember: Bool) {
-        guard url.startAccessingSecurityScopedResource() else {
-            problem = "macOS did not let Margin into \(url.lastPathComponent)."
-            return
-        }
         do {
             let manifest = url.appendingPathComponent(FileStore.manifestName)
             let store = FileManager.default.fileExists(atPath: manifest.path)
                 ? try FileStore.open(url)
                 : try FileStore.create(at: url, owner: owner)
             if remember {
-                let bookmark = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
+                let bookmark = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
                 UserDefaults.standard.set(bookmark, forKey: bookmarkKey)
             }
             folderURL = url
@@ -144,7 +141,9 @@ final class MacModel {
         let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
         self.notebook = notebook
         inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: .current)
-        refreshReaderFiles()
+        // Something changed in the folder: the reader looks, a moment later.
+        reader?.remember(store)
+        reader?.wake(store)
         pushAddresses = (try? store.pushAddresses()) ?? []
         let days = notebook.days(calendar: .current)
         var text = "\(notebook.entries.count) lines over \(days.count) days"
@@ -311,23 +310,11 @@ final class MacModel {
 
     // MARK: - The reader
 
-    enum ReaderState: Equatable {
-        case off
-        /// Registered, but macOS wants the person to allow it under Login Items.
-        case needsApproval
-        case on
-        case failed(String)
-    }
-
-    /// The login item inside the app's bundle, by its bundle id.
-    static let readerItem = "social.interface.margin.reader"
     static let readerGrantName = "Reader"
 
     private var supportDirectory: URL {
         grantsURL.deletingLastPathComponent()
     }
-    private var readerConfigURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.config) }
-    private var readerStatusURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.status) }
     private var readerRunsURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.runs, isDirectory: true) }
     var readerLogURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.log) }
 
@@ -342,83 +329,44 @@ final class MacModel {
         grants.filter { $0.name != Self.readerGrantName }
     }
 
-    private var readerConfig: ReaderConfig? {
-        (try? Data(contentsOf: readerConfigURL)).flatMap { try? JSONLines.decoder().decode(ReaderConfig.self, from: $0) }
-    }
-
-    /// What the reader has written down: its status, and its last runs, each step by step.
-    /// The status names a process; whether that process is alive is asked of the system.
-    func refreshReaderFiles() {
-        readerStatus = (try? Data(contentsOf: readerStatusURL)).flatMap { try? JSONLines.decoder().decode(ReaderStatus.self, from: $0) }
-        readerAlive = readerStatus.map { kill($0.pid, 0) == 0 } ?? false
-        readerRuns = ReaderFiles.runs(in: readerRunsURL, limit: 6)
-    }
-
-    /// Rewrites the config, which the reader takes as: look now.
-    func lookNow() {
-        guard let grant = readerGrant, let folderURL else { return }
-        writeReaderConfig(grant: grant, folder: folderURL)
-    }
-
-    func refreshReader() {
-        let service = SMAppService.loginItem(identifier: Self.readerItem)
-        switch service.status {
-        case .enabled: readerState = readerConfig == nil ? .off : .on
-        case .requiresApproval: readerState = .needsApproval
-        // "Not found" is launchd's word for not registered.
-        case .notFound, .notRegistered: readerState = .off
-        @unknown default: readerState = .off
-        }
-        refreshReaderFiles()
-    }
+    var readerStatus: ReaderStatus? { _ = readerTick; return reader?.status }
+    var readerRuns: [ReaderRun] { _ = readerTick; return reader?.runs ?? [] }
 
     /// Switches the reader on as one of the grants' authors: a grant of its own with the
-    /// same author and the device "reader", the config the reader reads, and the login item
-    /// registered with the system, which launches it now and at every login.
+    /// same author and the device "reader", and the runner inside this app, which looks
+    /// at once and whenever the folder changes from then on.
     func turnReaderOn(as author: Author) {
-        guard let folderURL else { return }
-        let grant = readerGrant ?? {
-            let made = Grant(name: Self.readerGrantName, author: author, device: "reader")
-            grants.append(made)
+        if readerGrant == nil {
+            grants.append(Grant(name: Self.readerGrantName, author: author, device: "reader"))
             saveGrants()
-            return made
-        }()
-        writeReaderConfig(grant: grant, folder: folderURL)
-        do {
-            try SMAppService.loginItem(identifier: Self.readerItem).register()
-        } catch {
-            readerState = .failed("\(error.localizedDescription)")
-            return
         }
-        refreshReader()
+        UserDefaults.standard.set(true, forKey: readerOnKey)
+        startReader()
     }
 
     func turnReaderOff() {
-        try? SMAppService.loginItem(identifier: Self.readerItem).unregister()
-        try? FileManager.default.removeItem(at: readerConfigURL)
+        UserDefaults.standard.set(false, forKey: readerOnKey)
+        reader = nil
         if let grant = readerGrant { revoke(grant) }
-        refreshReader()
+        readerTick += 1
     }
 
-    /// The model changed: the config is rewritten, which the agent notices.
-    func saveReaderModel() {
-        guard let grant = readerGrant, let folderURL, readerState != .off else { return }
-        writeReaderConfig(grant: grant, folder: folderURL)
+    /// Looks now, without waiting for a line to land.
+    func lookNow() {
+        guard let store else { return }
+        reader?.wake(store)
     }
 
-    func openLoginItems() {
-        SMAppService.openSystemSettingsLoginItems()
-    }
-
-    private func writeReaderConfig(grant: Grant, folder: URL) {
-        let config = ReaderConfig(folder: folder.path, door: "http://127.0.0.1:\(port ?? Self.defaultPort)/mcp",
-                                  grant: grant, model: readerModel.isEmpty ? nil : readerModel)
-        let encoder = JSONLines.encoder()
-        encoder.outputFormatting.insert(.prettyPrinted)
-        do {
-            try encoder.encode(config).write(to: readerConfigURL, options: [.atomic, .completeFileProtection])
-        } catch {
-            problem = "Could not write the reader's config: \(error)"
+    private func startReader() {
+        guard let grant = readerGrant else { return }
+        let runner = ReaderRunner(grant: grant, door: "http://127.0.0.1:\(Self.defaultPort)/mcp", model: readerModel,
+                                  runsDirectory: readerRunsURL, logURL: readerLogURL)
+        runner.onChange = { [weak self] in self?.readerTick += 1 }
+        reader = runner
+        readerTick += 1
+        if let store {
+            runner.remember(store)
+            runner.wake(store)
         }
     }
 
@@ -432,8 +380,8 @@ final class MacModel {
             let server = try DoorServer(port: Self.defaultPort) { router.respond($0) }
             self.server = server
             port = try await server.start()
-            // The door is open: a rewritten config tells the reader to look again.
-            if let grant = readerGrant, let folderURL, readerState != .off { writeReaderConfig(grant: grant, folder: folderURL) }
+            // The door is open: the reader may look now.
+            if let store { reader?.wake(store) }
         } catch {
             problem = "The door could not open on port \(Self.defaultPort): \(error)"
         }

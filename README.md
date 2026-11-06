@@ -72,7 +72,9 @@ Anything written by someone other than the owner names its author; there is no d
 
 ## The door
 
-The Mac app is sandboxed: it sees the folder you pick and nothing else. It serves the
+The Mac app reads the folder you pick and nothing else. That is the code's promise rather
+than the sandbox's: the app runs without the macOS sandbox so that it can run the `claude`
+command for the reader, which a sandboxed app may not. It serves the
 Model Context Protocol on `127.0.0.1:27830/mcp`, behind a key per grant. A grant is a
 row in its window: who, what they may do. Tools: `whats_new`, `read_days`, `list_lines`,
 `read_photo`, `add_note`, `set_label`, `link_lines`, `write_line`, `edit_line`,
@@ -123,25 +125,22 @@ to Apple. Marks stay silent: labels and links are for the page, not the pocket.
 
 ## The reader
 
-The author that wakes on its own. Turn it on in the Mac window, as the author of one of the
-grants: it gets a grant of its own with the same author and the device `reader`, so it is
-the same being as a session started by hand, and Logs say which hand. It is a background app
-with no window inside the Mac app's bundle (`App/Mac/Reader`), registered with the system as
-a login item, the one shape a sandboxed app may register, so it starts when switched on and
-at every login, outside the sandbox so it can run the `claude` command you already pay for.
-It watches the
-events folder; when something lands that its grant has not seen, it runs one headless
-session: the door as its only server, every built-in tool off, no settings and no project in
-reach, the door's conduct as its whole brief, a cap on turns and on spend, nothing kept
-afterwards. Then it waits again. The Mac app must be running, since it is the door; the Mac
-must stay awake. The first time, macOS asks you to allow it under Login Items.
+The author that wakes on its own, run by the Mac app itself (`App/Mac/Sources/Reader.swift`).
+Turn it on in the Mac window, as the author of one of the grants: it gets a grant of its own
+with the same author and the device `reader`, so it is the same being as a session started
+by hand, and Logs say which hand. The app is open anyway, since it is the door, and it
+already watches the folder; when something lands that the reader's grant has not seen, it
+runs one headless session of the `claude` command you already pay for: the door as its only
+server, every built-in tool off, no settings and no project in reach, the door's conduct as
+its whole brief, a cap on turns and on spend, nothing kept afterwards. Then it waits again.
+Nothing is registered with the system; if you want the reader after a reboot, set the app to
+open at login like any app, and keep the Mac awake.
 
-Everything it does is written down as it happens, beside `grants.json`: `reader-status.json`
-says whether it is alive and what woke it; `reader-runs/` holds each run step by step, every
-door tool it called with what it sent, what came back, what it said, and the cost, with the
-raw stream beside it; `reader.log` is the plain trail. The window shows the live state, the
-last wake, and the last runs with their steps, and Look Now makes it look without waiting for
-a line to land. What it did to the notebook is in Logs, stamped reader.
+Everything it does is written down as it happens: `reader-runs/` beside `grants.json` holds
+each run step by step, every door tool it called with what it sent, what came back, what it
+said, and the cost, with the raw stream beside it; `reader.log` is the plain trail. The window
+shows the live state, what woke it, and the last runs with their steps, and Look Now makes it
+look without waiting for a line to land. What it did to the notebook is in Logs, stamped reader.
 
 ## Building Margin with Margin
 

@@ -168,85 +168,37 @@ struct GrantsView: View {
         }
     }
 
-    /// The reader: the author that wakes on its own when something lands, runs one headless
-    /// session through the door, and stops. Runs as one of the grants' authors.
+    /// The reader: the author that wakes on its own, run by this app when something lands.
+    /// Runs as one of the grants' authors, so it is the same being as a session started by hand.
     private var readerSection: some View {
         Section("Reader") {
-            switch model.readerState {
-            case .off:
-                Text("Wakes when something lands in the notebook and runs one Claude Code session through the door, with the door as its only tool, then stops. Runs as the author of a grant below, so it is the same being as a session started by hand; Logs say which hand.")
-                    .font(MacTheme.body)
-                    .foregroundStyle(MacTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                if model.readerCandidates.isEmpty {
-                    Text("Make a grant first.")
-                        .font(MacTheme.mono)
-                        .foregroundStyle(MacTheme.faint)
-                } else {
-                    HStack(spacing: 8) {
-                        Picker("As", selection: $readerAuthor) {
-                            ForEach(model.readerCandidates) { grant in
-                                Text(grant.name).tag(Optional(grant.author))
-                            }
-                        }
-                        .frame(maxWidth: 220)
-                        Button("Turn On") {
-                            if let author = readerAuthor ?? model.readerCandidates.first?.author { model.turnReaderOn(as: author) }
-                        }
-                        .controlSize(.small)
-                        .disabled(model.folderURL == nil)
-                    }
-                }
-            case .needsApproval:
-                Text("Registered. macOS wants you to allow it under Login Items before it runs.")
-                    .font(MacTheme.body)
-                    .foregroundStyle(MacTheme.muted)
-                HStack(spacing: 8) {
-                    Button("Open Login Items") { model.openLoginItems() }.controlSize(.small)
-                    Button("Check Again") { model.refreshReader() }.controlSize(.small)
-                    Button("Turn Off", role: .destructive) { model.turnReaderOff() }.controlSize(.small)
-                }
-            case .failed(let why):
-                Text("Could not register the reader: \(why)")
-                    .font(MacTheme.body)
-                    .foregroundStyle(MacTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Try Again") { model.refreshReader() }.controlSize(.small)
-            case .on:
+            if let status = model.readerStatus, let reader = model.reader {
                 VStack(alignment: .leading, spacing: 8) {
-                    // Who it is, and whether the process is actually there.
                     HStack(spacing: 6) {
-                        Text("On, as")
+                        MacTheme.square(6)
+                            .fill(status.state == .running ? MacTheme.accent : MacTheme.muted)
+                            .frame(width: 6, height: 6)
+                        Text(status.state == .running ? "Running since \(Self.clock(status.lastRun?.startedAt ?? status.startedAt))" : "On, waiting for something to land")
                             .foregroundStyle(MacTheme.muted)
-                        if let grant = model.readerGrant {
-                            Text(model.name(of: grant.author))
-                                .foregroundStyle(MacTheme.ink(for: grant.author, owner: model.notebook?.owner))
-                        }
+                        Text("· as")
+                            .foregroundStyle(MacTheme.faint)
+                        Text(model.name(of: reader.grant.author))
+                            .foregroundStyle(MacTheme.ink(for: reader.grant.author, owner: model.notebook?.owner))
                         Text("· device reader")
                             .foregroundStyle(MacTheme.faint)
                     }
                     .font(MacTheme.mono)
-                    if let status = model.readerStatus {
-                        HStack(spacing: 6) {
-                            MacTheme.square(6)
-                                .fill(model.readerAlive ? (status.state == .running ? MacTheme.accent : MacTheme.muted) : MacTheme.recording)
-                                .frame(width: 6, height: 6)
-                            Text(aliveLine(status))
-                                .foregroundStyle(model.readerAlive ? MacTheme.muted : MacTheme.recording)
-                        }
-                        .font(MacTheme.mono)
-                        if let trouble = status.trouble {
-                            Text(trouble)
-                                .font(MacTheme.mono)
-                                .foregroundStyle(MacTheme.recording)
-                        }
-                        if let wake = status.lastWake {
-                            Text("Woke \(Self.stamp(wake.at)) · \(wake.new) new · \(wake.ran ? "ran" : "nothing to do")")
-                                .font(MacTheme.mono)
-                                .foregroundStyle(MacTheme.faint)
-                        }
-                    } else {
-                        Text("Registered. Waiting for it to start and say so.")
+                    if let trouble = status.trouble {
+                        Text(trouble)
+                            .font(MacTheme.mono)
+                            .foregroundStyle(MacTheme.recording)
+                    } else if let claude = reader.claude {
+                        Text("claude at \(claude)")
+                            .font(MacTheme.mono)
+                            .foregroundStyle(MacTheme.faint)
+                    }
+                    if let wake = status.lastWake {
+                        Text("Woke \(Self.stamp(wake.at)) · \(wake.new) new · \(wake.ran ? "ran" : "nothing to do")")
                             .font(MacTheme.mono)
                             .foregroundStyle(MacTheme.faint)
                     }
@@ -254,7 +206,7 @@ struct GrantsView: View {
                     // Each run, step by step, newest first. A run under way is at the top, growing.
                     if !model.readerRuns.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
-                            ForEach(model.readerRuns) { run in
+                            ForEach(model.readerRuns.prefix(6)) { run in
                                 DisclosureGroup(isExpanded: binding(for: run.id)) {
                                     VStack(alignment: .leading, spacing: 3) {
                                         ForEach(Array(run.steps.enumerated()), id: \.offset) { _, step in
@@ -289,10 +241,33 @@ struct GrantsView: View {
                             .textFieldStyle(.roundedBorder)
                             .font(MacTheme.mono)
                             .frame(maxWidth: 200)
-                            .onSubmit { model.saveReaderModel() }
-                        Button("Look Now") { model.lookNow() }.controlSize(.small).disabled(!model.readerAlive)
+                        Button("Look Now") { model.lookNow() }.controlSize(.small)
                         Button("Show Log") { NSWorkspace.shared.activateFileViewerSelecting([model.readerLogURL]) }.controlSize(.small)
                         Button("Turn Off", role: .destructive) { model.turnReaderOff() }.controlSize(.small)
+                    }
+                }
+            } else {
+                Text("Wakes when something lands in the notebook and runs one Claude Code session through the door, with the door as its only tool, then stops. Runs inside this app while it is open, as the author of a grant below, so it is the same being as a session started by hand; Logs say which hand.")
+                    .font(MacTheme.body)
+                    .foregroundStyle(MacTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                if model.readerCandidates.isEmpty {
+                    Text("Make a grant first.")
+                        .font(MacTheme.mono)
+                        .foregroundStyle(MacTheme.faint)
+                } else {
+                    HStack(spacing: 8) {
+                        Picker("As", selection: $readerAuthor) {
+                            ForEach(model.readerCandidates) { grant in
+                                Text(grant.name).tag(Optional(grant.author))
+                            }
+                        }
+                        .frame(maxWidth: 220)
+                        Button("Turn On") {
+                            if let author = readerAuthor ?? model.readerCandidates.first?.author { model.turnReaderOn(as: author) }
+                        }
+                        .controlSize(.small)
+                        .disabled(model.folderURL == nil)
                     }
                 }
             }
@@ -301,15 +276,6 @@ struct GrantsView: View {
 
     private func binding(for id: ULID) -> Binding<Bool> {
         Binding(get: { openRuns.contains(id) }, set: { open in if open { openRuns.insert(id) } else { openRuns.remove(id) } })
-    }
-
-    /// "Alive · pid 4812 · since 4 Nov 13:21", "Running since 13:40", or that it is gone.
-    private func aliveLine(_ status: ReaderStatus) -> String {
-        guard model.readerAlive else { return "Not running. Turn Off and on again starts it; it also starts at every login." }
-        switch status.state {
-        case .running: return "Running since \(Self.clock(status.lastRun?.startedAt ?? status.startedAt)) · pid \(status.pid)"
-        case .waiting: return "Alive, waiting · pid \(status.pid) · since \(Self.stamp(status.startedAt))\(status.build.map { " · build \($0)" } ?? "")"
-        }
     }
 
     /// "4 Nov 13:21 · 6 turns · $0.31 · answered under two lines", or, while running, how far it is.
