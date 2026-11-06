@@ -1,0 +1,785 @@
+<title>dotto</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* Layout: the page is itself a notebook page. Four statements, each with a screen of air and
+   one proof beside it; then a quieter second tier. A hairline margin carries the time of each
+   moment. Nothing is boxed unless it is a thing someone made. */
+:root {
+  --paper: #f3f3ee;
+  --card: #fbfbf8;
+  --ink: #1c1b18;
+  --soft: #55534c;
+  --muted: #8a877e;
+  --rule: rgba(28, 27, 24, 0.14);
+  --rule-strong: rgba(28, 27, 24, 0.32);
+  --field: #2e7a4c;
+  --field-soft: rgba(46, 122, 76, 0.12);
+  --moss: #6a5acd;
+  --health: #b9651f;
+  --friend: #2c6cae;
+  --photo-a: #c9d6c0;
+  --photo-b: #7f9b74;
+  --photo-c: #e3d2b8;
+  --photo-d: #a3785a;
+  --display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --ui: "IBM Plex Sans", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #151513; --card: #1d1d1a; --ink: #ebe9e2; --soft: #b8b5ac; --muted: #85837a;
+    --rule: rgba(235, 233, 226, 0.14); --rule-strong: rgba(235, 233, 226, 0.34);
+    --field: #63b583; --field-soft: rgba(99, 181, 131, 0.16);
+    --moss: #a99af0; --health: #e0914c; --friend: #6ea6ea;
+    --photo-a: #3b473a; --photo-b: #5c7355; --photo-c: #4a4236; --photo-d: #7c5c44;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #151513; --card: #1d1d1a; --ink: #ebe9e2; --soft: #b8b5ac; --muted: #85837a;
+  --rule: rgba(235, 233, 226, 0.14); --rule-strong: rgba(235, 233, 226, 0.34);
+  --field: #63b583; --field-soft: rgba(99, 181, 131, 0.16);
+  --moss: #a99af0; --health: #e0914c; --friend: #6ea6ea;
+  --photo-a: #3b473a; --photo-b: #5c7355; --photo-c: #4a4236; --photo-d: #7c5c44;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: 19px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--paper); }
+a { color: inherit; }
+::selection { background: var(--field-soft); }
+
+.wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* Header */
+header.top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-block: 22px 10px;
+  font-family: var(--ui); font-size: 14px; color: var(--muted);
+}
+.wordmark {
+  display: inline-flex; align-items: baseline;
+  font-family: var(--display); font-weight: 500; font-size: 30px; letter-spacing: -0.01em; color: var(--ink);
+  text-decoration: none; line-height: 1;
+}
+.sq {
+  display: inline-block; width: 0.26em; height: 0.26em; margin-left: 0.09em;
+  background: var(--field); border-radius: 22%; transform: translateY(-0.02em);
+}
+.wordmark.small { font-size: 22px; }
+header.top nav { display: flex; gap: 18px; }
+header.top nav a { text-decoration: none; color: var(--muted); }
+header.top nav a:hover { color: var(--ink); }
+
+/* Moments: the margin with the time */
+.moment {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px 0;
+  padding-block: 56px 0;
+  border-top: 1px solid var(--rule);
+  margin-top: 56px;
+}
+.moment.core { padding-block: 88px 0; margin-top: 72px; }
+.moment .when {
+  font-family: var(--mono); font-size: 13px; color: var(--muted); letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.moment .body { min-width: 0; }
+@media (min-width: 760px) {
+  .moment { grid-template-columns: 120px minmax(0, 1fr); gap: 0 32px; }
+  .moment .when { padding-top: 0.6em; }
+  .moment.core { padding-block: 120px 0; margin-top: 96px; }
+}
+
+h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.015em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(40px, 6.6vw, 70px); line-height: 1.04; letter-spacing: -0.02em; }
+h1 .sq { width: 0.2em; height: 0.2em; margin-left: 0.06em; transform: translateY(-0.04em); }
+h2 { font-size: clamp(30px, 4.4vw, 46px); line-height: 1.1; letter-spacing: -0.02em; }
+.core h2 { font-size: clamp(36px, 5.6vw, 60px); line-height: 1.04; }
+h3 { font-size: 22px; line-height: 1.25; font-weight: 500; }
+p { margin: 0; max-width: 62ch; }
+.lede { font-size: clamp(20px, 2.2vw, 24px); line-height: 1.4; color: var(--soft); max-width: 54ch; }
+.core .lede { font-size: clamp(21px, 2.5vw, 27px); line-height: 1.38; }
+.big { font-size: clamp(22px, 2.6vw, 28px); line-height: 1.35; max-width: 46ch; }
+.stack { display: grid; gap: 18px; }
+.stack-lg { display: grid; gap: 40px; }
+.core .stack-lg { gap: 56px; }
+.quiet { color: var(--soft); }
+.faint { color: var(--muted); }
+
+/* Hero */
+.hero { padding-block: 44px 0; display: grid; gap: 36px; }
+@media (min-width: 900px) {
+  .hero { grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); gap: 48px; align-items: center; padding-block: 64px 0; }
+}
+.hero .copy { display: grid; gap: 26px; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; font-family: var(--ui); font-size: 15px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 10px;
+  padding: 11px 18px; border-radius: 12px; text-decoration: none;
+  background: var(--ink); color: var(--paper); border: 0; cursor: pointer; font: inherit; font-weight: 500;
+}
+.btn .sq { width: 8px; height: 8px; margin: 0; transform: none; }
+.btn:focus-visible, a:focus-visible, button:focus-visible { outline: 2px solid var(--field); outline-offset: 3px; }
+.link { color: var(--soft); text-decoration: none; border-bottom: 1px solid var(--rule-strong); padding-bottom: 1px; }
+.link:hover { color: var(--ink); }
+
+/* The pain, struck through */
+.tried { display: grid; gap: 8px; font-size: clamp(19px, 2.1vw, 23px); line-height: 1.4; color: var(--soft); max-width: 52ch; }
+.tried span { text-decoration: line-through; text-decoration-color: var(--rule-strong); text-decoration-thickness: 1px; }
+.tried .keep { color: var(--ink); text-decoration: none; margin-top: 8px; }
+
+/* The notebook page, as drawn on this page */
+.page {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 22px;
+  padding: 20px 18px 14px;
+  display: grid; gap: 0;
+  max-width: 420px; width: 100%;
+  box-shadow: 0 1px 0 var(--rule), 0 24px 60px -36px rgba(0,0,0,0.35);
+  font-size: 16.5px; line-height: 1.45;
+  position: relative; overflow: hidden;
+}
+.hero .page { justify-self: center; }
+@media (min-width: 900px) { .hero .page { justify-self: end; } }
+.page .date {
+  font-family: var(--ui); font-size: 13px; color: var(--muted); padding-bottom: 14px;
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+.page .date b { font-weight: 500; color: var(--soft); }
+.line {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 0 10px;
+  padding-block: 9px;
+  align-items: start;
+}
+.line .t { font-family: var(--mono); font-size: 12.5px; color: var(--muted); padding-top: 0.35em; font-variant-numeric: tabular-nums; }
+.line .w { min-width: 0; overflow-wrap: anywhere; }
+.line .w .done { text-decoration: line-through; text-decoration-color: var(--moss); text-decoration-thickness: 1px; color: var(--soft); }
+.line .w q { font-style: italic; }
+.line .w q::before, .line .w q::after { content: "\201C"; font-style: normal; color: var(--muted); }
+.line .w q::after { content: "\201D"; }
+.marks { display: flex; flex-wrap: wrap; gap: 6px 10px; margin-top: 6px; font-family: var(--ui); font-size: 12.5px; align-items: center; }
+.label { color: var(--moss); }
+.label::before { content: "#"; opacity: 0.6; }
+.thread { color: var(--moss); font-style: italic; }
+.reply { font-family: var(--display); font-size: 15px; color: var(--soft); margin-top: 6px; display: flex; gap: 8px; align-items: baseline; }
+.reply .who { font-family: var(--ui); font-size: 12px; color: var(--moss); white-space: nowrap; }
+.by { font-family: var(--ui); font-size: 12px; color: var(--health); }
+.by.moss { color: var(--moss); }
+.photo {
+  width: 100%; max-width: 100%; aspect-ratio: 4 / 3; border-radius: 12px; margin-top: 8px;
+  background: linear-gradient(135deg, var(--photo-a), var(--photo-b));
+  position: relative; overflow: hidden;
+}
+.photo.sm { width: 92px; aspect-ratio: 1; margin-top: 6px; border-radius: 10px; }
+.photo.warm { background: linear-gradient(135deg, var(--photo-c), var(--photo-d)); }
+.photo.page-shot { background: linear-gradient(180deg, var(--card), var(--photo-c)); }
+.photo.page-shot::after {
+  content: ""; position: absolute; inset: 18% 14%;
+  background: repeating-linear-gradient(to bottom, var(--rule-strong) 0 1px, transparent 1px 9px);
+  opacity: 0.55;
+}
+.photo .hl { position: absolute; left: 14%; right: 24%; top: 38%; height: 9px; background: var(--field-soft); outline: 1px solid var(--field); border-radius: 2px; }
+.voice { display: inline-flex; align-items: center; gap: 8px; font-family: var(--ui); font-size: 13px; color: var(--soft); margin-top: 4px; }
+.voice .bars { display: inline-flex; gap: 2px; align-items: center; height: 14px; }
+.voice .bars i { display: block; width: 2px; background: var(--muted); border-radius: 1px; height: var(--h, 6px); }
+
+.live {
+  display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 0 10px; align-items: center;
+  margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--rule);
+}
+.live .t { font-family: var(--mono); font-size: 12.5px; color: var(--field); font-variant-numeric: tabular-nums; animation: breathe 4s ease-in-out infinite; }
+.live .w { min-height: 1.45em; min-width: 0; overflow-wrap: anywhere; }
+.live .caret { display: inline-block; width: 1.5px; height: 1.05em; background: var(--field); vertical-align: -0.18em; margin-left: 1px; animation: blink 1.1s steps(2, start) infinite; }
+.live .cam { color: var(--field); display: inline-flex; gap: 14px; }
+.live .cam svg { width: 20px; height: 20px; display: block; }
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes blink { to { visibility: hidden; } }
+@keyframes appear { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+.appear { animation: appear 0.6s ease-out both; }
+/* Marks that appear once a demo scrolls into view. Visible at rest; the script arms them. */
+.armed .later { opacity: 0; }
+.go .later { animation: appear 0.6s ease-out both; }
+.go .d1 { animation-delay: 0.5s; } .go .d2 { animation-delay: 1.1s; } .go .d3 { animation-delay: 1.7s; } .go .d4 { animation-delay: 2.3s; }
+
+/* Ways in */
+.ways { display: grid; grid-template-columns: 1fr; }
+.way { border-top: 1px solid var(--rule); padding-block: 22px; display: grid; gap: 12px; min-width: 0; align-items: start; }
+@media (min-width: 760px) { .way { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 48px; padding-block: 24px; } }
+.way .how { font-size: 18px; line-height: 1.45; color: var(--soft); max-width: 36ch; }
+.way .how b { color: var(--ink); font-weight: 500; }
+.way .ex { font-size: 17px; line-height: 1.45; display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 0 12px; max-width: 46ch; }
+.way .ex .t { font-family: var(--mono); font-size: 12.5px; color: var(--muted); padding-top: 0.35em; }
+
+/* Stories */
+.story { display: grid; gap: 22px; padding-block: 40px; border-top: 1px solid var(--rule); align-items: start; }
+.story.first { border-top: 0; padding-top: 0; }
+@media (min-width: 860px) { .story { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 40px; } .story.flip .text { order: 2; } }
+.story .text { display: grid; gap: 12px; min-width: 0; }
+.story .text p { color: var(--soft); font-size: 18px; }
+.story .text .who { font-family: var(--ui); font-size: 13px; color: var(--muted); }
+.view {
+  background: var(--card); border: 1px solid var(--rule); border-radius: 18px; padding: 18px;
+  font-size: 15.5px; line-height: 1.45; min-width: 0;
+  box-shadow: 0 1px 0 var(--rule);
+}
+.view .head { font-family: var(--ui); font-size: 13px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--rule); margin-bottom: 12px; flex-wrap: wrap; }
+.view .head b { color: var(--ink); font-weight: 500; }
+.view .head .addr { font-family: var(--mono); font-size: 12px; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; padding-block: 8px; border-top: 1px solid var(--rule); align-items: baseline; }
+.row:first-child, .head + .row { border-top: 0; }
+.row .k { min-width: 0; }
+.row .k small { display: block; font-family: var(--ui); font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.row .v { font-family: var(--mono); font-size: 13px; color: var(--soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.row .v.ok { color: var(--field); }
+.plants { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.plant { display: grid; gap: 6px; min-width: 0; }
+.plant .photo { aspect-ratio: 1; margin: 0; border-radius: 12px; }
+.plant .n { font-size: 14.5px; line-height: 1.3; }
+.plant .n small { display: block; font-family: var(--ui); font-size: 12px; color: var(--muted); }
+.bar { height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.bar i { display: block; height: 100%; background: var(--field); width: var(--w, 50%); }
+.shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 12px; }
+.book { display: grid; gap: 6px; min-width: 0; }
+.book .spine { aspect-ratio: 2 / 3; border-radius: 6px; background: var(--photo-c); border: 1px solid var(--rule); position: relative; }
+.book .spine::after { content: ""; position: absolute; left: 10%; right: 10%; top: 14%; height: 2px; background: var(--rule-strong); }
+.book .spine.g { background: var(--photo-a); } .book .spine.d { background: var(--photo-d); } .book .spine.b { background: var(--photo-b); }
+.book .n { font-size: 13px; line-height: 1.3; }
+.book .n small { display: block; font-family: var(--ui); font-size: 11.5px; color: var(--muted); }
+.quote { font-style: italic; color: var(--soft); border-left: 2px solid var(--field); padding-left: 12px; margin-top: 12px; font-size: 15.5px; }
+.quote small { display: block; font-style: normal; font-family: var(--ui); font-size: 12px; color: var(--muted); margin-top: 4px; }
+.streak { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.streak i { width: 18px; height: 18px; border-radius: 22%; background: var(--rule); display: block; }
+.streak i.on { background: var(--field); }
+.streak i.today { background: var(--field-soft); outline: 1px solid var(--field); }
+.form { display: grid; gap: 8px; margin-top: 4px; font-family: var(--ui); font-size: 13.5px; }
+.form .f { border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; color: var(--soft); background: var(--paper); }
+.form .f.filled { color: var(--ink); }
+.steps { display: grid; margin-top: 10px; }
+.step { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: baseline; padding-block: 7px; font-size: 15px; }
+.step i { width: 12px; height: 12px; border-radius: 22%; background: var(--rule); display: block; transform: translateY(1px); }
+.step i.on { background: var(--field); }
+.step i.you { background: var(--ink); }
+.step small { font-family: var(--ui); font-size: 12px; color: var(--muted); display: block; }
+
+/* Loops */
+.loops { display: grid; }
+.loop { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px 16px; padding-block: 14px; border-top: 1px solid var(--rule); }
+.loop:first-child { border-top: 0; padding-top: 0; }
+@media (min-width: 640px) { .loop { grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; } }
+.loop .say { font-size: 18px; line-height: 1.4; }
+.loop .say::before { content: "\201C"; color: var(--muted); }
+.loop .say::after { content: "\201D"; color: var(--muted); }
+.loop .ran { font-family: var(--mono); font-size: 12.5px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.loop .ran b { font-weight: 400; color: var(--field); }
+.mk { display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media (min-width: 760px) { .mk { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.mk .view { padding: 16px; }
+.mk .t { font-family: var(--ui); font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+.mk .t b { color: var(--ink); font-weight: 500; }
+.lock { border-radius: 14px; background: var(--ink); color: var(--paper); padding: 14px 14px 12px; font-family: var(--ui); display: grid; gap: 10px; }
+.lock .time { font-family: var(--display); font-size: 34px; line-height: 1; letter-spacing: -0.02em; }
+.lock .ctrls { display: flex; gap: 8px; }
+.lock .c { flex: 1; border-radius: 10px; padding: 10px 8px; background: rgba(255,255,255,0.14); font-size: 12px; text-align: center; }
+.lock .c.mine { background: var(--field); }
+.addrbox { font-family: var(--mono); font-size: 13px; padding: 10px 12px; border: 1px dashed var(--rule-strong); border-radius: 10px; color: var(--soft); overflow-wrap: anywhere; }
+
+/* Inbox */
+.inbox { display: grid; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; padding-block: 12px; border-top: 1px solid var(--rule); }
+.item:first-child { border-top: 0; }
+.item .what { min-width: 0; font-size: 16px; }
+.item .what small { display: block; font-family: var(--ui); font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.item .what .who { color: var(--moss); }
+.acts { display: flex; gap: 6px; }
+.act { font: 500 13px var(--ui); padding: 6px 10px; border-radius: 9px; border: 1px solid var(--rule-strong); background: transparent; color: var(--ink); cursor: pointer; }
+.act.primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.item.done .what { color: var(--muted); }
+.item.done .acts { display: none; }
+.item.done .what::after { content: attr(data-done); font-family: var(--ui); font-size: 12.5px; color: var(--field); margin-left: 8px; }
+
+/* Logs */
+.logs { display: grid; font-size: 15.5px; }
+.log { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 0 10px; padding-block: 7px; border-top: 1px solid var(--rule); }
+.log:first-child { border-top: 0; }
+.log .t { font-family: var(--mono); font-size: 12.5px; color: var(--muted); padding-top: 0.3em; }
+.log .w { min-width: 0; color: var(--soft); }
+.log .w b { font-weight: 500; color: var(--moss); }
+.log .w b.h { color: var(--health); } .log .w b.f { color: var(--friend); }
+
+/* Door chips */
+.doors { display: flex; flex-wrap: wrap; gap: 8px; font-family: var(--ui); font-size: 14px; }
+.door { border: 1px solid var(--rule-strong); border-radius: 999px; padding: 7px 13px; display: inline-flex; align-items: center; gap: 8px; color: var(--soft); }
+.door i { width: 9px; height: 9px; border-radius: 22%; background: var(--c, var(--moss)); display: block; }
+
+/* Two-up text */
+.two { display: grid; gap: 28px; }
+@media (min-width: 760px) { .two { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 40px; } }
+.two h3 { margin-bottom: 8px; }
+.two p { color: var(--soft); font-size: 18px; }
+
+/* Who */
+.who-list { display: grid; gap: 16px; }
+@media (min-width: 760px) { .who-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 40px; } }
+.who-list div { border-top: 1px solid var(--rule); padding-top: 14px; color: var(--soft); font-size: 18px; }
+.who-list div b { color: var(--ink); font-weight: 500; }
+
+/* Colophon */
+.colophon .lede { max-width: 48ch; }
+.made { font-family: var(--display); font-size: clamp(24px, 3vw, 32px); line-height: 1.3; }
+.made .sq { width: 0.24em; height: 0.24em; }
+
+/* Footer */
+footer { margin-top: 96px; border-top: 1px solid var(--rule); padding-block: 36px 60px; display: grid; gap: 24px; font-family: var(--ui); font-size: 14px; color: var(--muted); }
+footer .row2 { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px 24px; align-items: center; }
+footer p { max-width: 70ch; line-height: 1.55; }
+
+@media (prefers-reduced-motion: reduce) {
+  .live .t, .live .caret { animation: none; }
+  .appear, .go .later { animation: none; }
+  .armed .later { opacity: 1; }
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <a class="wordmark" href="#top" aria-label="dotto">dotto<span class="sq" aria-hidden="true"></span></a>
+    <nav>
+      <a href="#habit">Habit</a>
+      <a href="#then">Then</a>
+      <a href="#loops">Loops</a>
+      <a href="#things">Things</a>
+      <a href="#yours">Yours</a>
+    </nav>
+  </header>
+
+  <section class="hero" id="top">
+    <div class="copy">
+      <h1>Where you write changes what you think<span class="sq" aria-hidden="true"></span></h1>
+      <p class="lede">A feed makes you perform. A chat makes you ask. A blank page lets you notice. Write a line and go back to your day. The line goes to work.</p>
+      <div class="cta">
+        <a class="btn" href="#start"><span class="sq" aria-hidden="true"></span>Get dotto for iPhone</a>
+        <a class="link" href="#habit">How it works</a>
+      </div>
+    </div>
+
+    <div class="page" id="demo" aria-label="A day in dotto">
+      <div class="date"><b id="demo-date">Friday 6 November</b><span>Today</span></div>
+      <div class="line"><span class="t">07:48</span><div class="w">No scrolling today. Let's see.</div></div>
+      <div class="line"><span class="t">09:15</span><div class="w">Two fig sticks cut from the big tree, into a jar for now.<div class="photo" aria-hidden="true"></div><div class="marks" id="demo-marks"></div></div></div>
+      <div class="line"><span class="t">12:20</span><div class="w">Walk, 3.1 km, 41 min <span class="by">Health</span></div></div>
+      <div class="live">
+        <span class="t" id="clock">00:00</span>
+        <div class="w"><span id="typed"></span><span class="caret" aria-hidden="true"></span></div>
+        <span class="cam" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.2-1.8h5.4L15.9 6h1.6A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5z"/><circle cx="12" cy="12.5" r="3.2"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M6 11.5a6 6 0 0 0 12 0M12 17.5v3"/></svg>
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <section class="moment core" id="habit">
+    <div class="when">07:48</div>
+    <div class="body stack-lg">
+      <div class="stack">
+        <h2>You never ask. You write.</h2>
+        <div class="tried" aria-label="What you have tried">
+          <span>The to-do list you stopped opening in March.</span>
+          <span>The journal whose streak broke on day nine.</span>
+          <span>The tracker that wanted a number first.</span>
+          <span>The chat you brief from scratch every time.</span>
+          <div class="keep">They all asked first. dotto asks for nothing.</div>
+        </div>
+        <p class="big">When something passes through your head or your hands, write a line. Two seconds. No title, no tag, no folder, no one to address. That is the whole habit.</p>
+      </div>
+
+      <div class="ways">
+        <div class="way">
+          <div class="how"><b>Words.</b> The page is open at the time of the moment. Return stores the line.</div>
+          <div class="ex"><span class="t">07:48</span><div>No scrolling today. Let's see.</div></div>
+        </div>
+        <div class="way">
+          <div class="how"><b>A photo.</b> Tap the camera. Hold it for your library.</div>
+          <div class="ex"><span class="t">09:15</span><div>Two fig sticks, into a jar for now.<div class="photo sm" aria-hidden="true"></div></div></div>
+        </div>
+        <div class="way">
+          <div class="how"><b>Your voice.</b> Tap the mic. Any language, mixed.</div>
+          <div class="ex"><span class="t">12:41</span><div>Разум тоже технология. Mind is a technology too.<div class="voice"><span class="bars" aria-hidden="true"><i style="--h:5px"></i><i style="--h:10px"></i><i style="--h:14px"></i><i style="--h:8px"></i><i style="--h:12px"></i><i style="--h:6px"></i><i style="--h:9px"></i></span>0:11</div></div></div>
+        </div>
+        <div class="way">
+          <div class="how"><b>A quote.</b> Point the camera at the page. Touch the passage.</div>
+          <div class="ex"><span class="t">21:10</span><div><q>I quote others only in order the better to express myself.</q> Montaigne<div class="photo sm page-shot" aria-hidden="true"><span class="hl"></span></div></div></div>
+        </div>
+        <div class="way">
+          <div class="how"><b>From any app.</b> Share it. It is a line on today.</div>
+          <div class="ex"><span class="t">16:17</span><div>A bottle I have wanted for a while. <span class="quiet">Shared from Photos</span></div></div>
+        </div>
+        <div class="way">
+          <div class="how"><b>On its own.</b> A walk from Health. A booking from Mail. Under their name, for you to keep or drop.</div>
+          <div class="ex"><span class="t">12:20</span><div>Walk, 3.1 km, 41 min <span class="by">Health</span></div></div>
+        </div>
+      </div>
+
+      <p class="quiet">A quote should cost what a marker on the page costs. Every way in is held to that.</p>
+    </div>
+  </section>
+
+  <section class="moment core" id="then">
+    <div class="when">11:02</div>
+    <div class="body stack-lg">
+      <div class="stack">
+        <h2>Meaning comes later.</h2>
+        <p class="lede">You never file. dotto reads afterwards and places the structure where it has earned its place.</p>
+        <p>A label, so lines about one thing find each other. A thread, when a line carries on from an earlier one. A strike through what got done. One line under a question. A reminder when a line says when. Every mark says who left it. One hold takes it back.</p>
+      </div>
+
+      <div class="story first">
+        <div class="page" id="then-demo" aria-label="Marks placed afterwards">
+          <div class="date"><b>Tuesday 3 November</b><span>Three days later</span></div>
+          <div class="line"><span class="t">11:35</span><div class="w">Still in the jar. Roots on one.<div class="marks"><span class="label later d1">nursery</span><span class="thread later d2">carries on from 12 Sep</span></div></div></div>
+          <div class="line"><span class="t">11:39</span><div class="w">When do I repot these?<div class="marks"><span class="label later d1">nursery</span></div><div class="reply later d3"><span class="who">dotto</span><span>When roots show at the drain holes, or the pot dries in a day.</span></div></div></div>
+          <div class="line"><span class="t">16:30</span><div class="w"><span class="done">Pot them this week</span><div class="marks"><span class="thread later d4">done by 6 Nov 09:15</span></div></div></div>
+        </div>
+        <div class="text">
+          <h3>What needs you, in one place.</h3>
+          <p>Most marks need nothing and stay quiet. The few that do gather here. Answer, say no, or leave it.</p>
+          <div class="view inbox" aria-label="Inbox">
+            <div class="item" data-done="Labelled">
+              <div class="what">Eleven lines about cuttings and pots. Label them <span class="label">nursery</span>?<small><span class="who">dotto</span> · this morning</small></div>
+              <div class="acts"><button class="act primary" type="button" data-ok>Yes</button><button class="act" type="button" data-no>Not now</button></div>
+            </div>
+            <div class="item" data-done="Opened">
+              <div class="what">Anna replied under Tuesday's line about the olives.<small><span class="who" style="color:var(--friend)">Anna</span> · 10:52</small></div>
+              <div class="acts"><button class="act" type="button" data-ok>Open</button></div>
+            </div>
+            <div class="item" data-done="Set">
+              <div class="what">"Pot them this week" has a when. Remind you Thursday morning?<small><span class="who">dotto</span> · yesterday</small></div>
+              <div class="acts"><button class="act primary" type="button" data-ok>Yes</button><button class="act" type="button" data-no>No</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="moment core" id="loops">
+    <div class="when">13:30</div>
+    <div class="body stack-lg">
+      <div class="stack">
+        <h2>Say it once. It keeps happening.</h2>
+        <p class="lede">A loop is a sentence in your words, said once. It runs from then on and leaves a receipt each time.</p>
+        <p>No settings screen. No code, unless you want some. Say it under a line or on your page. Change the sentence, the loop changes. Delete it, it is gone.</p>
+      </div>
+
+      <div class="view loops" aria-label="Your loops">
+        <div class="loop"><div class="say">Every walk from Health, as a line.</div><div class="ran"><b>ran 61 times</b> · last today 12:20</div></div>
+        <div class="loop"><div class="say">When a line says when, remind me the day before.</div><div class="ran"><b>ran 9 times</b> · next Monday 18:00</div></div>
+        <div class="loop"><div class="say">If I say no scrolling in the morning, ask Screen Time at night and mark the day.</div><div class="ran"><b>ran 5 times</b> · day 5</div></div>
+        <div class="loop"><div class="say">When I photograph a wine, shelve it and tell me if I have had it before.</div><div class="ran"><b>ran 14 times</b> · last Thursday</div></div>
+        <div class="loop"><div class="say">When an oil line has kilos and litres, keep the yield.</div><div class="ran"><b>ran 2 times</b> · 11.7%, 12.5%</div></div>
+        <div class="loop"><div class="say">A forwarded booking becomes an appointment.</div><div class="ran"><b>ran 3 times</b> · last 13:05</div></div>
+      </div>
+
+      <div class="stack">
+        <h3>Make your own way in.</h3>
+        <p class="quiet">Give the thing you do often its own door. It lands as a line like any other.</p>
+        <div class="mk">
+          <div class="view">
+            <div class="t"><b>A button</b> on the lock screen, the Action button or your watch.</div>
+            <div class="lock" aria-hidden="true"><div class="time">21:46</div><div class="ctrls"><div class="c">Torch</div><div class="c mine">Wine</div><div class="c">Camera</div></div></div>
+          </div>
+          <div class="view">
+            <div class="t"><b>An address.</b> Anything mailed here is a line.</div>
+            <div class="addrbox">nikita@dotto.works</div>
+          </div>
+          <div class="view">
+            <div class="t"><b>A form</b> on your page, for other people. What they send is a line under their name.</div>
+            <div class="form" aria-hidden="true"><div class="f">Car and year</div><div class="f">What is wrong</div><div class="f filled">Book</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="story flip" style="border-top:0;padding-bottom:0">
+        <div class="text">
+          <span class="who">Loops that follow one another</span>
+          <h3>From a harvest to a sale.</h3>
+          <p>Three lines about pressing olives. One sentence: sell the rest to friends. The page is built from the lines. Orders and payments come back as lines. When the last bottle goes, a line says so.</p>
+        </div>
+        <div class="view">
+          <div class="head"><b>Oil, 2026</b><span class="addr">nikita.dotto.works/oil</span></div>
+          <div class="steps">
+            <div class="step"><i class="you"></i><span>"120 kg in, 14 litres out." Three lines like it.<small>you, 18 Oct to 8 Nov</small></span></div>
+            <div class="step"><i class="on"></i><span>Yield kept on each. 11.7%, 12.5%, 13.1%.<small>the oil loop</small></span></div>
+            <div class="step"><i class="you"></i><span>"Sell the rest to friends, €12 a bottle, 24 bottles."<small>you, 9 Nov 18:40</small></span></div>
+            <div class="step"><i class="on"></i><span>A page with the story, the photos, the numbers. A door for orders, a door for payment.<small>the sale loop, 18:41</small></span></div>
+            <div class="step"><i class="on"></i><span>"Anna, 2 bottles, paid." Nine lines like it so far.<small>under their names</small></span></div>
+            <div class="step"><i></i><span>"Sold out."<small>the sale loop, when it happens</small></span></div>
+          </div>
+          <div class="bar" aria-hidden="true"><i style="--w:37%"></i></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="moment" id="things">
+    <div class="when">15:20</div>
+    <div class="body stack-lg">
+      <div class="stack">
+        <h2>Days become things.</h2>
+        <p class="lede">Capture for a while and the shape shows. dotto builds what you turn out to need from the lines you already have, and keeps it current.</p>
+      </div>
+
+      <div class="story first">
+        <div class="text">
+          <span class="who">The nursery</span>
+          <h3>Every plant, as it is now.</h3>
+          <p>Photograph cuttings when you think of it. Months later each plant has a page: its state now, its family, what it needs, and the story from jar to pot. Point the camera at something wild and it joins a second shelf, the one you are still learning.</p>
+        </div>
+        <div class="view">
+          <div class="head"><b>Nursery</b><span>14 plants · 3 new this month</span></div>
+          <div class="plants">
+            <div class="plant"><div class="photo" aria-hidden="true"></div><div class="n">Fig, from a cutting<small>Potted 6 Nov · Ficus carica</small></div></div>
+            <div class="plant"><div class="photo warm" aria-hidden="true"></div><div class="n">Cork oak, two acorns<small>Sown 1 Nov · nothing yet</small></div></div>
+            <div class="plant"><div class="photo" style="background:linear-gradient(135deg,var(--photo-b),var(--photo-a))" aria-hidden="true"></div><div class="n">Apple, from seed<small>Leaves · 2 Nov</small></div></div>
+          </div>
+          <div class="row" style="margin-top:14px"><div class="k">Prickly pear<small>Last seen 4 Nov · wants sun, little water</small></div><div class="v">3 lines</div></div>
+          <div class="row"><div class="k">Gooseberry<small>"Have to try planting it." Not yet.</small></div><div class="v">1 line</div></div>
+        </div>
+      </div>
+
+      <div class="story flip">
+        <div class="text">
+          <span class="who">Reading</span>
+          <h3>A shelf made of what you underlined.</h3>
+          <p>Every quote knows its book. The books become a shelf, with their passages and what you said that evening. Give it an address and friends can follow.</p>
+        </div>
+        <div class="view">
+          <div class="head"><b>Shelf</b><span class="addr">nikita.dotto.works/shelf</span></div>
+          <div class="shelf">
+            <div class="book"><div class="spine" aria-hidden="true"></div><div class="n">Essays<small>Montaigne · 6 quotes</small></div></div>
+            <div class="book"><div class="spine g" aria-hidden="true"></div><div class="n">Geography, III<small>Strabo · reading</small></div></div>
+            <div class="book"><div class="spine d" aria-hidden="true"></div><div class="n">Life and Fate<small>Grossman · next</small></div></div>
+            <div class="book"><div class="spine b" aria-hidden="true"></div><div class="n">Gulliver's Travels<small>Swift · book three</small></div></div>
+          </div>
+          <div class="quote">I quote others only in order the better to express myself.<small>Montaigne, Essays · lifted 5 Nov 21:10</small></div>
+        </div>
+      </div>
+
+      <div class="story">
+        <div class="text">
+          <span class="who">Walks, and the opposite of a streak</span>
+          <h3>Things you did without saying so.</h3>
+          <p>Walks arrive from Health. A streak kept by not doing something has nothing to write, so dotto asks the phone. Say once that today has no scrolling. The days fill in.</p>
+        </div>
+        <div class="view">
+          <div class="head"><b>This week</b><span>Walks 4 · No scrolling, day 5</span></div>
+          <div class="row"><div class="k">Walks<small>Mon 2.1 · Tue 3.4 · Thu 1.9 · Fri 3.1 km</small></div><div class="v">10.5 km</div></div>
+          <div class="row"><div class="k">No scrolling<small>Since Monday's line. Screen Time confirms each evening.</small></div><div class="v ok">day 5</div></div>
+          <div class="streak" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="today"></i><i></i><i></i></div>
+        </div>
+      </div>
+
+      <div class="story flip">
+        <div class="text">
+          <span class="who">A repair shop, somebody else's dotto</span>
+          <h3>Work, captured as it happens.</h3>
+          <p>A customer books through your form. You add a photo. You write done. The loop you said once sends the receipt, tells the customer, and asks for a review a week later.</p>
+        </div>
+        <div class="view">
+          <div class="head"><b>Oficina Rui</b><span class="addr">rui.dotto.works/book</span></div>
+          <div class="form" aria-hidden="true"><div class="f filled">Opel Corsa, 2016</div><div class="f filled">Brakes squeal at low speed</div><div class="f filled">Teresa Ferreira · 91 234 5678</div></div>
+          <div class="steps">
+            <div class="step"><i class="on"></i><span>Booked, by Teresa<small>Mon 09:10 · through the form</small></span></div>
+            <div class="step"><i class="you"></i><span>Photo of the car, front pads worn<small>Mon 09:40 · Rui</small></span></div>
+            <div class="step"><i class="you"></i><span>"Done, €140."<small>Tue 16:20 · Rui</small></span></div>
+            <div class="step"><i class="on"></i><span>Receipt sent, Teresa told.<small>Tue 16:20 · the shop loop</small></span></div>
+            <div class="step"><i></i><span>Ask for a review<small>Tue 23 Nov · the shop loop</small></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="moment" id="yours">
+    <div class="when">19:40</div>
+    <div class="body stack-lg">
+      <div class="stack">
+        <h2>Your words are yours.</h2>
+        <p class="lede">The notebook is a folder in your iCloud. Days as text, photos and voice as files. Readable with dotto gone.</p>
+      </div>
+      <div class="two">
+        <div><h3>One door</h3><p>Everything else enters with a key you gave it and writes in a file of its own. Nobody edits your lines. One hold takes back anything left on them.</p></div>
+        <div><h3>A receipt for every read</h3><p>Who, what, how much, every time. A line's history says who read it. Nothing happens in silence.</p></div>
+      </div>
+      <div class="view logs" aria-label="Logs">
+        <div class="log"><span class="t">09:16</span><div class="w"><b class="h">Health</b> wrote Walk, 3.1 km, 41 min</div></div>
+        <div class="log"><span class="t">11:02</span><div class="w"><b>dotto</b> read 3 days, 41 lines</div></div>
+        <div class="log"><span class="t">11:03</span><div class="w"><b>dotto</b> labelled 2 lines nursery, joined 11:35 to 12 Sep</div></div>
+        <div class="log"><span class="t">11:04</span><div class="w"><b>dotto</b> answered under 11:39</div></div>
+        <div class="log"><span class="t">10:52</span><div class="w"><b class="f">Anna</b> read Tuesday, replied under 14:12</div></div>
+        <div class="log"><span class="t">16:31</span><div class="w"><span class="quiet">You</span> took back a label from 12:28</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="moment" id="door">
+    <div class="when">21:15</div>
+    <div class="body stack-lg">
+      <div class="stack">
+        <h2>Anything can join, through the same door.</h2>
+        <p class="lede">A person, an app, a loop, a program a friend wrote. Each an author with its own colour and page. Add as you go. Remove the same way.</p>
+      </div>
+      <div class="doors" aria-label="Authors">
+        <span class="door"><i style="--c:var(--health)"></i>Health</span>
+        <span class="door"><i style="--c:var(--friend)"></i>Anna</span>
+        <span class="door"><i style="--c:var(--health)"></i>Mail</span>
+        <span class="door"><i style="--c:var(--field)"></i>Calendar and Reminders</span>
+        <span class="door"><i style="--c:var(--muted)"></i>Weather, at the time of a line</span>
+        <span class="door"><i style="--c:var(--moss)"></i>A game server</span>
+        <span class="door"><i style="--c:var(--field)"></i>Payments, for the oil</span>
+        <span class="door"><i style="--c:var(--friend)"></i>Your bank, if you let it</span>
+        <span class="door"><i style="--c:var(--muted)"></i>Something you wrote at midnight</span>
+      </div>
+      <div class="who-list">
+        <div><b>If you read,</b> the shelf builds itself.</div>
+        <div><b>If you grow things,</b> every plant has a page you never wrote.</div>
+        <div><b>If you run a small shop,</b> the follow-up runs on its own.</div>
+        <div><b>If you just want to remember your days,</b> write them down. That is enough.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="moment core colophon" id="start">
+    <div class="when">22:00</div>
+    <div class="body stack-lg">
+      <div class="stack">
+        <h2>This page is a thing dotto made.</h2>
+        <p class="lede">It began as lines in one notebook: a farm, a nursery, a shelf, a repair shop, a name. Then one sentence: make a page that says what this is. You just read the result.</p>
+        <div class="made">dotto works<span class="sq" aria-hidden="true"></span></div>
+      </div>
+      <div class="cta">
+        <a class="btn" href="#top"><span class="sq" aria-hidden="true"></span>Get dotto for iPhone</a>
+        <a class="link" href="#yours">How the folder is laid out</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="row2">
+      <a class="wordmark small" href="#top" aria-label="dotto">dotto<span class="sq" aria-hidden="true"></span></a>
+      <span>iPhone and Mac · November 2026</span>
+    </div>
+    <p>Shown as meant to be. On 6 November 2026 the page, camera, voice, quotes, the door, labels, threads, replies, receipts and pushes exist. Loops, the inbox, your own ways in, the shelves, the sale, the shop, and a page like this one made by dotto are next.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // The date in the demo page, today's.
+  try {
+    var d = new Date();
+    var el = document.getElementById('demo-date');
+    if (el) el.textContent = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  } catch (e) {}
+
+  // The time in the margin, live, as in the app.
+  var clock = document.getElementById('clock');
+  function tick() {
+    var n = new Date();
+    clock.textContent = String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0');
+  }
+  tick(); setInterval(tick, 1000);
+
+  // The live line types a line, Return stores it, a label appears afterwards.
+  var typed = document.getElementById('typed');
+  var marks = document.getElementById('demo-marks');
+  var lines = [
+    { text: 'Leaves on both sticks. Into pots tonight.', mark: 'nursery' },
+    { text: 'Rain from Saturday. Pick what we can before.', mark: 'terreno' },
+    { text: 'Anna says: no wine tonight.', mark: null }
+  ];
+  var i = 0;
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  async function run() {
+    while (true) {
+      var l = lines[i % lines.length]; i++;
+      typed.textContent = '';
+      await wait(1400);
+      for (var c = 0; c < l.text.length; c++) {
+        typed.textContent += l.text[c];
+        await wait(l.text[c] === ' ' ? 90 : 38 + Math.random() * 40);
+      }
+      await wait(900);
+      var page = document.getElementById('demo');
+      var live = page.querySelector('.live');
+      var row = document.createElement('div');
+      row.className = 'line appear';
+      row.innerHTML = '<span class="t">' + clock.textContent + '</span><div class="w"></div>';
+      row.querySelector('.w').textContent = l.text;
+      page.insertBefore(row, live);
+      typed.textContent = '';
+      var stored = page.querySelectorAll('.line');
+      if (stored.length > 4) page.removeChild(stored[0]);
+      if (l.mark) {
+        await wait(2200);
+        var m = document.createElement('div');
+        m.className = 'marks';
+        m.innerHTML = '<span class="label appear">' + l.mark + '</span>';
+        row.querySelector('.w').appendChild(m);
+      }
+      await wait(4200);
+    }
+  }
+  if (reduce) {
+    typed.textContent = lines[0].text;
+    marks.innerHTML = '<span class="label">' + lines[0].mark + '</span>';
+  } else {
+    run();
+  }
+
+  // Marks in the second demo appear once it scrolls into view.
+  var then = document.getElementById('then-demo');
+  if (then && !reduce && 'IntersectionObserver' in window) {
+    then.classList.add('armed');
+    var io = new IntersectionObserver(function (entries) {
+      if (entries.some(function (e) { return e.isIntersecting; })) {
+        then.classList.add('go');
+        io.disconnect();
+      }
+    }, { threshold: 0.4 });
+    io.observe(then);
+  }
+
+  // The inbox buttons settle an item.
+  Array.prototype.forEach.call(document.querySelectorAll('.inbox .item'), function (item) {
+    Array.prototype.forEach.call(item.querySelectorAll('.act'), function (b) {
+      b.addEventListener('click', function () {
+        if (b.hasAttribute('data-no')) item.setAttribute('data-done', 'Left for now');
+        item.classList.add('done');
+      });
+    });
+  });
+})();
+</script>
