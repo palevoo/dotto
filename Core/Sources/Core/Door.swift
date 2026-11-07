@@ -507,10 +507,22 @@ public struct DoorRouter: Sendable {
         else {
             return HTTPResponse(status: 401, text: "No grant for that key.")
         }
-        let door = Door(store: store, grant: grant, calendar: calendar, written: written)
+        // One grant, several hands: the same author may come through from a session at the
+        // keyboard or from the reader, and says which with a header, so Logs can tell them apart.
+        var hand = grant
+        if let device = request.headers["margin-device"].map(Self.deviceName), !device.isEmpty {
+            hand.device = DeviceID(rawValue: device)
+        }
+        let door = Door(store: store, grant: hand, calendar: calendar, written: written)
         if let body = door.handle(request.body) {
             return HTTPResponse(status: 200, json: body)
         }
         return HTTPResponse(status: 202, text: "")
+    }
+
+    /// Letters, digits and dashes, lower-case, at most 32: a device name fit for a file name.
+    static func deviceName(_ raw: String) -> String {
+        let slug = raw.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "-" }
+        return String(String(slug).split(separator: "-", omittingEmptySubsequences: true).joined(separator: "-").prefix(32))
     }
 }

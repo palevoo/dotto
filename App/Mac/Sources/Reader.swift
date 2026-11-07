@@ -178,8 +178,9 @@ struct Session: Sendable {
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workDir) }
 
+        // The same grant as a session at the keyboard; the header says this hand is the reader.
         let servers: [String: Any] = ["mcpServers": ["margin": [
-            "type": "http", "url": door, "headers": ["Authorization": "Bearer \(grant.key)"],
+            "type": "http", "url": door, "headers": ["Authorization": "Bearer \(grant.key)", "Margin-Device": "reader"],
         ]]]
         let mcpConfig = workDir.appendingPathComponent("door.json")
         guard let json = try? JSONSerialization.data(withJSONObject: servers), (try? json.write(to: mcpConfig)) != nil else {

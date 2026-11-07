@@ -7,7 +7,7 @@ struct GrantsView: View {
     @Bindable var model: MacModel
     @State private var newName = "Claude Code"
     @State private var copied: ULID?
-    @State private var readerAuthor: Author?
+    @State private var readerGrantID: ULID?
     @State private var openRuns: Set<ULID> = []
 
     var body: some View {
@@ -247,24 +247,24 @@ struct GrantsView: View {
                     }
                 }
             } else {
-                Text("Wakes when something lands in the notebook and runs one Claude Code session through the door, with the door as its only tool, then stops. Runs inside this app while it is open, as the author of a grant below, so it is the same being as a session started by hand; Logs say which hand.")
+                Text("Wakes when something lands in the notebook and runs one Claude Code session through the door, with the door as its only tool, then stops. Runs inside this app while it is open, under one of the grants above, the same key and author as a session started by hand; Logs say which hand.")
                     .font(MacTheme.body)
                     .foregroundStyle(MacTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
-                if model.readerCandidates.isEmpty {
+                if model.grants.isEmpty {
                     Text("Make a grant first.")
                         .font(MacTheme.mono)
                         .foregroundStyle(MacTheme.faint)
                 } else {
                     HStack(spacing: 8) {
-                        Picker("As", selection: $readerAuthor) {
-                            ForEach(model.readerCandidates) { grant in
-                                Text(grant.name).tag(Optional(grant.author))
+                        Picker("As", selection: $readerGrantID) {
+                            ForEach(model.grants) { grant in
+                                Text(grant.name).tag(Optional(grant.id))
                             }
                         }
                         .frame(maxWidth: 220)
                         Button("Turn On") {
-                            if let author = readerAuthor ?? model.readerCandidates.first?.author { model.turnReaderOn(as: author) }
+                            if let grant = model.grants.first(where: { $0.id == readerGrantID }) ?? model.grants.first { model.turnReaderOn(as: grant) }
                         }
                         .controlSize(.small)
                         .disabled(model.folderURL == nil)

@@ -46,6 +46,7 @@ final class MacModel {
     private let bookmarkKey = "margin.folder.bookmark"
     private let ownerKey = "margin.owner"
     private let readerOnKey = "margin.reader.on"
+    private let readerGrantKey = "margin.reader.grant"
     private let shared = DoorState()
     private let pusher = Pusher()
     private var server: DoorServer?
@@ -233,6 +234,7 @@ final class MacModel {
     }
 
     func revoke(_ grant: Grant) {
+        if readerGrant?.id == grant.id { turnReaderOff() }
         grants.removeAll { $0.id == grant.id }
         saveGrants()
     }
@@ -245,7 +247,7 @@ final class MacModel {
     private func loadGrants() {
         guard let data = try? Data(contentsOf: grantsURL),
               let loaded = try? JSONLines.decoder().decode([Grant].self, from: data) else { return }
-        grants = loaded.map { grant in
+        grants = loaded.filter { $0.device != "reader" }.map { grant in
             // Grants made before the name travelled as the device.
             guard grant.device == "mac-door" else { return grant }
             var fixed = grant
@@ -356,36 +358,27 @@ final class MacModel {
 
     // MARK: - The reader
 
-    static let readerGrantName = "Reader"
-
     private var supportDirectory: URL {
         grantsURL.deletingLastPathComponent()
     }
     private var readerRunsURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.runs, isDirectory: true) }
     var readerLogURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.log) }
 
-    /// The grant the reader acts under: the same author as the hand sessions, so it is one
-    /// being with two hands, told apart in Logs by the device stamp.
+    /// The grant the reader acts under: one of the rows above, the same key and author as a
+    /// session at the keyboard. It is one being with two hands; Logs tell them apart by the
+    /// device stamp the reader sends.
     var readerGrant: Grant? {
-        grants.first { $0.name == Self.readerGrantName }
-    }
-
-    /// The authors the reader could act as: every grant that is not itself.
-    var readerCandidates: [Grant] {
-        grants.filter { $0.name != Self.readerGrantName }
+        guard let raw = UserDefaults.standard.string(forKey: readerGrantKey) else { return nil }
+        return grants.first { $0.id.string == raw }
     }
 
     var readerStatus: ReaderStatus? { _ = readerTick; return reader?.status }
     var readerRuns: [ReaderRun] { _ = readerTick; return reader?.runs ?? [] }
 
-    /// Switches the reader on as one of the grants' authors: a grant of its own with the
-    /// same author and the device "reader", and the runner inside this app, which looks
-    /// at once and whenever the folder changes from then on.
-    func turnReaderOn(as author: Author) {
-        if readerGrant == nil {
-            grants.append(Grant(name: Self.readerGrantName, author: author, device: "reader"))
-            saveGrants()
-        }
+    /// Switches the reader on under one of the grants: the runner inside this app, which
+    /// looks at once and whenever the folder changes from then on.
+    func turnReaderOn(as grant: Grant) {
+        UserDefaults.standard.set(grant.id.string, forKey: readerGrantKey)
         UserDefaults.standard.set(true, forKey: readerOnKey)
         startReader()
     }
@@ -393,7 +386,6 @@ final class MacModel {
     func turnReaderOff() {
         UserDefaults.standard.set(false, forKey: readerOnKey)
         reader = nil
-        if let grant = readerGrant { revoke(grant) }
         readerTick += 1
     }
 

@@ -80,7 +80,8 @@ row in its window: who, what they may do. Tools: `whats_new`, `read_days`, `list
 `read_photo`, `add_note`, `set_label`, `link_lines`, `write_line`, `edit_line`,
 `delete_line`, `choose_name`. Writes land in the grant's own event file; no grant can touch
 your lines, and a grant changes or deletes only lines it wrote. Revoke the row and the key
-is gone.
+is gone. A request may add a `Margin-Device` header to say which hand of the same grant it
+is, as the reader does; the stamp shows in Logs and in a line's History.
 
 `whats_new` is the inbox: what happened since the grant last looked, replies first, then
 new lines, lines changed, marks taken back, names chosen. Each look is a receipt that
@@ -126,9 +127,9 @@ to Apple. Marks stay silent: labels and links are for the page, not the pocket.
 ## The reader
 
 The author that wakes on its own, run by the Mac app itself (`App/Mac/Sources/Reader.swift`).
-Turn it on in the Mac window, as the author of one of the grants: it gets a grant of its own
-with the same author and the device `reader`, so it is the same being as a session started
-by hand, and Logs say which hand. The app is open anyway, since it is the door, and it
+Turn it on in the Mac window under one of the grants: it uses that grant's key and author, so
+it is the same being as a session started by hand, and it sends the header `Margin-Device:
+reader` so Logs say which hand. The app is open anyway, since it is the door, and it
 already watches the folder; when something lands that the reader's grant has not seen, it
 runs one headless session of the `claude` command you already pay for: the door as its only
 server, every built-in tool off, no settings and no project in reach, the door's conduct as

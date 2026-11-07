@@ -62,6 +62,24 @@ final class DoorTests: XCTestCase {
         XCTAssertTrue(conduct.contains("You have no name yet"))
     }
 
+    func testTheSameGrantFromAnotherHand() throws {
+        let router = DoorRouter(calendar: utc, resolve: { [store, grant] key in key == grant!.key ? (store!, grant!) : nil })
+        func call(_ headers: [String: String]) -> Int {
+            let request: [String: Any] = ["jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                          "params": ["name": "write_line", "arguments": ["text": "A line"]]]
+            let body = try! JSONSerialization.data(withJSONObject: request)
+            return router.respond(HTTPRequest(method: "POST", path: "/mcp", headers: headers, body: body)).status
+        }
+        XCTAssertEqual(call(["authorization": "Bearer \(grant.key)"]), 200)
+        XCTAssertEqual(call(["authorization": "Bearer \(grant.key)", "margin-device": "The Reader!"]), 200)
+        XCTAssertEqual(call(["authorization": "Bearer nope", "margin-device": "reader"]), 401)
+        let notebook = try store.load()
+        let devices = notebook.entries(of: .weeju).map(\.id).compactMap { id in
+            try! store.loadEvents().first { $0.id == id }?.device.rawValue
+        }
+        XCTAssertEqual(Set(devices), ["mac-door", "the-reader"])
+    }
+
     func testOwnPageAndChosenName() throws {
         let written = text(try rpc("tools/call", ["name": "write_line", "arguments": ["text": "The yield went from 11% to 12.5%."]]))
         XCTAssertTrue(written.hasPrefix("Written on your page as "))
