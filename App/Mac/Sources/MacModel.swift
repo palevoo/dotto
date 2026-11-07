@@ -54,12 +54,58 @@ final class MacModel {
     private var summaryTask: Task<Void, Never>?
 
     init() {
+        carryOverFromSandbox()
         loadGrants()
         restoreFolder()
         if UserDefaults.standard.bool(forKey: readerOnKey), readerGrant != nil { startReader() }
         Task {
             await pusher.use(pushKey)
             await openDoor()
+        }
+    }
+
+    // MARK: - What the sandboxed app kept
+
+    /// The app used to run sandboxed, and kept its grants, its folder choice and the reader's
+    /// records inside its container. Without the sandbox it keeps them in the ordinary places,
+    /// so on launch anything still only in the container is brought over: grants the new list
+    /// lacks are added, keys and author ids intact; the folder choice and names are taken
+    /// when none is set here; the reader's log and runs are copied when absent. Nothing in
+    /// the container is removed.
+    private func carryOverFromSandbox() {
+        let container = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Containers/social.interface.margin.mac/Data", isDirectory: true)
+        let oldSupport = container.appendingPathComponent("Library/Application Support/Margin", isDirectory: true)
+        let oldPrefs = container.appendingPathComponent("Library/Preferences/social.interface.margin.mac.plist")
+        guard FileManager.default.fileExists(atPath: oldSupport.path) || FileManager.default.fileExists(atPath: oldPrefs.path) else { return }
+
+        // Grants: a union by id, the old ones after the new.
+        let oldGrantsURL = oldSupport.appendingPathComponent("grants.json")
+        if let data = try? Data(contentsOf: oldGrantsURL), let old = try? JSONLines.decoder().decode([Grant].self, from: data) {
+            let current = (try? Data(contentsOf: grantsURL)).flatMap { try? JSONLines.decoder().decode([Grant].self, from: $0) } ?? []
+            let missing = old.filter { grant in !current.contains { $0.id == grant.id } }
+            if !missing.isEmpty {
+                let encoder = JSONLines.encoder()
+                encoder.outputFormatting.insert(.prettyPrinted)
+                try? encoder.encode(current + missing).write(to: grantsURL, options: [.atomic, .completeFileProtection])
+            }
+        }
+
+        // The reader's trail, when there is none here yet.
+        for name in [ReaderFiles.log, ReaderFiles.runs] {
+            let from = oldSupport.appendingPathComponent(name)
+            let to = grantsURL.deletingLastPathComponent().appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: from.path), !FileManager.default.fileExists(atPath: to.path) {
+                try? FileManager.default.copyItem(at: from, to: to)
+            }
+        }
+
+        // The folder choice and the owner id, when none is set here.
+        if let prefs = NSDictionary(contentsOf: oldPrefs) as? [String: Any] {
+            let defaults = UserDefaults.standard
+            for key in [bookmarkKey, ownerKey, "margin.reader.model"] where defaults.object(forKey: key) == nil {
+                if let value = prefs[key] { defaults.set(value, forKey: key) }
+            }
         }
     }
 
