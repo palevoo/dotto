@@ -160,7 +160,8 @@ public enum Inbox {
                         what: "is called \(name) now", text: "", about: nil,
                         asks: false, answered: false, unread: fresh))
 
-                case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .visit:
+                case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .visit,
+                     .grantCreate, .grantRevoke:
                     continue
                 }
             }
@@ -261,7 +262,7 @@ public enum Inbox {
                 marks.append("\(who(event.author)) linked \(p.later) back to \(p.earlier)\(p.closes ? ", closing it" : "")")
             case .nameSet(let p):
                 names.append("\(event.author) is called \(p.name) now")
-            case .visit:
+            case .visit, .grantCreate, .grantRevoke:
                 continue
             }
         }

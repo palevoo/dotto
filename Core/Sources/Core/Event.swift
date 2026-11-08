@@ -65,6 +65,8 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case linkRemove = "link.remove"
     case visit = "visit"
     case nameSet = "name.set"
+    case grantCreate = "grant.create"
+    case grantRevoke = "grant.revoke"
 }
 
 /// What happened. One case per kind, each with a fixed shape.
@@ -82,6 +84,8 @@ public enum Payload: Hashable, Sendable {
     case linkRemove(LinkRemove)
     case visit(Visit)
     case nameSet(NameSet)
+    case grantCreate(GrantCreate)
+    case grantRevoke(GrantRevoke)
 
     public var kind: Kind {
         switch self {
@@ -98,7 +102,47 @@ public enum Payload: Hashable, Sendable {
         case .linkRemove: .linkRemove
         case .visit: .visit
         case .nameSet: .nameSet
+        case .grantCreate: .grantCreate
+        case .grantRevoke: .grantRevoke
         }
+    }
+
+    /// The owner opens the door to someone: one key for an author. The author is the
+    /// identity; a grant is a key for it, and an author may hold several over time. The key
+    /// itself is never written here, only its SHA-256, so any device holding the folder can
+    /// recognise the key without being able to use it. Only the owner's grant events count.
+    public struct GrantCreate: Hashable, Codable, Sendable {
+        public var grant: ULID
+        public var author: Author
+        /// Who the key was handed to, in the owner's words: "Claude Code", "Grok".
+        public var name: String
+        /// What the author's events say they came through, when the hand does not say.
+        public var device: DeviceID
+        /// SHA-256 of the key, lower-case hex.
+        public var keyHash: String
+        /// What the key may write: notes, labels, links, lines. Reading is always allowed.
+        public var may: [String]
+
+        public init(grant: ULID, author: Author, name: String, device: DeviceID, keyHash: String, may: [String]) {
+            self.grant = grant
+            self.author = author
+            self.name = name
+            self.device = device
+            self.keyHash = keyHash
+            self.may = may
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case grant, author, name, device, may
+            case keyHash = "hash"
+        }
+    }
+
+    /// The owner closes a grant. The key stops opening the door; the author's events stay.
+    public struct GrantRevoke: Hashable, Codable, Sendable {
+        public var grant: ULID
+
+        public init(grant: ULID) { self.grant = grant }
     }
 
     /// An author chooses what they are called. Nobody has a name until they choose one;
@@ -339,6 +383,8 @@ extension Event: Codable {
         case .linkRemove: .linkRemove(try container.decode(Payload.LinkRemove.self, forKey: .payload))
         case .visit: .visit(try container.decode(Payload.Visit.self, forKey: .payload))
         case .nameSet: .nameSet(try container.decode(Payload.NameSet.self, forKey: .payload))
+        case .grantCreate: .grantCreate(try container.decode(Payload.GrantCreate.self, forKey: .payload))
+        case .grantRevoke: .grantRevoke(try container.decode(Payload.GrantRevoke.self, forKey: .payload))
         }
     }
 
@@ -363,6 +409,8 @@ extension Event: Codable {
         case .linkRemove(let p): try container.encode(p, forKey: .payload)
         case .visit(let p): try container.encode(p, forKey: .payload)
         case .nameSet(let p): try container.encode(p, forKey: .payload)
+        case .grantCreate(let p): try container.encode(p, forKey: .payload)
+        case .grantRevoke(let p): try container.encode(p, forKey: .payload)
         }
     }
 }

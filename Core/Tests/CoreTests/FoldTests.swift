@@ -38,6 +38,45 @@ final class FoldTests: XCTestCase {
         XCTAssertEqual(notebook.eventCount, 3)
     }
 
+    func testOnlyTheOwnerOpensTheDoor() {
+        var notebook = Notebook(owner: me)
+        let claude = Grant(name: "Claude Code", author: "a1b2c3", device: "claude-code")
+        let grok = Grant(name: "Grok", author: "d4e5f6", device: "grok", writesLines: false)
+
+        // A grant someone else writes is nothing, and does not make them an author.
+        notebook.apply(event(.grantCreate(claude.create), author: "stranger", device: "x"))
+        XCTAssertEqual(notebook.grants, [])
+        XCTAssertEqual(notebook.others, [])
+
+        // The owner's grants open the door, oldest first, with the key left out.
+        notebook.apply(event(.grantCreate(claude.create), device: mac))
+        notebook.apply(event(.grantCreate(grok.create), device: mac))
+        XCTAssertEqual(notebook.grants.map(\.name), ["Claude Code", "Grok"])
+        XCTAssertEqual(notebook.grants.map(\.key), ["", ""])
+        XCTAssertEqual(notebook.grants.last?.scopes, "read all · write notes · write labels · write links")
+
+        // A key is recognised by its hash and handed back whole; a wrong key opens nothing.
+        let opened = notebook.grant(forKey: claude.key)
+        XCTAssertEqual(opened?.id, claude.id)
+        XCTAssertEqual(opened?.author, "a1b2c3")
+        XCTAssertEqual(opened?.key, claude.key)
+        XCTAssertNil(notebook.grant(forKey: "nope"))
+
+        // Revoked, the key stops opening the door; the grant stays in the record.
+        notebook.apply(event(.grantRevoke(.init(grant: claude.id)), device: mac))
+        XCTAssertNil(notebook.grant(forKey: claude.key))
+        XCTAssertEqual(notebook.grants.map(\.name), ["Grok"])
+        XCTAssertEqual(notebook.allGrants.map(\.name), ["Claude Code", "Grok"])
+
+        // A revoke that arrives before its grant still counts; a second opening of the same id changes nothing.
+        let late = Grant(name: "Late", author: "g7h8i9", device: "late")
+        notebook.apply(event(.grantRevoke(.init(grant: late.id)), device: mac))
+        notebook.apply(event(.grantCreate(late.create), device: mac))
+        XCTAssertEqual(notebook.grants.map(\.name), ["Grok"])
+        notebook.apply(event(.grantCreate(grok.create), device: mac))
+        XCTAssertEqual(notebook.grants.count, 1)
+    }
+
     func testALineBelongsToWhoeverWroteIt() {
         let id = ULID()
         var notebook = Notebook(owner: me)

@@ -371,5 +371,40 @@ final class DoorTests: XCTestCase {
         XCTAssertEqual(a.count, 43)
         XCTAssertNotEqual(a, b)
         XCTAssertFalse(a.contains("+") || a.contains("/") || a.contains("="))
+        XCTAssertEqual(Grant.hash(a).count, 64)
+        XCTAssertNotEqual(Grant.hash(a), Grant.hash(b))
+        XCTAssertEqual(Grant.device(for: "Claude Code"), "claude-code")
+        XCTAssertEqual(Grant.device(for: "!!"), "door")
+    }
+
+    /// The grants are the owner's events in the folder, so the door is opened by the fold:
+    /// the key's hash finds the grant, and the author on every event is the grant's.
+    func testTheDoorOpensOnAGrantInTheNotebook() throws {
+        let opened = Grant(name: "Claude Code", author: "a1b2c3", device: "claude-code")
+        let revoked = Grant(name: "Old", author: "a1b2c3", device: "old")
+        for grant in [opened, revoked] {
+            try store.append(Event(id: generator.next(), author: "me", device: "mac", at: Date(), payload: .grantCreate(grant.create)))
+        }
+        try store.append(Event(id: generator.next(), author: "me", device: "mac", at: Date(), payload: .grantRevoke(.init(grant: revoked.id))))
+
+        let router = DoorRouter(calendar: utc) { [store] key in
+            (try? store!.load().grant(forKey: key)).map { (store!, $0) }
+        }
+        func call(_ key: String) -> HTTPResponse {
+            let request: [String: Any] = ["jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                                          "params": ["name": "write_line", "arguments": ["text": "A line"]]]
+            return router.respond(HTTPRequest(method: "POST", path: "/mcp", headers: ["authorization": "Bearer \(key)"], body: try! JSONSerialization.data(withJSONObject: request)))
+        }
+        XCTAssertEqual(call(opened.key).status, 200)
+        XCTAssertEqual(call(revoked.key).status, 401)
+        XCTAssertEqual(call("").status, 401)
+
+        let notebook = try store.load()
+        XCTAssertEqual(notebook.entries(of: "a1b2c3").count, 1)
+        XCTAssertEqual(try store.eventFiles().map(\.lastPathComponent), ["a1b2c3.claude-code.jsonl", "me.iphone.jsonl", "me.mac.jsonl"])
+        // The hash is in the folder; the key is not.
+        let text = try String(contentsOf: store.eventFile(author: "me", device: "mac"), encoding: .utf8)
+        XCTAssertTrue(text.contains(opened.keyHash))
+        XCTAssertFalse(text.contains(opened.key))
     }
 }

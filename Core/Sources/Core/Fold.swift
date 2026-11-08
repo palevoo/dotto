@@ -192,10 +192,19 @@ public struct Notebook: Sendable {
     private var names: [Author: NameMark] = [:]
     /// Everyone other than the owner who has left anything, in order of first appearance.
     public private(set) var others: [Author] = []
+    /// Every grant the owner has opened, by id, revoked or not.
+    private var grantMarks: [ULID: GrantMark] = [:]
+    /// Grants revoked before their opening was seen.
+    private var revokedGrants: Set<ULID> = []
 
     private struct NameMark: Hashable, Sendable {
         let id: ULID
         let name: String
+    }
+
+    private struct GrantMark: Hashable, Sendable {
+        let grant: Grant
+        var revoked: Bool
     }
     private var noteToEntry: [ULID: ULID] = [:]
     private var removedNotes: Set<ULID> = []
@@ -241,6 +250,8 @@ public struct Notebook: Sendable {
         guard !seen.contains(event.id) else { return }
         seen.insert(event.id)
         eventCount += 1
+        // Only the owner opens or closes the door. Anyone else's grant event is nothing.
+        if event.kind == .grantCreate || event.kind == .grantRevoke, event.author != owner { return }
         if event.author != owner, !others.contains(event.author) { others.append(event.author) }
 
         switch event.payload {
@@ -314,7 +325,34 @@ public struct Notebook: Sendable {
                 names[event.author] = NameMark(id: event.id, name: name)
             }
             if event.author != owner { trace(event, "chose the name \(name)", entry: nil) }
+
+        case .grantCreate(let p):
+            guard grantMarks[p.grant] == nil else { return }
+            grantMarks[p.grant] = GrantMark(grant: Grant(p, createdAt: event.at), revoked: revokedGrants.contains(p.grant))
+
+        case .grantRevoke(let p):
+            revokedGrants.insert(p.grant)
+            grantMarks[p.grant]?.revoked = true
         }
+    }
+
+    /// The grants that open the door today, oldest first. Keys are not in the notebook;
+    /// whoever holds one fills it in.
+    public var grants: [Grant] {
+        grantMarks.values.filter { !$0.revoked }.map(\.grant).sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+    }
+
+    /// Every grant the owner ever opened, revoked ones included, oldest first.
+    public var allGrants: [Grant] {
+        grantMarks.values.map(\.grant).sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+    }
+
+    /// The open grant a key belongs to, with the key filled in. Nil means the door stays shut.
+    public func grant(forKey key: String) -> Grant? {
+        let hash = Grant.hash(key)
+        guard var grant = grants.first(where: { $0.keyHash == hash }) else { return nil }
+        grant.key = key
+        return grant
     }
 
     /// What an author is called, if they have chosen. Nobody is called anything until then.
@@ -459,7 +497,7 @@ public struct Notebook: Sendable {
                 note(&entry, event, "took #\(label) off")
             }
 
-        case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .visit, .nameSet:
+        case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .visit, .nameSet, .grantCreate, .grantRevoke:
             break
         }
     }

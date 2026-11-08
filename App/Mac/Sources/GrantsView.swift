@@ -6,6 +6,8 @@ import SwiftUI
 struct GrantsView: View {
     @Bindable var model: MacModel
     @State private var newName = "Claude Code"
+    /// Who the new key is for: nil for a new author.
+    @State private var newAuthor: Author?
     @State private var copied: ULID?
     @State private var readerGrantID: ULID?
     @State private var openRuns: Set<ULID> = []
@@ -105,23 +107,40 @@ struct GrantsView: View {
                     .foregroundStyle(MacTheme.muted)
             }
             ForEach(model.grants) { grant in
-                GrantCard(grant: grant, name: model.notebook?.name(of: grant.author), command: model.connectCommand(for: grant), copied: copied == grant.id) {
+                GrantCard(grant: grant, name: model.notebook?.name(of: grant.author), command: model.connectCommand(for: grant), copied: copied == grant.id,
+                          others: model.authors.filter { $0 != grant.author }.map { ($0, model.name(of: $0)) }) {
+                    guard let command = model.connectCommand(for: grant) else { return }
                     NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(model.connectCommand(for: grant), forType: .string)
+                    NSPasteboard.general.setString(command, forType: .string)
                     copied = grant.id
                 } onRevoke: {
                     model.revoke(grant)
+                } onReassign: { author in
+                    model.reassign(grant, to: author)
+                } onReissue: {
+                    model.reissue(grant)
                 }
             }
             HStack(spacing: 8) {
                 TextField("Who gets a key", text: $newName)
                     .textFieldStyle(.roundedBorder)
+                Picker("as", selection: $newAuthor) {
+                    Text("a new author").tag(Optional<Author>.none)
+                    ForEach(model.authors, id: \.self) { author in
+                        Text(model.name(of: author)).tag(Optional(author))
+                    }
+                }
+                .frame(maxWidth: 220)
                 Button("Add Grant") {
-                    model.addGrant(name: newName)
+                    model.addGrant(name: newName, as: newAuthor)
                 }
                 .disabled(model.store == nil)
             }
             .padding(.top, 6)
+            Text("A grant is a key for an author. A new author starts with a fresh id and no name; an author who has already written can be handed another key and stays the same being. Grants are your events in the notebook; only the key stays on this Mac.")
+                .font(MacTheme.mono)
+                .foregroundStyle(MacTheme.faint)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -430,10 +449,15 @@ struct GrantCard: View {
     let grant: Grant
     /// What the grant's author has chosen to be called, if anything yet.
     let name: String?
-    let command: String
+    /// The connect command, or nil when this Mac does not hold the key.
+    let command: String?
     let copied: Bool
+    /// The other authors this key could be handed to instead, with what they are called.
+    let others: [(Author, String)]
     let onCopy: () -> Void
     let onRevoke: () -> Void
+    let onReassign: (Author) -> Void
+    let onReissue: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -449,31 +473,54 @@ struct GrantCard: View {
                 MacTheme.square(8)
                     .fill(MacTheme.ink(for: grant.author, owner: nil))
                     .frame(width: 8, height: 8)
-                Text(name.map { "called \($0)" } ?? "no name yet · id \(grant.author.rawValue)")
-                    .font(MacTheme.mono)
-                    .foregroundStyle(MacTheme.muted)
+                // The author this key is for. The menu hands the same key to another author instead.
+                Menu {
+                    ForEach(others, id: \.0) { author, called in
+                        Button("Same author as \(called)") { onReassign(author) }
+                    }
+                    if others.isEmpty {
+                        Text("No other author has written yet.")
+                    }
+                } label: {
+                    Text(name.map { "called \($0)" } ?? "no name yet · id \(grant.author.rawValue)")
+                        .font(MacTheme.mono)
+                        .foregroundStyle(MacTheme.muted)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
                 Text("·")
                     .foregroundStyle(MacTheme.faint)
                 Text(grant.scopes)
                     .font(MacTheme.mono)
                     .foregroundStyle(MacTheme.muted)
             }
-            HStack(alignment: .top, spacing: 8) {
-                Text(command)
+            if let command {
+                HStack(alignment: .top, spacing: 8) {
+                    Text(command)
+                        .font(MacTheme.mono)
+                        .foregroundStyle(MacTheme.foreground)
+                        .textSelection(.enabled)
+                        .lineLimit(3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Button(copied ? "Copied" : "Copy", action: onCopy)
+                        .controlSize(.small)
+                }
+                .padding(10)
+                .background(MacTheme.square(14).fill(MacTheme.paper))
+                .overlay(MacTheme.square(14).strokeBorder(MacTheme.line, lineWidth: 1))
+                Text("Run this once in a terminal. Claude Code then reaches your notebook through this door, with this key.")
                     .font(MacTheme.mono)
-                    .foregroundStyle(MacTheme.foreground)
-                    .textSelection(.enabled)
-                    .lineLimit(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Button(copied ? "Copied" : "Copy", action: onCopy)
-                    .controlSize(.small)
+                    .foregroundStyle(MacTheme.muted)
+            } else {
+                HStack(spacing: 8) {
+                    Text("The key is not on this Mac; the notebook holds only its hash. Whoever has the key still gets in.")
+                        .font(MacTheme.mono)
+                        .foregroundStyle(MacTheme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("New Key", action: onReissue)
+                        .controlSize(.small)
+                }
             }
-            .padding(10)
-            .background(MacTheme.square(14).fill(MacTheme.paper))
-            .overlay(MacTheme.square(14).strokeBorder(MacTheme.line, lineWidth: 1))
-            Text("Run this once in a terminal. Claude Code then reaches your notebook through this door, with this key.")
-                .font(MacTheme.mono)
-                .foregroundStyle(MacTheme.muted)
         }
         .padding(.bottom, 6)
     }

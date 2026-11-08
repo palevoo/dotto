@@ -27,7 +27,8 @@ In: the Core package (events, fold, file store, day projector, the door, pushes,
 the iPhone app (page, pinned date and calendar, live line, photo, voice, replies, Setup,
 Logs, other authors' pages), and a Mac app that is the grant holder: reads the one folder
 you pick (a promise of the code, not the sandbox, which it gave up to run the claude command),
-shows the grants, serves the door (MCP over localhost, one key per grant), holds the push
+writes the owner's grants into the notebook and keeps their keys in its keychain, serves the
+door (MCP over localhost, a key opens the grant the fold says it belongs to), holds the push
 key, and runs the reader: one headless claude session through the door when something lands
 that the reader's grant has not seen. Labels, links, notes and own lines through the door.
 SQLite as a derived index only when the in-memory fold gets slow.
@@ -67,9 +68,17 @@ Kinds, as built:
     visit          {what, since?, label?, count, …}  a receipt for a read through the door, or
                                                      the owner's look at their inbox (what: inbox)
     name.set       {name}                            what its author is called from now on
+    grant.create   {grant, author, name, device,     the owner hands a key to an author; the
+                    hash, may}                       notebook keeps the key's SHA-256, never the key
+    grant.revoke   {grant}                           the key stops opening the door
 
-Sketched, not built: `media.caption`, `place.resolve` (someone names the coordinates),
-`grant.create` and `grant.revoke` as events (today grants are a file the Mac keeps), and a
+Grants are the owner's events, so every device holding the folder knows the same grants and
+any of them can serve the door. The author is the identity; a grant is one key for it, and
+an author may hold several over time. Only the owner's grant events count; the fold drops
+anyone else's. The key itself lives with whoever was handed it and, for the Copy button, in
+the keychain of the Mac that made it.
+
+Sketched, not built: `media.caption`, `place.resolve` (someone names the coordinates), and a
 `fact` on a line with a key, a value and a unit, which would take over from `closes`.
 
 Beside the events, not among them: `devices/<device>.json`, where a phone leaves the
@@ -150,6 +159,10 @@ backward: a snapshot already read cannot be unread, and the interface says so.
 The grant list is the privacy screen. One row on day one: an agent, read all, write notes
 and atoms, runs on this Mac. Each row shows where the holder runs, because that is where
 plaintext goes.
+
+Built so far, of this: grants as the owner's events in the notebook (§1), one key per
+author, the same author reachable by several keys, revocation as an event, the list folded
+on every device. Slices, modes beyond live, and grants to people are still the sketch.
 
 ## 5. The agent
 

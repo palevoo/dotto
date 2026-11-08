@@ -20,6 +20,9 @@ final class EventTests: XCTestCase {
             .labelDetach(.init(entry: entry, label: "margin")),
             .visit(.init(what: .days, since: "2026-11-01", label: "bug", count: 4)),
             .visit(.init(what: .photo, count: 1, entry: entry, hash: "abc")),
+            .nameSet(.init(name: "Moss")),
+            .grantCreate(.init(grant: ULID(), author: "a1b2c3", name: "Claude Code", device: "claude-code", keyHash: Grant.hash("k"), may: ["notes", "lines"])),
+            .grantRevoke(.init(grant: ULID())),
         ]
         for payload in payloads {
             let event = Event(id: ULID(), author: me, device: phone, at: at, payload: payload)

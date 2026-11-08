@@ -1,13 +1,20 @@
+import CryptoKit
 import Foundation
 
-/// Who may read the notebook, and what they may write. One row in the grants list.
-/// The key is the only credential. Deleting the grant deletes the key.
+/// Who may come through the door, and what they may write: one key for an author.
+///
+/// The author is the identity; a grant is a key for it. Grants are the owner's events in
+/// the notebook (`grant.create`, `grant.revoke`), so every device holding the folder knows
+/// the same grants and any of them can serve the door. The notebook holds the key's hash
+/// only; the key itself is known to whoever was handed it, and to the device that made it
+/// if it chose to keep it. `key` is empty when this device does not have it.
 public struct Grant: Hashable, Codable, Sendable, Identifiable {
     public var id: ULID
     public var name: String
     public var author: Author
     public var device: DeviceID
     public var key: String
+    public var keyHash: String
     public var writesNotes: Bool
     public var writesLabels: Bool
     public var writesLinks: Bool
@@ -23,6 +30,7 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
         self.author = author
         self.device = device
         self.key = key
+        self.keyHash = Grant.hash(key)
         self.writesNotes = writesNotes
         self.writesLabels = writesLabels
         self.writesLinks = writesLinks
@@ -30,15 +38,46 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
         self.createdAt = createdAt.toMilliseconds
     }
 
+    /// As the owner's event says it. The key is not in the notebook; whoever holds it fills it in.
+    public init(_ p: Payload.GrantCreate, createdAt: Date) {
+        id = p.grant
+        name = p.name
+        author = p.author
+        device = p.device
+        key = ""
+        keyHash = p.keyHash
+        writesNotes = p.may.contains("notes")
+        writesLabels = p.may.contains("labels")
+        writesLinks = p.may.contains("links")
+        writesLines = p.may.contains("lines")
+        self.createdAt = createdAt.toMilliseconds
+    }
+
+    /// The event that opens this grant, for the owner to write.
+    public var create: Payload.GrantCreate {
+        .init(grant: id, author: author, name: name, device: device, keyHash: keyHash, may: may)
+    }
+
+    /// What the key may write, as the event lists it.
+    public var may: [String] {
+        var parts: [String] = []
+        if writesNotes { parts.append("notes") }
+        if writesLabels { parts.append("labels") }
+        if writesLinks { parts.append("links") }
+        if writesLines { parts.append("lines") }
+        return parts
+    }
+
     /// A grant saved before links or own lines existed may write them: they are the same
-    /// kind of thing as notes.
+    /// kind of thing as notes. One saved before the hash was kept has the key, so the hash follows.
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(ULID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         author = try container.decode(Author.self, forKey: .author)
         device = try container.decode(DeviceID.self, forKey: .device)
-        key = try container.decode(String.self, forKey: .key)
+        key = try container.decodeIfPresent(String.self, forKey: .key) ?? ""
+        keyHash = try container.decodeIfPresent(String.self, forKey: .keyHash) ?? Grant.hash(key)
         writesNotes = try container.decode(Bool.self, forKey: .writesNotes)
         writesLabels = try container.decode(Bool.self, forKey: .writesLabels)
         writesLinks = try container.decodeIfPresent(Bool.self, forKey: .writesLinks) ?? true
@@ -53,6 +92,17 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
             .replacingOccurrences(of: "=", with: "")
+    }
+
+    /// SHA-256 of a key, lower-case hex: what the notebook keeps instead of the key.
+    public static func hash(_ key: String) -> String {
+        SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// The name as a device id, so a line's history can say "via claude-code".
+    public static func device(for name: String) -> DeviceID {
+        let slug = DoorRouter.deviceName(name)
+        return DeviceID(rawValue: slug.isEmpty ? "door" : slug)
     }
 
     public var scopes: String {

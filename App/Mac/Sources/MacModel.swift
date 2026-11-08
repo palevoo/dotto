@@ -9,6 +9,10 @@ import Observation
 /// bookmark, and nothing else on the disk. That is a promise the code keeps rather than one
 /// macOS enforces: the app runs without the sandbox so that it can run the claude command
 /// for the reader, which a sandboxed app may not.
+///
+/// Grants are the owner's events in the notebook, written from here into the owner's own
+/// file for this Mac. The notebook keeps each key's hash; the keys themselves stay in this
+/// Mac's keychain, so the Copy button works and nothing else needs them.
 @MainActor
 @Observable
 final class MacModel {
@@ -22,6 +26,7 @@ final class MacModel {
     /// What others left that may want the owner, newest first. The Mac shows it; the look
     /// that settles unread is the owner's, made on the phone.
     private(set) var inbox: [InboxItem] = []
+    /// The grants that open the door, from the fold, with the keys this Mac holds filled in.
     private(set) var grants: [Grant] = []
     private(set) var port: UInt16?
     private(set) var problem: String?
@@ -45,10 +50,12 @@ final class MacModel {
 
     private let bookmarkKey = "margin.folder.bookmark"
     private let ownerKey = "margin.owner"
+    private let deviceKey = "margin.device"
     private let readerOnKey = "margin.reader.on"
     private let readerGrantKey = "margin.reader.grant"
     private let shared = DoorState()
     private let pusher = Pusher()
+    private let generator = ULIDGenerator()
     private var server: DoorServer?
     private var watcher: FolderWatcher?
     private var cloud: CloudWatcher?
@@ -56,7 +63,6 @@ final class MacModel {
 
     init() {
         carryOverFromSandbox()
-        loadGrants()
         restoreFolder()
         if UserDefaults.standard.bool(forKey: readerOnKey), readerGrant != nil { startReader() }
         Task {
@@ -67,46 +73,55 @@ final class MacModel {
 
     // MARK: - What the sandboxed app kept
 
-    /// The app used to run sandboxed, and kept its grants, its folder choice and the reader's
-    /// records inside its container. Without the sandbox it keeps them in the ordinary places,
-    /// so on launch anything still only in the container is brought over: grants the new list
-    /// lacks are added, keys and author ids intact; the folder choice and names are taken
-    /// when none is set here; the reader's log and runs are copied when absent. Nothing in
-    /// the container is removed.
+    /// The app used to run sandboxed, and kept its folder choice and the reader's records
+    /// inside its container. Without the sandbox it keeps them in the ordinary places, so on
+    /// launch anything still only in the container is brought over: the folder choice and
+    /// names when none is set here; the reader's log and runs when absent. Nothing in the
+    /// container is removed. The grants file it kept is carried into the notebook once the
+    /// folder is open, see `carryOverGrantsFiles`.
     private func carryOverFromSandbox() {
-        let container = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Containers/social.interface.margin.mac/Data", isDirectory: true)
-        let oldSupport = container.appendingPathComponent("Library/Application Support/Margin", isDirectory: true)
-        let oldPrefs = container.appendingPathComponent("Library/Preferences/social.interface.margin.mac.plist")
-        guard FileManager.default.fileExists(atPath: oldSupport.path) || FileManager.default.fileExists(atPath: oldPrefs.path) else { return }
-
-        // Grants: a union by id, the old ones after the new.
-        let oldGrantsURL = oldSupport.appendingPathComponent("grants.json")
-        if let data = try? Data(contentsOf: oldGrantsURL), let old = try? JSONLines.decoder().decode([Grant].self, from: data) {
-            let current = (try? Data(contentsOf: grantsURL)).flatMap { try? JSONLines.decoder().decode([Grant].self, from: $0) } ?? []
-            let missing = old.filter { grant in !current.contains { $0.id == grant.id } }
-            if !missing.isEmpty {
-                let encoder = JSONLines.encoder()
-                encoder.outputFormatting.insert(.prettyPrinted)
-                try? encoder.encode(current + missing).write(to: grantsURL, options: [.atomic, .completeFileProtection])
-            }
-        }
-
-        // The reader's trail, when there is none here yet.
+        let oldPrefs = Self.container.appendingPathComponent("Library/Preferences/social.interface.margin.mac.plist")
         for name in [ReaderFiles.log, ReaderFiles.runs] {
-            let from = oldSupport.appendingPathComponent(name)
-            let to = grantsURL.deletingLastPathComponent().appendingPathComponent(name)
+            let from = Self.oldSupport.appendingPathComponent(name)
+            let to = supportDirectory.appendingPathComponent(name)
             if FileManager.default.fileExists(atPath: from.path), !FileManager.default.fileExists(atPath: to.path) {
                 try? FileManager.default.copyItem(at: from, to: to)
             }
         }
-
-        // The folder choice and the owner id, when none is set here.
         if let prefs = NSDictionary(contentsOf: oldPrefs) as? [String: Any] {
             let defaults = UserDefaults.standard
             for key in [bookmarkKey, ownerKey, "margin.reader.model"] where defaults.object(forKey: key) == nil {
                 if let value = prefs[key] { defaults.set(value, forKey: key) }
             }
+        }
+    }
+
+    private static var container: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Containers/social.interface.margin.mac/Data", isDirectory: true)
+    }
+
+    private static var oldSupport: URL {
+        container.appendingPathComponent("Library/Application Support/Margin", isDirectory: true)
+    }
+
+    /// Grants used to be rows in a file of this app's own, with the keys in the clear. They
+    /// are the owner's events in the notebook now. Each row the fold does not know becomes a
+    /// `grant.create` with the key's hash, the key goes to the keychain, and the file is set
+    /// aside under another name so this runs once. Both places the file ever lived are read.
+    private func carryOverGrantsFiles(_ store: FileStore, _ notebook: Notebook) {
+        let known = Set(notebook.allGrants.map(\.id))
+        for url in [supportDirectory.appendingPathComponent("grants.json"), Self.oldSupport.appendingPathComponent("grants.json")] {
+            guard let data = try? Data(contentsOf: url), let rows = try? JSONLines.decoder().decode([Grant].self, from: data) else { continue }
+            for row in rows where row.device != "reader" {
+                var grant = row
+                if grant.device == "mac-door" { grant.device = Grant.device(for: grant.name) }
+                if !grant.key.isEmpty { try? GrantKeys.save(grant.key, for: grant.id) }
+                guard !known.contains(grant.id) else { continue }
+                try? store.append(Event(id: generator.next(at: grant.createdAt), author: store.manifest.owner, device: device, at: grant.createdAt,
+                                        payload: .grantCreate(grant.create)))
+            }
+            try? FileManager.default.moveItem(at: url, to: url.deletingPathExtension().appendingPathExtension("carried.json"))
         }
     }
 
@@ -149,7 +164,8 @@ final class MacModel {
             folderURL = url
             self.store = store
             problem = nil
-            shared.update(store: store, grants: grants)
+            shared.update(store: store)
+            if let notebook = try? store.load() { carryOverGrantsFiles(store, notebook) }
             keepFresh(store)
             refreshSummary()
         } catch {
@@ -183,11 +199,17 @@ final class MacModel {
             summary = ""
             self.notebook = nil
             inbox = []
+            grants = []
             return
         }
         let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
         self.notebook = notebook
         inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: .current)
+        grants = notebook.grants.map { grant in
+            var held = grant
+            held.key = GrantKeys.key(for: grant.id) ?? ""
+            return held
+        }
         // Something changed in the folder: the reader looks, a moment later.
         reader?.remember(store)
         reader?.wake(store)
@@ -209,23 +231,59 @@ final class MacModel {
         return Author(rawValue: raw)
     }
 
+    /// This Mac, as the owner's events written here name it. Made once.
+    private var device: DeviceID {
+        if let raw = UserDefaults.standard.string(forKey: deviceKey) { return DeviceID(rawValue: raw) }
+        let raw = "mac-" + String(ULID().string.suffix(4)).lowercased()
+        UserDefaults.standard.set(raw, forKey: deviceKey)
+        return DeviceID(rawValue: raw)
+    }
+
+    /// An event of the owner's, from this Mac, into the owner's file for it.
+    private func write(_ payload: Payload) {
+        guard let store else { return }
+        let now = Date()
+        do {
+            try store.append(Event(id: generator.next(at: now), author: store.manifest.owner, device: device, at: now, payload: payload))
+            refreshSummary()
+        } catch {
+            problem = "Could not write to the notebook: \(error)"
+        }
+    }
+
     // MARK: - Grants
 
-    private var grantsURL: URL {
+    private var supportDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Margin", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        return base.appendingPathComponent("grants.json")
+        return base
     }
 
-    /// A new grant is a new author with a fresh id and no name; it chooses one through the
-    /// door when it wants to. The grant's name travels on its events as the device, so the
-    /// history under a line can say "via claude-code".
-    func addGrant(name: String) {
+    /// Everyone who has written anything other than the owner, named where they have chosen
+    /// a name: the authors a new key could be handed to.
+    var authors: [Author] {
+        notebook?.others ?? []
+    }
+
+    /// A new grant: a key for an author. A new author gets a fresh id and no name, and
+    /// chooses one through the door when it wants to. An existing author gets one more key,
+    /// the same being from another hand or another machine. The key goes to the keychain, the
+    /// grant into the notebook as the owner's event; the fold then shows it.
+    func addGrant(name: String, as author: Author? = nil) {
         let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleanName.isEmpty else { return }
-        grants.append(Grant(name: cleanName, author: .fresh(), device: Self.device(for: cleanName)))
-        saveGrants()
+        open(Grant(name: cleanName, author: author ?? .fresh(), device: Grant.device(for: cleanName)))
+    }
+
+    private func open(_ grant: Grant) {
+        do {
+            try GrantKeys.save(grant.key, for: grant.id)
+        } catch {
+            problem = "Could not keep the key in the keychain: \(error.localizedDescription)"
+            return
+        }
+        write(.grantCreate(grant.create))
     }
 
     /// What an author is called, if they have chosen; else their id.
@@ -233,45 +291,47 @@ final class MacModel {
         notebook?.name(of: author) ?? author.rawValue
     }
 
+    /// The key stops opening the door. The author's events stay, under their id.
     func revoke(_ grant: Grant) {
         if readerGrant?.id == grant.id { turnReaderOff() }
-        grants.removeAll { $0.id == grant.id }
-        saveGrants()
+        write(.grantRevoke(.init(grant: grant.id)))
+        GrantKeys.remove(for: grant.id)
+    }
+
+    /// The same key, another author: whoever holds it is that author from now on. The old
+    /// grant is closed and a new one opened with the same hash, so nothing has to be pasted
+    /// again. For a key handed out before an author had the page it should have had.
+    func reassign(_ grant: Grant, to author: Author) {
+        guard author != grant.author else { return }
+        var moved = Grant(name: grant.name, author: author, device: grant.device, key: grant.key,
+                          writesNotes: grant.writesNotes, writesLabels: grant.writesLabels, writesLinks: grant.writesLinks, writesLines: grant.writesLines)
+        moved.keyHash = grant.keyHash
+        let wasReader = readerGrant?.id == grant.id
+        if wasReader { turnReaderOff() }
+        write(.grantRevoke(.init(grant: grant.id)))
+        if !grant.key.isEmpty { try? GrantKeys.save(grant.key, for: moved.id) }
+        GrantKeys.remove(for: grant.id)
+        write(.grantCreate(moved.create))
+        if wasReader { turnReaderOn(as: moved) }
+    }
+
+    /// A fresh key for the same author, for when this Mac no longer holds the old one.
+    func reissue(_ grant: Grant) {
+        let fresh = Grant(name: grant.name, author: grant.author, device: grant.device,
+                          writesNotes: grant.writesNotes, writesLabels: grant.writesLabels, writesLinks: grant.writesLinks, writesLines: grant.writesLines)
+        let wasReader = readerGrant?.id == grant.id
+        if wasReader { turnReaderOff() }
+        write(.grantRevoke(.init(grant: grant.id)))
+        GrantKeys.remove(for: grant.id)
+        open(fresh)
+        if wasReader { turnReaderOn(as: fresh) }
     }
 
     /// What the person pastes into a terminal so Claude Code knows the door and the key.
-    func connectCommand(for grant: Grant) -> String {
-        "claude mcp add --transport http margin http://127.0.0.1:\(port ?? Self.defaultPort)/mcp --header \"Authorization: Bearer \(grant.key)\""
-    }
-
-    private func loadGrants() {
-        guard let data = try? Data(contentsOf: grantsURL),
-              let loaded = try? JSONLines.decoder().decode([Grant].self, from: data) else { return }
-        grants = loaded.filter { $0.device != "reader" }.map { grant in
-            // Grants made before the name travelled as the device.
-            guard grant.device == "mac-door" else { return grant }
-            var fixed = grant
-            fixed.device = Self.device(for: grant.name)
-            return fixed
-        }
-        if grants != loaded { saveGrants() }
-    }
-
-    static func device(for name: String) -> DeviceID {
-        let slug = name.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "-" }
-        let joined = String(slug).split(separator: "-", omittingEmptySubsequences: true).joined(separator: "-")
-        return DeviceID(rawValue: joined.isEmpty ? "door" : joined)
-    }
-
-    private func saveGrants() {
-        let encoder = JSONLines.encoder()
-        encoder.outputFormatting.insert(.prettyPrinted)
-        do {
-            try encoder.encode(grants).write(to: grantsURL, options: [.atomic, .completeFileProtection])
-        } catch {
-            problem = "Could not save grants: \(error)"
-        }
-        shared.update(store: store, grants: grants)
+    /// Nil when this Mac does not hold the key.
+    func connectCommand(for grant: Grant) -> String? {
+        guard !grant.key.isEmpty else { return nil }
+        return "claude mcp add --transport http margin http://127.0.0.1:\(port ?? Self.defaultPort)/mcp --header \"Authorization: Bearer \(grant.key)\""
     }
 
     // MARK: - Pushes
@@ -358,9 +418,6 @@ final class MacModel {
 
     // MARK: - The reader
 
-    private var supportDirectory: URL {
-        grantsURL.deletingLastPathComponent()
-    }
     private var readerRunsURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.runs, isDirectory: true) }
     var readerLogURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.log) }
 
@@ -380,7 +437,7 @@ final class MacModel {
     func turnReaderOn(as grant: Grant) {
         UserDefaults.standard.set(grant.id.string, forKey: readerGrantKey)
         UserDefaults.standard.set(true, forKey: readerOnKey)
-        startReader()
+        startReader(grant)
     }
 
     func turnReaderOff() {
@@ -395,8 +452,12 @@ final class MacModel {
         reader?.wake(store)
     }
 
-    private func startReader() {
-        guard let grant = readerGrant else { return }
+    private func startReader(_ chosen: Grant? = nil) {
+        guard let grant = chosen ?? readerGrant else { return }
+        guard !grant.key.isEmpty else {
+            problem = "The reader's key is not on this Mac. Issue a new key for \(grant.name) and turn the reader on again."
+            return
+        }
         let runner = ReaderRunner(grant: grant, door: "http://127.0.0.1:\(Self.defaultPort)/mcp", model: readerModel,
                                   runsDirectory: readerRunsURL, logURL: readerLogURL)
         runner.onChange = { [weak self] in self?.readerTick += 1 }
@@ -426,23 +487,65 @@ final class MacModel {
     }
 }
 
-/// What the server thread may see: the current store and grants, behind a lock.
+/// What the server thread may see: the current store, behind a lock. A key is looked up in
+/// the fold of that store, so the grants are whatever the notebook says at that moment.
 final class DoorState: @unchecked Sendable {
     private let lock = NSLock()
     private var store: FileStore?
-    private var grants: [Grant] = []
 
-    func update(store: FileStore?, grants: [Grant]) {
+    func update(store: FileStore?) {
         lock.lock()
         self.store = store
-        self.grants = grants
         lock.unlock()
     }
 
     func resolve(_ key: String) -> (FileStore, Grant)? {
         lock.lock()
-        defer { lock.unlock() }
-        guard let store, let grant = grants.first(where: { $0.key == key }) else { return nil }
+        let store = self.store
+        lock.unlock()
+        guard let store, let grant = try? store.load().grant(forKey: key) else { return nil }
         return (store, grant)
+    }
+}
+
+/// The keys this Mac holds, one per grant, in the keychain. The notebook has only hashes.
+enum GrantKeys {
+    private static let service = "social.interface.margin.mac.grant-keys"
+
+    static func key(for grant: ULID) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: grant.string,
+            kSecReturnData as String: true,
+        ]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    static func save(_ key: String, for grant: ULID) throws {
+        remove(for: grant)
+        let item: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: grant.string,
+            kSecValueData as String: Data(key.utf8),
+        ]
+        let status = SecItemAdd(item as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(status),
+                          userInfo: [NSLocalizedDescriptionKey: SecCopyErrorMessageString(status, nil) as String? ?? "keychain \(status)"])
+        }
+    }
+
+    static func remove(for grant: ULID) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: grant.string,
+        ]
+        SecItemDelete(query as CFDictionary)
     }
 }

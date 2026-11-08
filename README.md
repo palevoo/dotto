@@ -75,13 +75,21 @@ Anything written by someone other than the owner names its author; there is no d
 The Mac app reads the folder you pick and nothing else. That is the code's promise rather
 than the sandbox's: the app runs without the macOS sandbox so that it can run the `claude`
 command for the reader, which a sandboxed app may not. It serves the
-Model Context Protocol on `127.0.0.1:27830/mcp`, behind a key per grant. A grant is a
-row in its window: who, what they may do. Tools: `whats_new`, `read_days`, `list_lines`,
+Model Context Protocol on `127.0.0.1:27830/mcp`, behind a key per grant. A grant is one
+key for an author, and it is your event in the notebook: `grant.create` says who the key
+is for and what it may write, and carries the key's hash, never the key; `grant.revoke`
+closes it. The author is the identity. A new grant can be for a new author, who starts with
+a fresh id and no name, or for an author who has already written, who then has one more key
+and stays the same being; a key can also be handed to another author after the fact. Because
+grants are in the folder, every device knows the same ones and any could serve the door.
+The keys themselves stay in the Mac's keychain, for the Copy button; lose them and you issue
+a new key for the same author. Tools: `whats_new`, `read_days`, `list_lines`,
 `read_photo`, `add_note`, `set_label`, `link_lines`, `write_line`, `edit_line`,
 `delete_line`, `choose_name`. Writes land in the grant's own event file; no grant can touch
-your lines, and a grant changes or deletes only lines it wrote. Revoke the row and the key
-is gone. A request may add a `Margin-Device` header to say which hand of the same grant it
-is, as the reader does; the stamp shows in Logs and in a line's History.
+your lines, and a grant changes or deletes only lines it wrote. Revoke the grant and the key
+stops opening the door; the author's events stay. A request may add a `Margin-Device`
+header to say which hand of the same grant it is, as the reader does; the stamp shows in
+Logs and in a line's History.
 
 `whats_new` is the inbox: what happened since the grant last looked, replies first, then
 new lines, lines changed, marks taken back, names chosen. Each look is a receipt that
