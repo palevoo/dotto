@@ -375,12 +375,29 @@ final class PhotoPageController: UIViewController, ImageAnalysisInteractionDeleg
     var onSelection: ((String) -> Void)?
     var onImage: ((UIImage) -> Void)?
     private let interaction = ImageAnalysisInteraction()
-    private var full: UIImage?
+
+    /// What the page shows, in order: the thumbnail while the bytes load, the full photo while
+    /// its words are being read, the full photo with its words live. A photo whose bytes could
+    /// not be read keeps its thumbnail. Each move forward happens once.
+    private enum Picture {
+        case loading
+        case full(UIImage)
+        case read(UIImage)
+        case unreadable
+
+        var image: UIImage? {
+            switch self {
+            case .full(let image), .read(let image): return image
+            case .loading, .unreadable: return nil
+            }
+        }
+    }
+    private var picture: Picture
 
     init(photo: PhotoViewerController.Photo, position: Int, image: UIImage?) {
         self.photo = photo
         self.position = position
-        self.full = image
+        self.picture = image.map(Picture.full) ?? .loading
         let aspect = photo.size ?? image?.size ?? photo.thumbnail?.size ?? CGSize(width: 1, height: 1)
         zoom = ZoomingPhotoView(aspect: aspect)
         super.init(nibName: nil, bundle: nil)
@@ -399,7 +416,7 @@ final class PhotoPageController: UIViewController, ImageAnalysisInteractionDeleg
             zoom.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             zoom.trailingAnchor.constraint(equalTo: view.trailingAnchor),
         ])
-        zoom.imageView.image = full ?? photo.thumbnail
+        zoom.imageView.image = picture.image ?? photo.thumbnail
         zoom.imageView.isAccessibilityElement = true
         zoom.imageView.accessibilityLabel = "Photo"
         zoom.imageView.accessibilityIdentifier = "photo"
@@ -409,28 +426,32 @@ final class PhotoPageController: UIViewController, ImageAnalysisInteractionDeleg
         interaction.delegate = self
         zoom.imageView.addInteraction(interaction)
 
-        if let full {
-            analyse(full)
-        } else {
-            Task { await load() }
+        switch picture {
+        case .loading: Task { await load() }
+        case .full(let image): Task { await read(image) }
+        case .read, .unreadable: break
         }
     }
 
+    /// The bytes come in behind the thumbnail; the full photo takes its place and is read.
     private func load() async {
-        guard let image = await Photo.load(photo.url) else { return }
-        full = image
+        guard case .loading = picture else { return }
+        guard let image = await Photo.load(photo.url) else {
+            picture = .unreadable
+            return
+        }
+        picture = .full(image)
         zoom.imageView.image = image
         onImage?(image)
-        analyse(image)
+        await read(image)
     }
 
-    private func analyse(_ image: UIImage) {
-        guard ImageAnalyzer.isSupported else { return }
-        Task {
-            if let analysis = await LiveTextView.analysis(of: image) {
-                interaction.analysis = analysis
-            }
-        }
+    /// Live Text reads the full photo once; its words are live from then on.
+    private func read(_ image: UIImage) async {
+        guard case .full = picture, ImageAnalyzer.isSupported else { return }
+        guard let analysis = await LiveTextView.analysis(of: image) else { return }
+        interaction.analysis = analysis
+        picture = .read(image)
     }
 
     func clearSelection() {
