@@ -1,432 +1,49 @@
 import Core
 import SwiftUI
-import UIKit
 
-/// Where a photo sits on the page at the moment it is tapped, in the window's coordinates,
-/// so the viewer can grow out of that place and shrink back into it.
-struct PhotoSource: Hashable {
-    var frame: CGRect
-    var radius: CGFloat
-}
-
-/// A line's photo, opened, with the place it was opened from.
-struct PhotoOpening: Identifiable {
+/// A line's photo, opened: which line, which photo, where it stands in the line's row.
+struct PhotoOpening: Identifiable, Hashable {
     let entry: ULID
+    let hash: String
     let index: Int
-    /// The place of the photo that was tapped, by hash. Other photos of the line, reached by
-    /// paging, have no place and fade out instead.
-    let sources: [String: PhotoSource]
-    var id: String { "\(entry)-\(index)" }
+
+    var id: String { Self.source(entry, hash) }
+
+    /// The id a photo wears on the page, so the viewer grows out of it and shrinks back into it.
+    static func source(_ entry: ULID, _ hash: String) -> String { "\(entry.string)-\(hash)" }
 }
 
-/// The viewer draws its own way in and out, so the cover that holds it must not.
-func withoutAnimation(_ change: () -> Void) {
-    var transaction = Transaction()
-    transaction.disablesAnimations = true
-    withTransaction(transaction, change)
-}
-
-/// Photos of one line, on the page's own background. The photo lifts off its thumbnail and
-/// settles fitted to the screen; a drag in any direction carries it, the page showing
-/// through, and letting go past a point sets it back where it came from. A sideways drag
-/// pages. Pinch or double-tap to zoom. No pager of its own, so nothing competes for the
-/// first movement. The words in the photo are selectable the whole time, as in Photos, and
-/// a selection can be taken as a quote into the line.
-struct PhotoViewer: View {
+/// The viewer, for SwiftUI: `PhotoViewerController` with the line's photos and words, kept
+/// current as the notebook changes. Present it in a full-screen cover with the zoom
+/// transition from the photo's `matchedTransitionSource`.
+struct PhotoViewer: UIViewControllerRepresentable {
     let opening: PhotoOpening
     let model: NotebookModel
     let onClose: () -> Void
 
-    @State private var index: Int
-    /// False while the photo is at its place on the page, before it has grown and after it
-    /// has shrunk back.
-    @State private var shown = false
-    @State private var images: [String: UIImage]
-    @State private var full: Set<String> = []
-    @State private var drag: CGSize = .zero
-    @State private var axis: Axis?
-    @State private var scale: CGFloat = 1
-    @State private var settledScale: CGFloat = 1
-    @State private var pan: CGSize = .zero
-    @State private var settledPan: CGSize = .zero
-    @State private var words = ""
-    @State private var editing = false
-    /// What is selected in the photo right now, and the last passage selected, which is what
-    /// Quote takes: a touch that lands on the button may end the selection first.
-    @State private var selected = ""
-    @State private var passage = ""
-    /// Where the words begin, from the top of the screen. The photo is fitted above them.
-    @State private var captionTop: CGFloat = 0
-    @State private var focused = false
-
-    private let gap: CGFloat = 24
-
-    init(opening: PhotoOpening, model: NotebookModel, onClose: @escaping () -> Void) {
-        self.opening = opening
-        self.model = model
-        self.onClose = onClose
-        _index = State(initialValue: opening.index)
-        // The first frame must be the thumbnail the page already shows, with no wait.
-        var first: [String: UIImage] = [:]
-        for photo in model.notebook.entry(opening.entry)?.media ?? [] where photo.mime.hasPrefix("image") {
-            if let thumb = Thumbs.cached(photo.hash) { first[photo.hash] = thumb }
-        }
-        _images = State(initialValue: first)
+    func makeUIViewController(context: Context) -> PhotoViewerController {
+        let controller = PhotoViewerController(photos: photos, index: opening.index, words: words)
+        controller.onClose = onClose
+        controller.onWords = { [model, entry = opening.entry] text in model.edit(entry, text: text) }
+        return controller
     }
 
-    private var entry: Entry? { model.notebook.entry(opening.entry) }
-    private var photos: [Media] { entry?.media.filter { $0.mime.hasPrefix("image") } ?? [] }
-    private var zoomed: Bool { scale > 1 }
+    func updateUIViewController(_ controller: PhotoViewerController, context: Context) {
+        controller.show(photos: photos, words: words)
+    }
 
-    private var thrown: CGFloat { axis == .vertical ? abs(drag.height) : 0 }
-    private var fade: Double { 1 - min(Double(thrown) / 320, 0.85) }
-    private var shrink: CGFloat { 1 - min(thrown / 1200, 0.25) }
-    private var neighbours: [Int] { [index, index - 1, index + 1].filter { $0 >= 0 && $0 < photos.count } }
-    private var calm: Bool { shown && axis == nil }
+    private var line: Entry? { model.notebook.entry(opening.entry) }
 
-    var body: some View {
-        ZStack {
-            GeometryReader { geometry in
-                let size = geometry.size
-                ZStack {
-                    Theme.background.opacity(shown ? fade : 0)
-                    ForEach(neighbours, id: \.self) { position in
-                        photo(at: position, in: size)
-                    }
-                }
-                .frame(width: size.width, height: size.height)
-                .contentShape(Rectangle())
-                .gesture(hand(step: size.width + gap, width: size.width), isEnabled: !zoomed)
-            }
-            .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                top
-                Spacer(minLength: 0)
-                caption
-            }
-            .opacity(calm ? 1 : 0)
-            .animation(.easeOut(duration: 0.15), value: calm)
-        }
-        .presentationBackground(.clear)
-        .onAppear {
-            withAnimation(.snappy(duration: 0.38, extraBounce: 0)) { shown = true }
-        }
-        .task(id: index) { await loadFull() }
-        .onChange(of: index) { _, _ in
-            selected = ""
-            passage = ""
-        }
-        .onChange(of: selected) { _, words in
-            if !words.isEmpty { passage = words }
-        }
-        .onChange(of: focused) { _, isFocused in
-            if !isFocused, editing { store() }
+    private var photos: [PhotoViewerController.Photo] {
+        (line?.media ?? []).filter { $0.mime.hasPrefix("image") }.map { media in
+            PhotoViewerController.Photo(
+                hash: media.hash,
+                url: model.mediaURL(media),
+                size: media.width.flatMap { width in media.height.map { height in CGSize(width: width, height: height) } },
+                thumbnail: Thumbs.cached(media.hash)
+            )
         }
     }
 
-    /// One photo where it belongs now: at its place on the page before it is shown and after
-    /// it is closed, fitted to the screen in between, a page-width to the side when it is a
-    /// neighbour. The frame and corners animate between the two, so the thumbnail becomes
-    /// the photo and back.
-    @ViewBuilder
-    private func photo(at position: Int, in size: CGSize) -> some View {
-        let photo = photos[position]
-        let current = position == index
-        let fitted = fitted(photo, in: size)
-        let source = current && !shown ? opening.sources[photo.hash] : nil
-        let rect = source?.frame ?? (current && !shown ? fitted.shrunk(to: 0.6) : fitted)
-        let radius = source?.radius ?? 0
-        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
-        Group {
-            // Once the photo is settled and at full size its words are live; the thumbnail
-            // carries the way in and out.
-            if current, shown, full.contains(photo.hash), LiveTextView.isSupported, let image = images[photo.hash] {
-                LiveTextView(image: image, selected: $selected)
-            } else if let image = images[photo.hash] {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Theme.paper
-            }
-        }
-        .frame(width: rect.width, height: rect.height)
-        .clipShape(shape)
-        .contentShape(shape)
-        // A photo with no place to go back to fades out instead.
-        .opacity(current && !shown && source == nil ? 0 : 1)
-        .scaleEffect(current ? scale * shrink : 1)
-        .offset(current ? pan : .zero)
-        .position(
-            x: rect.midX + CGFloat(position - index) * (size.width + gap) + (axis == .horizontal ? drag.width : 0),
-            y: rect.midY + (current && axis == .vertical ? drag.height : 0)
-        )
-        .gesture(pinch, isEnabled: current && calm)
-        .simultaneousGesture(panning, isEnabled: current && zoomed)
-        .onTapGesture(count: 2) {
-            guard current, calm else { return }
-            withAnimation(Motion.settle) {
-                if zoomed {
-                    resetZoom()
-                } else {
-                    scale = 2.5
-                    settledScale = 2.5
-                }
-            }
-        }
-    }
-
-    /// The photo at the width or height of the room above the words, whichever it reaches
-    /// first, centred there. The words never lie over the photo, however many there are.
-    private func fitted(_ photo: Media, in size: CGSize) -> CGRect {
-        var ratio: CGFloat = 1
-        if let width = photo.width, let height = photo.height, width > 0, height > 0 {
-            ratio = CGFloat(width) / CGFloat(height)
-        } else if let image = images[photo.hash], image.size.height > 0 {
-            ratio = image.size.width / image.size.height
-        }
-        let room = captionTop > 0 ? min(size.height, captionTop) : size.height
-        let width = min(size.width, room * ratio)
-        let height = width / ratio
-        return CGRect(x: (size.width - width) / 2, y: (room - height) / 2, width: width, height: height)
-    }
-
-    /// The photo on screen at viewing size, then its neighbours, each once.
-    private func loadFull() async {
-        for position in neighbours {
-            let photo = photos[position]
-            guard !full.contains(photo.hash) else { continue }
-            if let image = await Photo.load(model.mediaURL(photo)) {
-                images[photo.hash] = image
-                full.insert(photo.hash)
-            }
-        }
-    }
-
-    /// Which photo this is and the way out for a thumb that would rather tap. Once words are
-    /// selected in the photo, Quote takes them into the line.
-    private var top: some View {
-        HStack(spacing: 8) {
-            if !passage.isEmpty {
-                Button {
-                    quote()
-                } label: {
-                    Text("Quote")
-                        .font(Theme.sansSmall.weight(.medium))
-                        .foregroundStyle(Theme.background)
-                        .padding(.horizontal, 14)
-                        .frame(height: 36)
-                        .background(Theme.square(36).fill(Theme.accent))
-                }
-                .buttonStyle(.plain)
-                .padding(.leading, 12)
-                Text(wordCount(passage))
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.muted)
-                    .monospacedDigit()
-            } else if photos.count > 1 {
-                Text("\(index + 1) / \(photos.count)")
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.muted)
-                    .monospacedDigit()
-                    .padding(.leading, 20)
-            }
-            Spacer()
-            button("xmark", label: "Close") { close() }
-        }
-        .padding(.top, 8)
-        .padding(.trailing, 12)
-        .animation(.easeOut(duration: 0.15), value: passage.isEmpty)
-    }
-
-    private func button(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Theme.foreground)
-                .frame(width: 44, height: 44)
-                .background(Theme.square(44).fill(Theme.background.opacity(0.85)))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-    }
-
-    /// The selected words join the line's, in quotes. An edit like any other: the words
-    /// before stay in the line's history.
-    private func quote() {
-        let passage = passage.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ")
-        guard !passage.isEmpty else { return }
-        let quoted = "\u{201C}\(passage)\u{201D}"
-        let words = (entry?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        model.edit(opening.entry, text: words.isEmpty ? quoted : "\(words) \(quoted)")
-        Haptic.store()
-        selected = ""
-        self.passage = ""
-    }
-
-    /// The words of the line, or the place for them. Return stores.
-    private var caption: some View {
-        Group {
-            if editing {
-                WordsField(placeholder: "Words for this", text: $words, focused: $focused) {
-                    store()
-                }
-                .editingSurface()
-            } else {
-                Button {
-                    words = entry?.text ?? ""
-                    editing = true
-                    focused = true
-                } label: {
-                    let text = entry?.text ?? ""
-                    // As many lines as the field would hold; the line's page has them all.
-                    Text(text.isEmpty ? "Words for this" : text)
-                        .font(Theme.serif)
-                        .foregroundStyle(text.isEmpty ? Theme.faint : Theme.foreground)
-                        .lineSpacing(4)
-                        .lineLimit(8)
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 20)
-        .padding(.bottom, 16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // On the page's own ground, below the photo, not over it.
-        .background(Theme.background.ignoresSafeArea(edges: .bottom))
-        .onGeometryChange(for: CGFloat.self) { proxy in
-            proxy.frame(in: .global).minY
-        } action: { top in
-            captionTop = top
-        }
-    }
-
-    // MARK: - Hands
-
-    /// One drag for paging and closing. The first movement decides which it is.
-    private func hand(step: CGFloat, width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .local)
-            .onChanged { value in
-                guard shown else { return }
-                if axis == nil {
-                    axis = abs(value.translation.width) > abs(value.translation.height) ? .horizontal : .vertical
-                }
-                drag = value.translation
-            }
-            .onEnded { value in
-                switch axis {
-                case .horizontal:
-                    let predicted = value.predictedEndTranslation.width
-                    var turn = 0
-                    if predicted < -width / 3, index < photos.count - 1 { turn = 1 }
-                    if predicted > width / 3, index > 0 { turn = -1 }
-                    withAnimation(.snappy(duration: 0.32, extraBounce: 0)) {
-                        drag.width = -CGFloat(turn) * step
-                    } completion: {
-                        index += turn
-                        drag = .zero
-                        axis = nil
-                    }
-                case .vertical:
-                    if abs(value.predictedEndTranslation.height) > 140 {
-                        close()
-                    } else {
-                        withAnimation(.snappy(duration: 0.32, extraBounce: 0)) {
-                            drag = .zero
-                        } completion: {
-                            axis = nil
-                        }
-                    }
-                case nil:
-                    drag = .zero
-                }
-            }
-    }
-
-    private var pinch: some Gesture {
-        MagnifyGesture()
-            .onChanged { value in
-                scale = max(1, min(5, settledScale * value.magnification))
-            }
-            .onEnded { _ in
-                settledScale = scale
-                if scale <= 1.02 {
-                    withAnimation(Motion.settle) { resetZoom() }
-                }
-            }
-    }
-
-    private var panning: some Gesture {
-        DragGesture(minimumDistance: 10)
-            .onChanged { value in
-                pan = CGSize(width: settledPan.width + value.translation.width,
-                             height: settledPan.height + value.translation.height)
-            }
-            .onEnded { _ in
-                settledPan = pan
-            }
-    }
-
-    private func resetZoom() {
-        scale = 1
-        settledScale = 1
-        pan = .zero
-        settledPan = .zero
-    }
-
-    private func store() {
-        editing = false
-        focused = false
-        model.edit(opening.entry, text: words)
-    }
-
-    /// Back to the page: the photo returns to its place from wherever the hand left it, the
-    /// page comes through behind, and only then does the cover go, with no motion of its own.
-    private func close() {
-        if editing { store() }
-        selected = ""
-        passage = ""
-        withAnimation(.snappy(duration: 0.36, extraBounce: 0)) {
-            shown = false
-            drag = .zero
-            resetZoom()
-        } completion: {
-            onClose()
-        }
-    }
-}
-
-private extension CGRect {
-    /// The same centre, a share of the size.
-    func shrunk(to share: CGFloat) -> CGRect {
-        insetBy(dx: width * (1 - share) / 2, dy: height * (1 - share) / 2)
-    }
-}
-
-extension View {
-    /// A tap on a photo that also says where the photo is on screen at that moment.
-    func onPhotoTap(radius: CGFloat, _ action: @escaping (PhotoSource) -> Void) -> some View {
-        overlay {
-            GeometryReader { geometry in
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        action(PhotoSource(frame: geometry.frame(in: .global), radius: radius))
-                    }
-            }
-        }
-    }
-
-    /// Words being changed: in the same place at the same size, on a sheet of paper that
-    /// says so.
-    func editingSurface() -> some View {
-        padding(10)
-            .background(Theme.square(44).fill(Theme.paper))
-            .overlay(Theme.square(44).strokeBorder(Theme.line, lineWidth: 1))
-            .padding(-10)
-    }
+    private var words: String { line?.text ?? "" }
 }

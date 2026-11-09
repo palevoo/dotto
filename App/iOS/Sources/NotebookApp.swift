@@ -16,6 +16,11 @@ struct NotebookApp: App {
                             self.model = moved
                         }
                     }
+                    .task {
+                        #if DEBUG
+                        await Seed.runIfAsked(model)
+                        #endif
+                    }
                 } else {
                     ChooseFolderView { root in
                         model = Library.openNotebook(at: root)

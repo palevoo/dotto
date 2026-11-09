@@ -13,6 +13,7 @@ struct LineView: View {
     @State private var text = ""
     @State private var viewing: PhotoOpening?
     @State private var picking = false
+    @Namespace private var zoom
     @State private var focused = false
 
     var body: some View {
@@ -52,8 +53,11 @@ struct LineView: View {
 
                 ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                     LargePhoto(media: photo, url: model.mediaURL(photo))
-                        .onPhotoTap(radius: LargePhoto.radius) { source in
-                            withoutAnimation { viewing = PhotoOpening(entry: entry.id, index: index, sources: [photo.hash: source]) }
+                        .matchedTransitionSource(id: PhotoOpening.source(entry.id, photo.hash), in: zoom) { source in
+                            source.clipShape(RoundedRectangle(cornerRadius: LargePhoto.radius, style: .continuous))
+                        }
+                        .onTapGesture {
+                            viewing = PhotoOpening(entry: entry.id, hash: photo.hash, index: index)
                         }
                 }
 
@@ -201,7 +205,9 @@ struct LineView: View {
         .onAppear { model.lookAt(entry.id) }
         .onDisappear { focused = false }
         .fullScreenCover(item: $viewing) { opening in
-            PhotoViewer(opening: opening, model: model) { withoutAnimation { viewing = nil } }
+            PhotoViewer(opening: opening, model: model) { viewing = nil }
+                .ignoresSafeArea()
+                .navigationTransition(.zoom(sourceID: opening.id, in: zoom))
         }
         .sheet(isPresented: $picking) {
             EarlierPicker(entry: entry, model: model) { earlier in

@@ -11,8 +11,15 @@ struct LiveTextView: UIViewRepresentable {
     @Binding var selected: String
 
     static var isSupported: Bool { ImageAnalyzer.isSupported }
-    /// One analyser for every photo, as Apple asks.
-    private static let analyzer = ImageAnalyzer()
+    /// One analyser for every photo, as Apple asks. The viewer shares it.
+    static let analyzer = ImageAnalyzer()
+
+    /// The words in a photo, found in the phone's languages, ready to attach to an interaction.
+    static func analysis(of image: UIImage) async -> ImageAnalysis? {
+        var configuration = ImageAnalyzer.Configuration([.text])
+        configuration.locales = languages
+        return try? await analyzer.analyze(image, configuration: configuration)
+    }
 
     /// The phone's languages, as Live Text names them. The phone says "ru-PT" for Russian
     /// on a phone set to Portugal; Live Text knows only "ru-RU", and ignores what it does not
@@ -39,9 +46,7 @@ struct LiveTextView: UIViewRepresentable {
         view.addInteraction(interaction)
         context.coordinator.interaction = interaction
         Task {
-            var configuration = ImageAnalyzer.Configuration([.text])
-            configuration.locales = Self.languages
-            if let analysis = try? await Self.analyzer.analyze(image, configuration: configuration) {
+            if let analysis = await Self.analysis(of: image) {
                 interaction.analysis = analysis
             }
         }

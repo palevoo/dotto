@@ -37,6 +37,17 @@ struct WordsField: View {
     }
 }
 
+extension View {
+    /// Words being changed: in the same place at the same size, on a sheet of paper that
+    /// says so.
+    func editingSurface() -> some View {
+        padding(10)
+            .background(Theme.square(44).fill(Theme.paper))
+            .overlay(Theme.square(44).strokeBorder(Theme.line, lineWidth: 1))
+            .padding(-10)
+    }
+}
+
 private struct WordsTextView: UIViewRepresentable {
     @Binding var text: String
     let size: CGFloat
@@ -95,11 +106,7 @@ private struct WordsTextView: UIViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
-    static func font(_ size: CGFloat) -> UIFont {
-        let base = UIFont.systemFont(ofSize: size)
-        guard let serif = base.fontDescriptor.withDesign(.serif) else { return base }
-        return UIFont(descriptor: serif, size: size)
-    }
+    static func font(_ size: CGFloat) -> UIFont { .serif(size) }
 
     var attributes: [NSAttributedString.Key: Any] {
         let paragraph = NSMutableParagraphStyle()

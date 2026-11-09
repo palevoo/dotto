@@ -14,6 +14,8 @@ struct EntryRow: View {
     @Binding var editingRow: ULID?
     let onOpen: () -> Void
     let onOpenPhoto: (PhotoOpening) -> Void
+    /// The namespace the viewer's zoom transition finds the photo in.
+    let zoom: Namespace.ID
     @State private var editing = false
     @State private var text = ""
     @State private var focused = false
@@ -36,8 +38,12 @@ struct EntryRow: View {
                         HStack(spacing: 10) {
                             ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
                                 ThumbView(hash: photo.hash, original: model.mediaURL(photo), side: 180)
-                                    .onPhotoTap(radius: 180 * 0.22) { source in
-                                        onOpenPhoto(PhotoOpening(entry: entry.id, index: index, sources: [photo.hash: source]))
+                                    .matchedTransitionSource(id: PhotoOpening.source(entry.id, photo.hash), in: zoom) { source in
+                                        source.clipShape(Theme.square(180))
+                                    }
+                                    .accessibilityIdentifier("thumbnail")
+                                    .onTapGesture {
+                                        onOpenPhoto(PhotoOpening(entry: entry.id, hash: photo.hash, index: index))
                                     }
                             }
                         }

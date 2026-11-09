@@ -21,6 +21,7 @@ struct PageView: View {
     @State private var showCamera = false
     @State private var picked: [PhotosPickerItem] = []
     @State private var viewing: PhotoOpening?
+    @Namespace private var zoom
     @State private var filter: String?
     @State private var revealed: ULID?
     /// The line whose words are being changed on the page, if any.
@@ -56,7 +57,8 @@ struct PageView: View {
                                 revealed: revealed,
                                 editingRow: $editingRow,
                                 onOpen: { id in open { path.append(id) } },
-                                onOpenPhoto: { opening in open { withoutAnimation { viewing = opening } } }
+                                onOpenPhoto: { opening in open { viewing = opening } },
+                                zoom: zoom
                             )
                             .id(day.key)
                         }
@@ -168,7 +170,9 @@ struct PageView: View {
                 }
             }
             .fullScreenCover(item: $viewing) { opening in
-                PhotoViewer(opening: opening, model: model) { withoutAnimation { viewing = nil } }
+                PhotoViewer(opening: opening, model: model) { viewing = nil }
+                    .ignoresSafeArea()
+                    .navigationTransition(.zoom(sourceID: opening.id, in: zoom))
             }
             .onChange(of: picked) { _, items in
                 guard !items.isEmpty else { return }
@@ -428,6 +432,7 @@ struct DaySection: View {
     @Binding var editingRow: ULID?
     let onOpen: (ULID) -> Void
     let onOpenPhoto: (PhotoOpening) -> Void
+    let zoom: Namespace.ID
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -441,7 +446,8 @@ struct DaySection: View {
                     revealed: revealed == entry.id,
                     editingRow: $editingRow,
                     onOpen: { onOpen(entry.id) },
-                    onOpenPhoto: onOpenPhoto
+                    onOpenPhoto: onOpenPhoto,
+                    zoom: zoom
                 )
                 .id(entry.id)
             }

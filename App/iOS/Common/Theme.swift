@@ -33,6 +33,15 @@ extension Color {
     }
 }
 
+extension UIFont {
+    /// The serif the page is set in, for UIKit views. Scaled follows the person's text size.
+    static func serif(_ size: CGFloat, scaled: Bool = false) -> UIFont {
+        let base = UIFont.systemFont(ofSize: size)
+        let font = base.fontDescriptor.withDesign(.serif).map { UIFont(descriptor: $0, size: size) } ?? base
+        return scaled ? UIFontMetrics(forTextStyle: .body).scaledFont(for: font) : font
+    }
+}
+
 extension UIColor {
     convenience init(hex: UInt32) {
         self.init(
