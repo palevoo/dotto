@@ -1,15 +1,15 @@
-// Draws the Margin app icon. Run: swift App/Design/icon.swift App/Sources/Assets.xcassets/AppIcon.appiconset
+// Draws the app icon. Run: swift App/Design/icon.swift App/iOS/Sources/Assets.xcassets/AppIcon.appiconset
 //
-// A page. The margin is a hairline a third of the way in. The one green square is the mark
-// that waits at the end of today's page. Nothing else.
+// A sheet, looking back: two dots a little above centre, dotto's eyes, in its colour. The
+// smallest face there is. Nothing else. The tinted icon is a grayscale image on transparent,
+// which iOS colours itself.
 
 import AppKit
 import CoreGraphics
 
 struct Palette {
-    let paper: CGColor
-    let line: CGColor
-    let mark: CGColor
+    let sheet: CGColor
+    let eyes: CGColor
 }
 
 func color(_ hex: UInt32, alpha: CGFloat = 1) -> CGColor {
@@ -21,10 +21,9 @@ func color(_ hex: UInt32, alpha: CGFloat = 1) -> CGColor {
     )
 }
 
-let light = Palette(paper: color(0xFBFBF8), line: color(0xC9CDC3), mark: color(0x3B5A2A))
-let dark = Palette(paper: color(0x1A1C18), line: color(0x3A3F36), mark: color(0x8FB07A))
-// Tinted icons are a grayscale image on transparent; iOS colours them.
-let tinted = Palette(paper: CGColor(gray: 0, alpha: 0), line: CGColor(gray: 0.55, alpha: 1), mark: CGColor(gray: 1, alpha: 1))
+let light = Palette(sheet: color(0xFFFFFF), eyes: color(0xE4572E))
+let dark = Palette(sheet: color(0x141618), eyes: color(0xFF6A3D))
+let tinted = Palette(sheet: CGColor(gray: 0, alpha: 0), eyes: CGColor(gray: 1, alpha: 1))
 
 func draw(_ palette: Palette, size: CGFloat, transparentBackground: Bool) -> CGImage {
     let space = CGColorSpaceCreateDeviceRGB()
@@ -35,24 +34,17 @@ func draw(_ palette: Palette, size: CGFloat, transparentBackground: Bool) -> CGI
     let w = size
 
     if !transparentBackground {
-        context.setFillColor(palette.paper)
+        context.setFillColor(palette.sheet)
         context.fill(CGRect(x: 0, y: 0, width: w, height: w))
     }
 
-    // The margin line.
-    let lineX = w * 0.34
-    let lineWidth = max(2, w * 0.012)
-    context.setFillColor(palette.line)
-    context.fill(CGRect(x: lineX - lineWidth / 2, y: 0, width: lineWidth, height: w))
-
-    // The mark, in the margin, where today's page ends. Continuous-curvature rounded square.
-    let side = w * 0.17
-    let center = CGPoint(x: lineX / 2, y: w * (1 - 0.66))
-    let rect = CGRect(x: center.x - side / 2, y: center.y - side / 2, width: side, height: side)
-    let path = CGPath(roundedRect: rect, cornerWidth: side * 0.22, cornerHeight: side * 0.22, transform: nil)
-    context.setFillColor(palette.mark)
-    context.addPath(path)
-    context.fillPath()
+    // Two eyes: a sixth of the width each, a quarter of the width apart, a little above the middle.
+    let radius = w / 12
+    let y = w * (1 - 0.46)
+    context.setFillColor(palette.eyes)
+    for x in [w * 0.375, w * 0.625] {
+        context.fillEllipse(in: CGRect(x: x - radius, y: y - radius, width: radius * 2, height: radius * 2))
+    }
 
     return context.makeImage()!
 }

@@ -1,17 +1,20 @@
 import SwiftUI
 
-/// The palette from the mock, as dynamic colors, and the one shape everything made with the app takes.
+/// The palette, 9 November 2026: a cool near-white ground, neutral black ink, hairlines barely
+/// there, and nothing coloured but the dot. Persimmon is this notebook's dotto; every other
+/// originator has a colour of its own from its id. The rounded square is the shape of things
+/// made with the app, photos and buttons; a mark that stands for someone is a dot.
 enum Theme {
-    static let background = Color(light: 0xF3F4F0, dark: 0x1A1C18)
-    static let paper = Color(light: 0xFBFBF8, dark: 0x22251F)
-    static let line = Color(light: 0xE2E4DD, dark: 0x30342C)
-    static let foreground = Color(light: 0x1F231D, dark: 0xE6E9E1)
-    static let muted = Color(light: 0x6B716A, dark: 0x9AA095)
-    static let faint = Color(light: 0xC9CDC3, dark: 0x4D534C)
-    static let accent = Color(light: 0x3B5A2A, dark: 0x8FB07A)
-    static let agent = Color(light: 0x5B4A66, dark: 0xB8A6C6)
-    static let warm = Color(light: 0x9A5A2A, dark: 0xD9955A)
-    static let recording = Color(light: 0xB5452E, dark: 0xE06A52)
+    static let background = Color(light: 0xF6F6F4, dark: 0x111213)
+    static let paper = Color(light: 0xFFFFFF, dark: 0x191B1C)
+    static let line = Color(light: 0xE6E7E5, dark: 0x262829)
+    static let foreground = Color(light: 0x141618, dark: 0xECEDEA)
+    static let muted = Color(light: 0x6B7075, dark: 0x9EA3A1)
+    static let faint = Color(light: 0xC9CCCA, dark: 0x4A4E4D)
+    static let accent = Color(light: 0xE4572E, dark: 0xFF6A3D)
+    static let agent = Color(light: 0x7A4E8C, dark: 0xB78BC9)
+    static let warm = Color(light: 0xB8741A, dark: 0xE0A33F)
+    static let recording = Color(light: 0xC62828, dark: 0xFF5252)
 
     /// Continuous-curvature rounded square. Radius is a fixed share of the shorter side.
     static func square(_ side: CGFloat) -> RoundedRectangle {

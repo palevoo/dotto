@@ -46,7 +46,9 @@ Every build stamps the commit it was made from into the app (`App/Scripts/stamp.
 the phone shows it at the foot of Setup, the Mac in its window header, and the door says
 it on arrival. A `+` after the commit means uncommitted changes were in the tree. Hold it
 against `git log` to know whether what is running is what the repository has.
-The icon: `swift App/Design/icon.swift App/Sources/Assets.xcassets/AppIcon.appiconset`.
+The icon: `swift App/Design/icon.swift App/iOS/Sources/Assets.xcassets/AppIcon.appiconset`, two dots on a sheet,
+dotto's eyes. The palette and type of 9 November are in `App/iOS/Common/Theme.swift`, `App/Mac/Sources/MacTheme.swift`
+and the top of `site/index.html`: a cool near-white ground, black ink, nothing coloured but the dot.
 
 ## The folder
 

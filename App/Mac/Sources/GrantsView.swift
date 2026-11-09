@@ -30,10 +30,13 @@ struct GrantsView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            MacTheme.square(18)
-                .fill(MacTheme.accent)
-                .frame(width: 18, height: 18)
-            Text("margin")
+            // dotto, looking: the smallest face there is.
+            HStack(spacing: 5) {
+                Circle().fill(MacTheme.accent).frame(width: 9, height: 9)
+                Circle().fill(MacTheme.accent).frame(width: 9, height: 9)
+            }
+            .accessibilityLabel("dotto")
+            Text("dotto")
                 .font(.system(size: 30, weight: .medium, design: .serif))
                 .foregroundStyle(MacTheme.foreground)
             Spacer()
@@ -85,7 +88,7 @@ struct GrantsView: View {
     private var doorSection: some View {
         Section("Door") {
             HStack(spacing: 8) {
-                MacTheme.square(8)
+                Circle()
                     .fill(model.port == nil ? MacTheme.faint : MacTheme.accent)
                     .frame(width: 8, height: 8)
                 Text(model.port.map { "Open on 127.0.0.1:\($0)" } ?? "Closed")
@@ -194,7 +197,7 @@ struct GrantsView: View {
             if let status = model.readerStatus, let reader = model.reader {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
-                        MacTheme.square(6)
+                        Circle()
                             .fill(status.state == .running ? MacTheme.accent : MacTheme.muted)
                             .frame(width: 6, height: 6)
                         Text(status.state == .running ? "Running since \(Self.clock(status.lastRun?.startedAt ?? status.startedAt))" : "On, waiting for something to land")
@@ -340,7 +343,7 @@ struct GrantsView: View {
             ForEach(asks + rest) { item in
                 HStack(alignment: .top, spacing: 12) {
                     HStack(spacing: 6) {
-                        MacTheme.square(5)
+                        Circle()
                             .fill(item.unread ? MacTheme.accent : .clear)
                             .frame(width: 5, height: 5)
                         Text(Self.stamp(item.at))
@@ -470,7 +473,7 @@ struct GrantCard: View {
                     .controlSize(.small)
             }
             HStack(spacing: 8) {
-                MacTheme.square(8)
+                Circle()
                     .fill(MacTheme.ink(for: grant.author, owner: nil))
                     .frame(width: 8, height: 8)
                 // The author this key is for. The menu hands the same key to another author instead.

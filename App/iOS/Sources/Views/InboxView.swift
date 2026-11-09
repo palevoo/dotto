@@ -54,7 +54,7 @@ struct InboxView: View {
         let content = HStack(alignment: .top, spacing: 10) {
             // The time, with a mark before it until the line is opened.
             HStack(spacing: 5) {
-                Theme.square(5)
+                Circle()
                     .fill(item.unread ? Theme.accent : .clear)
                     .frame(width: 5, height: 5)
                 Text(Format.time(item.at, calendar: model.calendar))

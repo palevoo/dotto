@@ -361,7 +361,7 @@ struct PinnedHeader: View {
             if unread > 0 {
                 Button(action: onInbox) {
                     HStack(spacing: 6) {
-                        Theme.square(6)
+                        Circle()
                             .fill(Theme.accent)
                             .frame(width: 6, height: 6)
                         Text("\(unread)")
@@ -398,7 +398,8 @@ struct PinnedHeader: View {
         .padding(.horizontal, 20)
         .padding(.top, 10)
         .padding(.bottom, 12)
-        .background(Theme.background.opacity(0.96))
+        // Opaque, and up under the status bar too, so lines scrolling beneath never show through.
+        .background(Theme.background.ignoresSafeArea(edges: .top))
         .overlay(alignment: .bottom) { Theme.line.frame(height: 1) }
     }
 
@@ -533,7 +534,7 @@ struct LiveLine: View {
             if recorder.isRecording, let started = recorder.startedAt {
                 Button(action: onStopSpeaking) {
                     HStack(spacing: 8) {
-                        Theme.square(12)
+                        Circle()
                             .fill(Theme.recording)
                             .frame(width: 12, height: 12)
                         TimelineView(.periodic(from: started, by: 1)) { context in

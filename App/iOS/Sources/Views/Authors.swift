@@ -34,14 +34,14 @@ struct Who: View {
     }
 }
 
-/// The square in someone's colour, for where their name would go.
+/// The dot in someone's colour, for where their name would go.
 struct AuthorMark: View {
     let author: Author
     let model: NotebookModel
     var side: CGFloat = 10
 
     var body: some View {
-        Theme.square(side)
+        Circle()
             .fill(Theme.ink(for: author, owner: model.store.manifest.owner))
             .frame(width: side, height: side)
     }

@@ -87,7 +87,7 @@ struct CalendarSheet: View {
                                     .foregroundStyle(isToday ? Theme.background : (future ? Theme.faint : Theme.foreground))
                                     .frame(width: 30, height: 30)
                                     .background(Theme.square(30).fill(isToday ? Theme.foreground : .clear))
-                                Theme.square(4)
+                                Circle()
                                     .fill(has ? Theme.accent : .clear)
                                     .frame(width: 4, height: 4)
                             }

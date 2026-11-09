@@ -1,48 +1,52 @@
 <title>dotto</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='22' fill='%23ffffff'/%3E%3Ccircle cx='33' cy='46' r='12' fill='%23e4572e'/%3E%3Ccircle cx='63' cy='46' r='12' fill='%23e4572e'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: the page is itself a notebook page. Four statements, each with a screen of air and
    one proof beside it; then a quieter second tier. A hairline margin carries the time of each
-   moment. Nothing is boxed unless it is a thing someone made. */
+   moment. Nothing is boxed unless it is a thing someone made.
+   Palette, 9 November: a cool near-white ground, neutral black ink, hairlines barely there,
+   and nothing coloured but the dot. The system speaks in a grotesk; a person's words stay in
+   a serif. dotto is two dots: the o's in its name. */
 :root {
-  --paper: #f3f3ee;
-  --card: #fbfbf8;
-  --ink: #1c1b18;
-  --soft: #55534c;
-  --muted: #8a877e;
-  --rule: rgba(28, 27, 24, 0.14);
-  --rule-strong: rgba(28, 27, 24, 0.32);
-  --field: #2e7a4c;
-  --field-soft: rgba(46, 122, 76, 0.12);
-  --moss: #6a5acd;
-  --health: #b9651f;
-  --friend: #2c6cae;
-  --photo-a: #c9d6c0;
-  --photo-b: #7f9b74;
-  --photo-c: #e3d2b8;
-  --photo-d: #a3785a;
+  --paper: #f6f6f4;
+  --card: #ffffff;
+  --ink: #141618;
+  --soft: #4f5357;
+  --muted: #8a8f93;
+  --rule: rgba(20, 22, 24, 0.10);
+  --rule-strong: rgba(20, 22, 24, 0.24);
+  --field: #e4572e;
+  --field-soft: rgba(228, 87, 46, 0.12);
+  --moss: #e4572e;
+  --health: #3b5bdb;
+  --friend: #1f8a7a;
+  --photo-a: #d9dbd8;
+  --photo-b: #a8adaa;
+  --photo-c: #e6e2d8;
+  --photo-d: #b9ad9a;
   --display: "Newsreader", "Iowan Old Style", Georgia, serif;
-  --ui: "IBM Plex Sans", -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --mono: "IBM Plex Mono", "SF Mono", Menlo, monospace;
+  --ui: "Geist", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "Geist Mono", "SF Mono", Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #151513; --card: #1d1d1a; --ink: #ebe9e2; --soft: #b8b5ac; --muted: #85837a;
-    --rule: rgba(235, 233, 226, 0.14); --rule-strong: rgba(235, 233, 226, 0.34);
-    --field: #63b583; --field-soft: rgba(99, 181, 131, 0.16);
-    --moss: #a99af0; --health: #e0914c; --friend: #6ea6ea;
-    --photo-a: #3b473a; --photo-b: #5c7355; --photo-c: #4a4236; --photo-d: #7c5c44;
+    --paper: #111213; --card: #191b1c; --ink: #ecedea; --soft: #b4b8b5; --muted: #7e8381;
+    --rule: rgba(236, 237, 234, 0.10); --rule-strong: rgba(236, 237, 234, 0.24);
+    --field: #ff6a3d; --field-soft: rgba(255, 106, 61, 0.14);
+    --moss: #ff6a3d; --health: #7d94f0; --friend: #4fc0ae;
+    --photo-a: #2a2d2e; --photo-b: #3f4446; --photo-c: #302e2a; --photo-d: #4a443b;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --paper: #151513; --card: #1d1d1a; --ink: #ebe9e2; --soft: #b8b5ac; --muted: #85837a;
-  --rule: rgba(235, 233, 226, 0.14); --rule-strong: rgba(235, 233, 226, 0.34);
-  --field: #63b583; --field-soft: rgba(99, 181, 131, 0.16);
-  --moss: #a99af0; --health: #e0914c; --friend: #6ea6ea;
-  --photo-a: #3b473a; --photo-b: #5c7355; --photo-c: #4a4236; --photo-d: #7c5c44;
+  --paper: #111213; --card: #191b1c; --ink: #ecedea; --soft: #b4b8b5; --muted: #7e8381;
+  --rule: rgba(236, 237, 234, 0.10); --rule-strong: rgba(236, 237, 234, 0.24);
+  --field: #ff6a3d; --field-soft: rgba(255, 106, 61, 0.14);
+  --moss: #ff6a3d; --health: #7d94f0; --friend: #4fc0ae;
+  --photo-a: #2a2d2e; --photo-b: #3f4446; --photo-c: #302e2a; --photo-d: #4a443b;
   color-scheme: dark;
 }
 
@@ -75,13 +79,21 @@ header.top {
   font-family: var(--ui); font-size: 14px; color: var(--muted);
 }
 .wordmark {
-  display: inline-flex; align-items: baseline;
-  font-family: var(--display); font-weight: 500; font-size: 30px; letter-spacing: -0.01em; color: var(--ink);
+  display: inline-flex; align-items: baseline; white-space: nowrap;
+  font-family: var(--ui); font-weight: 500; font-size: 30px; letter-spacing: -0.03em; color: var(--ink);
   text-decoration: none; line-height: 1;
 }
+/* the two o's are dotto's eyes; they blink now and then */
+.wordmark .o {
+  display: inline-block; width: 0.52em; height: 0.52em; border-radius: 50%; margin: 0 0.03em;
+  background: var(--field); transform: translateY(-0.04em); transform-origin: center;
+  animation: wink 7s infinite;
+}
+.wordmark .o:last-child { animation-delay: 0.06s; }
+@keyframes wink { 0%, 93%, 100% { transform: translateY(-0.04em) scaleY(1); } 96% { transform: translateY(-0.04em) scaleY(0.08); } }
 .sq {
   display: inline-block; width: 0.26em; height: 0.26em; margin-left: 0.09em;
-  background: var(--field); border-radius: 22%; transform: translateY(-0.02em);
+  background: var(--field); border-radius: 50%; transform: translateY(-0.02em);
 }
 .wordmark.small { font-size: 22px; }
 header.top nav { display: flex; gap: 18px; }
@@ -109,7 +121,7 @@ header.top nav a:hover { color: var(--ink); }
   .moment.core { padding-block: 120px 0; margin-top: 96px; }
 }
 
-h1, h2, h3 { font-family: var(--display); font-weight: 500; letter-spacing: -0.015em; text-wrap: balance; margin: 0; }
+h1, h2, h3 { font-family: var(--ui); font-weight: 500; letter-spacing: -0.02em; text-wrap: balance; margin: 0; }
 h1 { font-size: clamp(40px, 6.6vw, 70px); line-height: 1.04; letter-spacing: -0.02em; }
 h1 .sq { width: 0.2em; height: 0.2em; margin-left: 0.06em; transform: translateY(-0.04em); }
 h2 { font-size: clamp(30px, 4.4vw, 46px); line-height: 1.1; letter-spacing: -0.02em; }
@@ -353,8 +365,15 @@ footer { margin-top: 96px; border-top: 1px solid var(--rule); padding-block: 36p
 footer .row2 { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px 24px; align-items: center; }
 footer p { max-width: 70ch; line-height: 1.55; }
 
+/* Two voices: the system in the grotesk, a person's words in the serif. */
+body, p, .lede, .big, .story .text p, .two p, .who-list div, .way .how { font-family: var(--ui); }
+.line .w, .live .w, .way .ex, .loop .say, .quote, .item .what, .tried, .made, .row .k, .plant .n, .book .n { font-family: var(--display); }
+.reply { font-family: var(--ui); font-size: 14px; }
+.streak i, .step i, .door i { border-radius: 50%; }
+.btn { border-radius: 999px; }
+
 @media (prefers-reduced-motion: reduce) {
-  .live .t, .live .caret { animation: none; }
+  .live .t, .live .caret, .wordmark .o { animation: none; }
   .appear, .go .later { animation: none; }
   .armed .later { opacity: 1; }
 }
@@ -362,7 +381,7 @@ footer p { max-width: 70ch; line-height: 1.55; }
 
 <div class="wrap">
   <header class="top">
-    <a class="wordmark" href="#top" aria-label="dotto">dotto<span class="sq" aria-hidden="true"></span></a>
+    <a class="wordmark" href="#top" aria-label="dotto">d<span class="o" aria-hidden="true"></span>tt<span class="o" aria-hidden="true"></span></a>
     <nav>
       <a href="#habit">Habit</a>
       <a href="#then">Then</a>
@@ -374,7 +393,7 @@ footer p { max-width: 70ch; line-height: 1.55; }
 
   <section class="hero" id="top">
     <div class="copy">
-      <h1>Where you write changes what you think<span class="sq" aria-hidden="true"></span></h1>
+      <h1>Where you write changes what you think.</h1>
       <p class="lede">A feed makes you perform. A chat makes you ask. A blank page lets you notice. Write a line and go back to your day. The line goes to work.</p>
       <div class="cta">
         <a class="btn" href="#start"><span class="sq" aria-hidden="true"></span>Get dotto for iPhone</a>
@@ -647,7 +666,7 @@ footer p { max-width: 70ch; line-height: 1.55; }
     <div class="body stack-lg">
       <div class="stack">
         <h2>Anything can join, through the same door.</h2>
-        <p class="lede">A person, an app, a loop, a program a friend wrote. Each an author with its own colour and page. Add as you go. Remove the same way.</p>
+        <p class="lede">A person, an app, a loop, a program a friend wrote. Each an originator with its own colour and page. Add as you go. Remove the same way.</p>
       </div>
       <div class="doors" aria-label="Authors">
         <span class="door"><i style="--c:var(--health)"></i>Health</span>
@@ -675,7 +694,7 @@ footer p { max-width: 70ch; line-height: 1.55; }
       <div class="stack">
         <h2>This page is a thing dotto made.</h2>
         <p class="lede">It began as lines in one notebook: a farm, a nursery, a shelf, a repair shop, a name. Then one sentence: make a page that says what this is. You just read the result.</p>
-        <div class="made">dotto works<span class="sq" aria-hidden="true"></span></div>
+        <div class="made"><span class="wordmark" style="font-size:inherit">d<span class="o" aria-hidden="true"></span>tt<span class="o" aria-hidden="true"></span></span> works.</div>
       </div>
       <div class="cta">
         <a class="btn" href="#top"><span class="sq" aria-hidden="true"></span>Get dotto for iPhone</a>
@@ -686,7 +705,7 @@ footer p { max-width: 70ch; line-height: 1.55; }
 
   <footer>
     <div class="row2">
-      <a class="wordmark small" href="#top" aria-label="dotto">dotto<span class="sq" aria-hidden="true"></span></a>
+      <a class="wordmark small" href="#top" aria-label="dotto">d<span class="o" aria-hidden="true"></span>tt<span class="o" aria-hidden="true"></span></a>
       <span>iPhone and Mac · November 2026</span>
     </div>
     <p>Shown as meant to be. On 6 November 2026 the page, camera, voice, quotes, the door, labels, threads, replies, receipts and pushes exist. Loops, the inbox, your own ways in, the shelves, the sale, the shop, and a page like this one made by dotto are next.</p>
