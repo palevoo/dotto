@@ -220,6 +220,39 @@ final class ShapeTests: XCTestCase {
         XCTAssertFalse(item.unread)
     }
 
+    /// Todos are lines anyone marked todo and nobody marked done, due first; kinds count things.
+    func testTodosDueAndKinds() {
+        let tv = ULID(timestamp: clock), tyres = ULID(timestamp: clock.addingTimeInterval(60)), visit = ULID(timestamp: clock.addingTimeInterval(120))
+        let fig = ULID(timestamp: clock), book = ULID(timestamp: clock), untyped = ULID(timestamp: clock)
+        let thursday = now.addingTimeInterval(2 * 86_400)
+        var notebook = Notebook(owner: me, events: [
+            event(.entryCreate(.init(entry: tv, text: "Sell the TV", startedAt: clock))),
+            event(.entryCreate(.init(entry: tyres, text: "Tyres", startedAt: clock.addingTimeInterval(60)))),
+            event(.entryCreate(.init(entry: visit, text: "Apartment visit", startedAt: clock.addingTimeInterval(120)))),
+            event(.factSet(.init(on: tv, key: "todo", value: .words("open"))), author: .weeju),
+            event(.factSet(.init(on: tyres, key: "todo", value: .words("open"))), author: .weeju),
+            event(.factSet(.init(on: tyres, key: "due", value: .moment(thursday))), author: .weeju),
+            event(.factSet(.init(on: visit, key: "due", value: .moment(now.addingTimeInterval(86_400)))), author: .weeju),
+            event(.thingSet(.init(thing: fig, name: "fig", kind: "plant")), author: .weeju),
+            event(.thingSet(.init(thing: book, name: "Infinity", kind: "book")), author: .weeju),
+            event(.thingSet(.init(thing: untyped, name: "something")), author: .weeju),
+        ])
+        XCTAssertEqual(notebook.todos.map(\.text), ["Tyres", "Sell the TV"], "due first, then newest")
+        XCTAssertEqual(notebook.entry(tyres)?.due, thursday)
+        XCTAssertFalse(notebook.entry(visit)!.isTodo, "an appointment is due, not a todo")
+        XCTAssertEqual(notebook.due(after: now).map(\.text), ["Apartment visit", "Tyres"])
+        XCTAssertEqual(notebook.due(after: now.addingTimeInterval(3 * 86_400)), [])
+
+        notebook.apply(event(.done(.init(entry: tv)), author: .weeju))
+        XCTAssertEqual(notebook.todos.map(\.text), ["Tyres"], "done leaves the list")
+        notebook.apply(event(.factRemove(.init(on: tyres, key: "todo", of: .weeju))))
+        XCTAssertEqual(notebook.todos, [], "and so does the owner taking the fact off")
+
+        XCTAssertEqual(notebook.kinds.map { "\($0.kind ?? "-") \($0.count)" }, ["book 1", "plant 1", "- 1"])
+    }
+
+    private var now: Date { clock }
+
     func testTheDayPageNamesBelongingAndFacts() {
         let fig = ULID(timestamp: clock)
         let line = ULID(timestamp: clock.addingTimeInterval(60))

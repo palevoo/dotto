@@ -209,6 +209,17 @@ public struct Entry: Hashable, Sendable, Identifiable {
     /// The things this line belongs to.
     public var belongsTo: [Link] { outgoing.filter { $0.toKind == .thing } }
 
+    /// The facts under one key, by every originator that put one.
+    public func facts(_ key: String) -> [Fact] { facts.filter { $0.key == key } }
+
+    /// Something to do, by anyone's word, and not done.
+    public var isTodo: Bool { done == nil && !facts("todo").isEmpty }
+
+    /// The moment it is due, when any originator put one: the earliest of them.
+    public var due: Date? {
+        facts("due").compactMap { if case .moment(let at) = $0.value { return at }; return nil }.min()
+    }
+
     /// Words this line is filed under, sorted.
     public var labels: [String] {
         labelMarks.filter { $0.value.on }.keys.sorted()
@@ -1045,6 +1056,34 @@ public struct Notebook: Sendable {
     /// Every standing thing's name, by id.
     public var thingNames: [ULID: String] {
         things.mapValues(\.name)
+    }
+
+    /// The kinds things have, with how many of each, most first then by name. Things with
+    /// no kind are counted under nil.
+    public var kinds: [(kind: String?, count: Int)] {
+        let counts = things.values.reduce(into: [String?: Int]()) { counts, thing in counts[thing.kind, default: 0] += 1 }
+        return counts.map { (kind: $0.key, count: $0.value) }
+            .sorted { $0.count != $1.count ? $0.count > $1.count : ($0.kind ?? "~") < ($1.kind ?? "~") }
+    }
+
+    /// The owner's lines still to do: a todo fact and not done. Those with a due moment
+    /// first, soonest first; then the rest, newest first.
+    public var todos: [Entry] {
+        let open = entries.filter(\.isTodo)
+        let dated = open.filter { $0.due != nil }.sorted { ($0.due!, $0.id) < ($1.due!, $1.id) }
+        let undated = open.filter { $0.due == nil }.sorted { ($0.startedAt, $0.id) > ($1.startedAt, $1.id) }
+        return dated + undated
+    }
+
+    /// The owner's lines with a due moment still ahead of `now`, soonest first, done or not
+    /// done: an appointment keeps its moment whether or not it is a todo.
+    public func due(after now: Date) -> [Entry] {
+        entries.compactMap { entry -> (Entry, Date)? in
+            guard entry.done == nil, let due = entry.due, due > now else { return nil }
+            return (entry, due)
+        }
+        .sorted { ($0.1, $0.0.id) < ($1.1, $1.0.id) }
+        .map(\.0)
     }
 
     /// The things of one kind, oldest first.
