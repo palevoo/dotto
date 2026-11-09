@@ -48,6 +48,16 @@ enum Seed {
             try? model.store.append(Event(id: ULID(), author: seed, device: model.device, at: Date(),
                                           payload: .link(.init(from: note, to: second))))
         }
+        // A thing the second line belongs to, with its state, and a fact on the first line.
+        if !model.notebook.allThings.contains(where: { $0.name == thing }) {
+            let fig = ULID()
+            try? model.store.append([
+                Event(id: fig, author: seed, device: model.device, at: Date(), payload: .thingSet(.init(thing: fig, name: thing, kind: "plant"))),
+                Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .link(.init(from: second, to: fig))),
+                Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .factSet(.init(on: fig, key: "state", value: .words("potted")))),
+                Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .factSet(.init(on: line, key: "pages", value: .number(2, unit: nil)))),
+            ])
+        }
         // A walk, as Health would put it on the owner's page under its own name.
         if !model.notebook.entries.contains(where: { $0.text == walk }) {
             let health = NotebookModel.health
@@ -64,6 +74,7 @@ enum Seed {
     }
 
     static let walk = "Walk, 3.1 km, 41 min"
+    static let thing = "the fig"
     static let cited = "Meaning comes later, says the second page"
     static let citing = "Both pages say the same; see the second."
 

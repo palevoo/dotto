@@ -323,6 +323,16 @@ final class NotebookModel {
         record(.undone(.init(entry: entry)))
     }
 
+    /// A fact taken off, whoever put it there: one hold.
+    func removeFact(_ fact: Fact) {
+        record(.factRemove(.init(on: fact.on, key: fact.key, of: fact.author)))
+    }
+
+    /// A thing dropped, with everything that belonged to it set loose: one hold.
+    func removeThing(_ id: ULID) {
+        record(.thingRemove(.init(thing: id)))
+    }
+
     /// Your own link: this line carries on from an earlier one of yours.
     func link(_ later: ULID, from earlier: ULID) {
         guard let a = notebook.entry(earlier), let b = notebook.entry(later),

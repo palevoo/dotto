@@ -91,8 +91,9 @@ and stays the same being; a key can also be handed to another author after the f
 grants are in the folder, every device knows the same ones and any could serve the door.
 The keys themselves stay in the Mac's keychain, for the Copy button; lose them and you issue
 a new key for the same author. Tools: `whats_new`, `read_days`, `list_lines`,
-`read_photo`, `add_note`, `set_label`, `link`, `mark_done`, `write_line`, `edit_line`,
-`delete_line`, `choose_name`. Writes land in the grant's own event file; no grant can touch
+`read_photo`, `add_note`, `set_label`, `link`, `mark_done`, `set_thing`, `list_things`,
+`set_fact`, `write_line`, `add_line`, `edit_line`, `delete_line`, `choose_name`. Writes
+land in the grant's own event file; no grant can touch
 your lines, and a grant changes or deletes only lines it wrote. Revoke the grant and the key
 stops opening the door; the author's events stay. A request may add a `Dotto-Device`
 header to say which hand of the same grant it is, as the reader does; the stamp shows in
@@ -131,6 +132,19 @@ is not a link but a state: `mark_done` says a line is finished, by which later l
 did, and the line is struck through. On the page a linked line gets one quiet row, like
 replies; a line's own page lists its thread, done, and the notes that cite it. Hold a row
 there to take it back, or join the line to an earlier one of yours with "Carries on from…".
+
+Shapes are what lines turn out to be, and they are proposed, never filed by you. A thing is
+a shape with a name that lines belong to: a fig, a book, a person, the detox. An originator
+makes it once with `set_thing`, after `list_things`, and puts each line with it through
+`link`; it may give it a kind, a word like plant or book. A fact is a key and a value on a
+line or a thing, `set_fact`: yield 10 L on the harvest line, state potted on the fig; one
+per originator per key, the newest wins; a value is a number with a unit, words, a moment,
+a span or a place. On the page a line gets one quiet row with the things it is with and its
+facts; on its own page "with fig" is a jump to the thing's page, which has its facts as its
+state and the lines that belong to it by day. Everything shaped stands until you drop it:
+hold a fact to take it off, hold a thing's name to drop it, hold "with fig" to take the line
+out. The inbox shows each thing made and each fact put on your lines. Tags are still labels,
+not yet things.
 
 Replies under a line show on the page as one quiet line, the latest reply's words with a
 count before it. The line's page holds the conversation, with the place to reply pinned at

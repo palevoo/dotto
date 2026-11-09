@@ -252,6 +252,7 @@ struct PageView: View {
                 case .inbox: InboxView(model: model)
                 case .setup: SetupView(model: model, onRelocate: onRelocate)
                 case .author(let author): AuthorPage(author: author, model: model)
+                case .thing(let id): ThingPage(id: id, model: model)
                 }
             }
         }

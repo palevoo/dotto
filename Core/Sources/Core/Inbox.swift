@@ -5,6 +5,9 @@ import Foundation
 public struct InboxItem: Hashable, Sendable, Identifiable {
     public enum Kind: Hashable, Sendable {
         case reply, line, label, link, name
+        /// A thing made, or a fact put on the owner's line or on a thing: a proposal that
+        /// stands unless dropped.
+        case shape
     }
 
     /// The event that made it, or the last of a group.
@@ -29,6 +32,8 @@ public struct InboxItem: Hashable, Sendable, Identifiable {
     public let answered: Bool
     /// The owner has not looked since it arrived.
     public let unread: Bool
+    /// The thing to open, when the item is about one and not about a line.
+    public var thing: ULID? = nil
 
     /// Asks and has not been answered: the part of the inbox that needs the owner.
     public var wantsYou: Bool { asks && !answered }
@@ -179,8 +184,34 @@ public enum Inbox {
                         what: "is called \(name) now", text: "", about: nil,
                         asks: false, answered: false, unread: fresh))
 
+                case .thingSet(let p):
+                    // The making of a thing, as it stands now; a later rename is the same item.
+                    guard let thing = notebook.thing(p.thing), thing.setBy == event.id else { continue }
+                    let made = thing.createdAt == event.at
+                    items.append(InboxItem(
+                        id: event.id, author: event.author, at: event.at, kind: .shape, entry: nil,
+                        what: made ? "made a thing" : "renamed a thing", text: thing.name,
+                        about: thing.kind.map { "a \($0)" }, asks: false, answered: false, unread: fresh, thing: thing.id))
+
+                case .factSet(let p):
+                    // A fact on the owner's line, or on a thing; the author's own line is its own housekeeping.
+                    let key = p.key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    let said = "\(key) \(p.value.words(calendar: calendar))"
+                    if let entry = notebook.entry(p.on) {
+                        guard entry.author != event.author, entry.facts.contains(where: { $0.id == event.id }) else { continue }
+                        items.append(InboxItem(
+                            id: event.id, author: event.author, at: event.at, kind: .shape, entry: entry.id,
+                            what: "put \(said) on", text: words(entry), about: nil,
+                            asks: false, answered: false, unread: unread(event, about: entry.id)))
+                    } else if let thing = notebook.thing(p.on), thing.facts.contains(where: { $0.id == event.id }) {
+                        items.append(InboxItem(
+                            id: event.id, author: event.author, at: event.at, kind: .shape, entry: nil,
+                            what: "put \(said) on", text: thing.name, about: nil,
+                            asks: false, answered: false, unread: fresh, thing: thing.id))
+                    }
+
                 case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .unlink, .undone,
-                     .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan:
+                     .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .thingRemove, .factRemove:
                     continue
                 }
             }
@@ -284,8 +315,19 @@ public enum Inbox {
             case .linkAdd(let p):
                 marks.append("\(who(event.author)) linked \(p.later) back to \(p.earlier)\(p.closes ? ", closing it" : "")")
             case .link(let p):
-                let kind = notebook.note(p.from) != nil ? "cited \(p.to) in a note" : "linked \(p.from) back to \(p.to)"
+                let kind = notebook.note(p.from) != nil ? "cited \(p.to) in a note"
+                    : notebook.thing(p.to).map { "put \(p.from) with \($0.name) (\(p.to))" } ?? "linked \(p.from) back to \(p.to)"
                 marks.append("\(who(event.author)) \(kind)")
+            case .thingSet(let p):
+                guard let thing = notebook.thing(p.thing) else { continue }
+                marks.append("\(who(event.author)) \(thing.createdAt == event.at ? "made" : "set") a thing: \(thing.name)\(thing.kind.map { ", a \($0)" } ?? "") (\(p.thing))")
+            case .thingRemove(let p):
+                takenBack.append("\(who(event.author)) dropped the thing \(p.thing)")
+            case .factSet(let p):
+                let onWhat = notebook.thing(p.on).map { "\($0.name) (\(p.on))" } ?? "\(p.on)"
+                marks.append("\(who(event.author)) put \(p.key) \(p.value.words(calendar: calendar)) on \(onWhat)")
+            case .factRemove(let p):
+                takenBack.append("\(who(event.author)) took \(p.key) off \(p.on)\(p.of.map { $0 == me ? ", yours" : "" } ?? "")")
             case .done(let p):
                 marks.append("\(who(event.author)) marked \(p.entry) done\(p.by.map { " by \($0)" } ?? "")")
             case .nameSet(let p):

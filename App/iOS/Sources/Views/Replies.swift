@@ -172,6 +172,44 @@ struct ThreadList: View {
             ForEach(entry.citedBy) { link in
                 row(link, other: link.fromEntry, label: "cited")
             }
+            ForEach(entry.belongsTo) { link in
+                thingRow(link)
+            }
+            if !entry.facts.isEmpty {
+                FactList(facts: entry.facts, model: model)
+            }
+        }
+    }
+
+    /// A thing this line belongs to: tap to open its page, hold to take the line out of it.
+    @ViewBuilder
+    private func thingRow(_ link: Core.Link) -> some View {
+        if let thing = model.notebook.thing(link.to) {
+            NavigationLink(value: Route.thing(thing.id)) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("with")
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.faint)
+                        .frame(width: 44, alignment: .leading)
+                    Text(thing.name)
+                        .font(Theme.sansSmall)
+                        .foregroundStyle(Theme.foreground)
+                    if let kind = thing.kind {
+                        Text(kind)
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.faint)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("with-\(thing.name)")
+            .contextMenu {
+                Button("Take it out", systemImage: "minus.circle", role: .destructive) {
+                    withAnimation(Motion.settle) { model.unlink(link) }
+                }
+            }
         }
     }
 

@@ -29,10 +29,11 @@ public struct Note: Hashable, Sendable, Identifiable {
 /// A link joins one thing to another by their ids, and that is all it is. What it means
 /// comes from what its ends are: a line to an earlier line is a thread, the later carrying
 /// on from the earlier; a note to a line is a citation, the note pointing at the line it
-/// speaks of. One link per pair, from the thing that points to the thing pointed at.
+/// speaks of; a line to a thing is belonging, this quote is of that book. One link per
+/// pair, from the thing that points to the thing pointed at.
 public struct Link: Hashable, Sendable, Identifiable {
     public enum End: Hashable, Sendable {
-        case line, note
+        case line, note, thing
     }
 
     /// The event that placed it.
@@ -41,7 +42,8 @@ public struct Link: Hashable, Sendable, Identifiable {
     public let to: ULID
     public let fromKind: End
     public let toKind: End
-    /// The line each end is on: the line itself, or the line a note sits under. For going there.
+    /// Where each end is, for going there: the line itself, the line a note sits under, or
+    /// the thing.
     public let fromEntry: ULID
     public let toEntry: ULID
     public let author: Author
@@ -105,6 +107,40 @@ public struct Done: Hashable, Sendable {
     public let at: Date
 }
 
+/// A fact: a key and a value on a line or a thing, by an originator. The yield on the
+/// harvest line, the fig's state, the detox's days. One per originator per key; newest wins.
+public struct Fact: Hashable, Sendable, Identifiable {
+    /// The event that set it.
+    public let id: ULID
+    /// The line or thing it is on.
+    public let on: ULID
+    public let key: String
+    public let value: FactValue
+    public let author: Author
+    public let at: Date
+}
+
+/// A thing: a shape with an id and a name that lines belong to. A fig, a book, a person,
+/// the detox. Made by an originator, standing until dropped; its facts are its state, and
+/// its lines are the captures linked to it.
+public struct Thing: Hashable, Sendable, Identifiable {
+    public let id: ULID
+    public var name: String
+    /// A word: plant, book, person. Not a link, for now.
+    public var kind: String?
+    /// Who made it, and when.
+    public let author: Author
+    public let createdAt: Date
+    /// The event that last set its name or kind.
+    public var setBy: ULID
+    public var facts: [Fact] = []
+    /// Links from the lines that belong to it, oldest first.
+    public var incoming: [Link] = []
+
+    /// The lines that belong to it, oldest link first.
+    public var lines: [ULID] { incoming.map(\.fromEntry) }
+}
+
 /// What the page shows: the fold of every event about one line.
 public struct Entry: Hashable, Sendable, Identifiable {
     public var id: ULID
@@ -125,6 +161,8 @@ public struct Entry: Hashable, Sendable, Identifiable {
     public var incoming: [Link] = []
     /// Finished, when it is.
     public var done: Done?
+    /// Facts on this line, by key then by originator.
+    public var facts: [Fact] = []
 
     /// The thread back: earlier lines this one carries on from.
     public var carriesOn: [Link] { outgoing.filter { $0.toKind == .line } }
@@ -132,6 +170,8 @@ public struct Entry: Hashable, Sendable, Identifiable {
     public var carriedOnBy: [Link] { incoming.filter { $0.fromKind == .line } }
     /// Notes, under this or other lines, that speak of this line.
     public var citedBy: [Link] { incoming.filter { $0.fromKind == .note } }
+    /// The things this line belongs to.
+    public var belongsTo: [Link] { outgoing.filter { $0.toKind == .thing } }
 
     /// Words this line is filed under, sorted.
     public var labels: [String] {
@@ -182,6 +222,8 @@ public struct Visit: Hashable, Sendable, Identifiable {
             return "looked at a photo"
         case .inbox:
             return read.count == 0 ? "found nothing new" : "found \(read.count) new thing\(read.count == 1 ? "" : "s")"
+        case .things:
+            return "looked at \(read.count) thing\(read.count == 1 ? "" : "s")"
         case .days, .lines:
             var text = "read \(read.count) line\(read.count == 1 ? "" : "s")"
             if let label = read.label { text += " under #\(label)" }
@@ -290,6 +332,26 @@ public struct Notebook: Sendable {
     private var linkMarks: [LinkPair: Newest<LinkMark>] = [:]
     /// Per line, the newest done or undone seen.
     private var doneMarks: [ULID: Newest<DoneMark>] = [:]
+    /// Every thing standing, by id.
+    private var things: [ULID: Thing] = [:]
+    /// Things dropped; a drop is final, and a set arriving late does not bring one back.
+    private var removedThings: Set<ULID> = []
+    /// Per line or thing, per key, per originator: the newest fact or its removal.
+    private var factMarks: [FactKey: Newest<FactMark>] = [:]
+    /// The fact keys on each line or thing, so its facts can be read back without a scan.
+    private var factsOn: [ULID: Set<FactKey>] = [:]
+
+    private struct FactKey: Hashable, Sendable {
+        let on: ULID
+        let key: String
+        let author: Author
+    }
+
+    private struct FactMark: Hashable, Sendable {
+        /// Nil when the fact was taken off.
+        let value: FactValue?
+        let at: Date
+    }
     /// Events about a thing not seen yet, by that thing's id: a line or a note.
     private var waiting: [ULID: [Event]] = [:]
     private var seen: Set<ULID> = []
@@ -376,6 +438,12 @@ public struct Notebook: Sendable {
 
         case .linkAdd, .linkRemove, .link, .unlink, .done, .undone:
             join(event)
+
+        case .thingSet, .thingRemove:
+            shape(event)
+
+        case .factSet, .factRemove:
+            fact(event)
 
         case .noteRemove(let p):
             removedNotes.insert(p.note)
@@ -543,29 +611,43 @@ public struct Notebook: Sendable {
         }
     }
 
-    /// What a thing is, when it is known: a line, or a note under a line.
-    private func end(_ id: ULID) -> (kind: Link.End, entry: Entry, at: Date)? {
-        if let entry = table[id] { return (.line, entry, entry.startedAt) }
+    /// One end of a link, once it is known: a line, a note under a line, or a thing. `entry`
+    /// is where it is: the line, the note's line, or the thing itself.
+    private struct End {
+        let kind: Link.End
+        let entry: ULID
+        let at: Date
+        let gone: Bool
+    }
+
+    private func end(_ id: ULID) -> End? {
+        if let entry = table[id] { return End(kind: .line, entry: entry.id, at: entry.startedAt, gone: entry.isDeleted) }
         if let host = noteToEntry[id], let entry = table[host], let note = entry.notes.first(where: { $0.id == id }) {
-            return (.note, entry, note.at)
+            return End(kind: .note, entry: entry.id, at: note.at, gone: entry.isDeleted)
         }
+        if let thing = things[id] { return End(kind: .thing, entry: thing.id, at: thing.createdAt, gone: false) }
         return nil
     }
 
     /// A link from one thing to another. The mark for the pair takes the newest event; the
     /// two ends follow the mark once both exist, and the event waits for whichever is missing.
-    /// A line carries on only from one that started before it; a note cites any line.
+    /// A line carries on only from one that started before it; a note cites any line; a line
+    /// belongs to a thing. Nothing points from a thing, and nothing points at a note.
     private mutating func place(_ event: Event, from: ULID, to: ULID, on: Bool, saying: (String, String)? = nil) {
         guard from != to else { return }
         let pair = LinkPair(from: from, to: to)
         linkMarks.mark(pair, LinkMark(on: on, author: event.author, at: event.at), by: event.id)
         guard let fromEnd = end(from) else { return waiting[from, default: []].append(event) }
         guard let toEnd = end(to) else { return waiting[to, default: []].append(event) }
-        guard !fromEnd.entry.isDeleted, !toEnd.entry.isDeleted, toEnd.kind == .line, let mark = linkMarks[pair] else { return }
+        guard !fromEnd.gone, !toEnd.gone, fromEnd.kind != .thing, toEnd.kind != .note, let mark = linkMarks[pair] else { return }
+        if toEnd.kind == .thing {
+            guard fromEnd.kind == .line else { return }
+            return belong(event, line: fromEnd, thing: to, mark: mark)
+        }
         if fromEnd.kind == .line, !((toEnd.at, to) < (fromEnd.at, from)) { return }
 
-        var fromEntry = fromEnd.entry
-        var toEntry = fromEnd.entry.id == toEnd.entry.id ? fromEntry : toEnd.entry
+        guard var fromEntry = table[fromEnd.entry] else { return }
+        var toEntry = fromEnd.entry == toEnd.entry ? fromEntry : table[toEnd.entry]!
         func forget() {
             fromEntry.outgoing.removeAll { $0.from == from && $0.to == to }
             if let index = fromEntry.notes.firstIndex(where: { $0.id == from }) { fromEntry.notes[index].cites.removeAll { $0.to == to } }
@@ -574,7 +656,7 @@ public struct Notebook: Sendable {
         forget()
         if mark.on {
             let link = Link(id: mark.id, from: from, to: to, fromKind: fromEnd.kind, toKind: .line,
-                            fromEntry: fromEnd.entry.id, toEntry: toEnd.entry.id, author: mark.author, at: mark.at,
+                            fromEntry: fromEnd.entry, toEntry: toEnd.entry, author: mark.author, at: mark.at,
                             fromAt: fromEnd.at, toAt: toEnd.at)
             switch fromEnd.kind {
             case .line:
@@ -585,6 +667,9 @@ public struct Notebook: Sendable {
                     fromEntry.notes[index].cites.append(link)
                     fromEntry.notes[index].cites.sort { $0.id < $1.id }
                 }
+            case .thing:
+                // Nothing points from a thing; refused above.
+                return
             }
             if fromEntry.id == toEntry.id { toEntry = fromEntry }
             toEntry.incoming.append(link)
@@ -604,7 +689,139 @@ public struct Notebook: Sendable {
             table[fromEntry.id] = fromEntry
             table[toEntry.id] = toEntry
         }
-        trace(event, what, entry: fromEnd.entry.id)
+        trace(event, what, entry: fromEnd.entry)
+    }
+
+    /// A line belongs to a thing, or stops belonging. The link sits on the line as outgoing
+    /// and on the thing as incoming; the line's trail says so, under the thing's name.
+    private mutating func belong(_ event: Event, line: End, thing id: ULID, mark: Newest<LinkMark>) {
+        guard var entry = table[line.entry], var thing = things[id] else { return }
+        entry.outgoing.removeAll { $0.from == entry.id && $0.to == id }
+        thing.incoming.removeAll { $0.from == entry.id && $0.to == id }
+        if mark.on {
+            let link = Link(id: mark.id, from: entry.id, to: id, fromKind: .line, toKind: .thing,
+                            fromEntry: entry.id, toEntry: id, author: mark.author, at: mark.at,
+                            fromAt: line.at, toAt: thing.createdAt)
+            entry.outgoing.append(link)
+            entry.outgoing.sort { $0.id < $1.id }
+            thing.incoming.append(link)
+            thing.incoming.sort { $0.id < $1.id }
+        }
+        let what = mark.on ? "put this with \(thing.name)" : "took this out of \(thing.name)"
+        record(&entry, event, what)
+        trace(event, what, entry: entry.id)
+        table[entry.id] = entry
+        things[id] = thing
+    }
+
+    /// A thing made, set again or dropped. Only its own originator sets it; the newest set
+    /// stands; a drop is final and clears every line's belonging to it. Links and facts
+    /// that arrived before the thing are placed once it is here.
+    private mutating func shape(_ event: Event) {
+        switch event.payload {
+        case .thingSet(let p):
+            guard !removedThings.contains(p.thing) else { return }
+            let name = p.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return }
+            let kind = p.kind?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if var thing = things[p.thing] {
+                guard thing.author == event.author, thing.setBy < event.id else { return }
+                let renamed = thing.name != name
+                thing.name = name
+                thing.kind = kind?.isEmpty == false ? kind : nil
+                thing.setBy = event.id
+                things[p.thing] = thing
+                if renamed { trace(event, "renamed a thing to \(name)", entry: nil) }
+            } else {
+                things[p.thing] = Thing(id: p.thing, name: name, kind: kind?.isEmpty == false ? kind : nil,
+                                        author: event.author, createdAt: event.at, setBy: event.id)
+                refreshFacts(on: p.thing)
+                trace(event, "made a thing: \(name)\(kind.map { $0.isEmpty ? "" : ", a \($0)" } ?? "")", entry: nil)
+                if let queued = waiting.removeValue(forKey: p.thing) {
+                    for later in queued.sorted(by: { $0.id < $1.id }) {
+                        switch later.payload {
+                        case .factSet, .factRemove: fact(later)
+                        default: join(later)
+                        }
+                    }
+                }
+            }
+
+        case .thingRemove(let p):
+            guard let thing = things[p.thing] else {
+                removedThings.insert(p.thing)
+                return
+            }
+            // Its own originator takes it back; the owner drops anyone's.
+            guard event.author == thing.author || event.author == owner else { return }
+            removedThings.insert(p.thing)
+            things[p.thing] = nil
+            for link in thing.incoming {
+                table[link.fromEntry]?.outgoing.removeAll { $0.id == link.id }
+            }
+            trace(event, "dropped a thing: \(thing.name)", entry: nil)
+
+        default:
+            break
+        }
+    }
+
+    /// A fact put on a line or a thing, or taken off. One per originator per key; the newest
+    /// word wins. The owner may take anyone's off, naming whose. A fact on something not
+    /// seen yet waits for it.
+    private mutating func fact(_ event: Event) {
+        let on: ULID
+        let key: FactKey
+        let mark: FactMark
+        switch event.payload {
+        case .factSet(let p):
+            let word = p.key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !word.isEmpty else { return }
+            on = p.on
+            key = FactKey(on: p.on, key: word, author: event.author)
+            mark = FactMark(value: p.value, at: event.at)
+        case .factRemove(let p):
+            let word = p.key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !word.isEmpty else { return }
+            let whose = p.of ?? event.author
+            guard whose == event.author || event.author == owner else { return }
+            on = p.on
+            key = FactKey(on: p.on, key: word, author: whose)
+            mark = FactMark(value: nil, at: event.at)
+        default:
+            return
+        }
+        guard let target = end(on), target.kind != .note else {
+            if end(on) == nil { waiting[on, default: []].append(event) }
+            return
+        }
+        guard !target.gone else { return }
+        factMarks.mark(key, mark, by: event.id)
+        factsOn[on, default: []].insert(key)
+        refreshFacts(on: on)
+        if case .factSet(let p) = event.payload {
+            let what = "put \(key.key) \(p.value.words(calendar: .current)) on this"
+            if target.kind == .line, var entry = table[on] {
+                record(&entry, event, what)
+                table[on] = entry
+            }
+            trace(event, target.kind == .line ? what : "put \(key.key) on \(things[on]?.name ?? "a thing")", entry: target.kind == .line ? on : nil)
+        } else if target.kind == .line, var entry = table[on] {
+            record(&entry, event, "took \(key.key) off")
+            table[on] = entry
+            trace(event, "took \(key.key) off", entry: on)
+        }
+    }
+
+    /// The facts standing on a line or a thing, from the marks, by key then by originator.
+    private mutating func refreshFacts(on id: ULID) {
+        let facts = (factsOn[id] ?? []).compactMap { key -> Fact? in
+            guard let mark = factMarks[key], let value = mark.value.value else { return nil }
+            return Fact(id: mark.id, on: id, key: key.key, value: value, author: key.author, at: mark.at)
+        }
+        .sorted { ($0.key, $0.author.rawValue, $0.id) < ($1.key, $1.author.rawValue, $1.id) }
+        if table[id] != nil { table[id]!.facts = facts }
+        if things[id] != nil { things[id]!.facts = facts }
     }
 
     /// A line finished, or not after all. The newest word on the line wins; the event waits
@@ -645,6 +862,7 @@ public struct Notebook: Sendable {
         // A link touches two things, so it is placed on its own rather than through the one below.
         switch event.payload {
         case .linkAdd, .linkRemove, .link, .unlink, .done, .undone: return join(event)
+        case .factSet, .factRemove: return fact(event)
         default: break
         }
 
@@ -673,8 +891,11 @@ public struct Notebook: Sendable {
 
         case .entryDelete:
             entry.isDeleted = true
-            // A gone line holds no thread: whatever it was linked to forgets it.
-            for link in entry.outgoing { table[link.toEntry]?.incoming.removeAll { $0.id == link.id } }
+            // A gone line holds no thread and belongs to nothing: whatever it was linked to forgets it.
+            for link in entry.outgoing {
+                table[link.toEntry]?.incoming.removeAll { $0.id == link.id }
+                things[link.to]?.incoming.removeAll { $0.id == link.id }
+            }
             for link in entry.incoming where link.fromEntry != entryID {
                 guard var other = table[link.fromEntry] else { continue }
                 other.outgoing.removeAll { $0.id == link.id }
@@ -731,7 +952,7 @@ public struct Notebook: Sendable {
             }
 
         case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .link, .unlink, .done, .undone, .visit, .nameSet, .grantCreate, .grantRevoke,
-             .loopSet, .loopStop, .loopRan:
+             .loopSet, .loopStop, .loopRan, .thingSet, .thingRemove, .factSet, .factRemove:
             break
         }
     }
@@ -749,6 +970,27 @@ public struct Notebook: Sendable {
     public func entry(_ id: ULID) -> Entry? {
         guard let entry = table[id], !entry.isDeleted else { return nil }
         return entry
+    }
+
+    /// A thing by its id, if it stands.
+    public func thing(_ id: ULID) -> Thing? {
+        things[id]
+    }
+
+    /// Every thing standing, oldest first.
+    public var allThings: [Thing] {
+        things.values.sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+    }
+
+    /// Every standing thing's name, by id.
+    public var thingNames: [ULID: String] {
+        things.mapValues(\.name)
+    }
+
+    /// The things of one kind, oldest first.
+    public func things(kind: String) -> [Thing] {
+        let wanted = kind.lowercased()
+        return allThings.filter { $0.kind == wanted }
     }
 
     /// A note by its id, with the line it sits under.
@@ -795,7 +1037,7 @@ public struct Notebook: Sendable {
             switch visit.read.what {
             case .photo:
                 return visit.read.entry == entry.id
-            case .inbox:
+            case .inbox, .things:
                 return false
             case .days, .lines:
                 if let since = visit.read.since, day < since { return false }

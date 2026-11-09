@@ -167,7 +167,11 @@ public struct Door: Sendable {
         the owner's words. Labels are lower-case words for finding things later. A link joins a \
         later line to an earlier one it carries on from; a note that speaks of a line cites it, \
         and the page makes the citation a jump. mark_done says a line is finished, with the line \
-        that finished it when there is one, and the line is struck through. Your own page is for what you \
+        that finished it when there is one, and the line is struck through. When lines turn out to be \
+        one thing, a fig, a book, a person, a project, make it once with set_thing, after looking \
+        in list_things, and put each line with it through link; a fact, a yield, a state, a count, \
+        goes on a line or a thing with set_fact, one per key under your name. Everything you shape \
+        is a proposal: it stands unless the owner drops it. Your own page is for what you \
         noticed and chose not to say under a line, a structure forming, a question for the owner. \
         It is also simply yours: what you got wrong, what you don't follow, what you think, about \
         the notebook or not. Under your own lines it is a conversation; say what it takes.
@@ -186,6 +190,9 @@ public struct Door: Sendable {
         case setLabel = "set_label"
         case link = "link"
         case markDone = "mark_done"
+        case setThing = "set_thing"
+        case listThings = "list_things"
+        case setFact = "set_fact"
         case writeLine = "write_line"
         case addLine = "add_line"
         case editLine = "edit_line"
@@ -256,12 +263,38 @@ public struct Door: Sendable {
                                         "required": ["entry", "label"]]]
             case .link:
                 return ["name": rawValue,
-                        "description": "Join one thing to another: a later line to the earlier line it carries on from, or a note of yours to a line it speaks of. on=false takes the link back.",
+                        "description": "Join one thing to another: a later line to the earlier line it carries on from, a note of yours to a line it speaks of, or a line to a thing it belongs to, from list_things. on=false takes the link back.",
                         "inputSchema": ["type": "object",
-                                        "properties": ["from": ["type": "string", "description": "The id of the thing that points: the later line, or your note."],
-                                                       "to": ["type": "string", "description": "The id of the line pointed at."],
+                                        "properties": ["from": ["type": "string", "description": "The id of what points: the later line, your note, or the line that belongs."],
+                                                       "to": ["type": "string", "description": "The id of the line or thing pointed at."],
                                                        "on": ["type": "boolean", "default": true]],
                                         "required": ["from", "to"]]]
+            case .setThing:
+                return ["name": rawValue,
+                        "description": "Make a thing lines can belong to: a fig, a book, a person, the detox. Look in list_things first so each thing is made once. With thing, rename one of yours or give it a kind; on=false takes one of yours back. It stands until the owner drops it.",
+                        "inputSchema": ["type": "object",
+                                        "properties": ["name": ["type": "string"],
+                                                       "kind": ["type": "string", "description": "A word: plant, book, person, project."],
+                                                       "thing": ["type": "string", "description": "The id of a thing of yours, to set it again."],
+                                                       "on": ["type": "boolean", "default": true]]]]
+            case .listThings:
+                return ["name": rawValue,
+                        "description": "Every thing standing, with its id, kind, how many lines belong to it, and its facts. Use the id with link and set_fact.",
+                        "inputSchema": ["type": "object", "properties": ["kind": ["type": "string", "description": "Only things of this kind."]]]]
+            case .setFact:
+                return ["name": rawValue,
+                        "description": "Put a fact on a line or a thing: a key and one value. yield 10 L on the harvest line; state potted on the fig. One fact per key under your name; a newer one replaces it; on=false takes yours off. Give exactly one of number, words, moment, span or place.",
+                        "inputSchema": ["type": "object",
+                                        "properties": ["on": ["type": "string", "description": "The id of the line or thing."],
+                                                       "key": ["type": "string", "description": "A lower-case word: yield, state, days, due, place."],
+                                                       "number": ["type": "number"],
+                                                       "unit": ["type": "string", "description": "With number: L, kg, km, °C."],
+                                                       "words": ["type": "string"],
+                                                       "moment": ["type": "string", "description": "ISO 8601, like 2026-11-12T12:00:00Z."],
+                                                       "span": ["type": "number", "description": "Seconds."],
+                                                       "place": ["type": "object", "properties": ["latitude": ["type": "number"], "longitude": ["type": "number"]]],
+                                                       "on_": ["type": "boolean", "default": true, "description": "false takes the fact off."]],
+                                        "required": ["on", "key"]]]
             case .markDone:
                 return ["name": rawValue,
                         "description": "Say a line is finished, and by which later line when there is one; the line is struck through on the page. on=false takes it back.",
@@ -283,12 +316,14 @@ public struct Door: Sendable {
         case unknownTool(String)
         case badDay(String)
         case notEarlier(String)
+        case badValue
 
         public var description: String {
             switch self {
             case .notAllowed(let what): "This grant may not \(what)."
             case .noSuchLine(let id): "No line with id \(id)."
-            case .noSuchThing(let id): "No line or note of yours with id \(id)."
+            case .noSuchThing(let id): "Nothing with id \(id): no line, no note of yours, no thing."
+            case .badValue: "A fact takes exactly one value: number (with unit), words, moment, span or place."
             case .noSuchPhoto(let id): "No photo on line \(id), or its file is not on this Mac yet."
             case .missing(let field): "Missing \(field)."
             case .unknownTool(let name): "No tool named \(name)."
@@ -378,7 +413,7 @@ public struct Door: Sendable {
             let days = try select(notebook, arguments)
             try receipt(.days, for: days, arguments)
             if days.isEmpty { return .text("No lines.") }
-            return .text(days.map { Projector.markdown(for: $0, calendar: calendar, names: notebook.chosenNames) }.joined(separator: "\n"))
+            return .text(days.map { Projector.markdown(for: $0, calendar: calendar, names: notebook.chosenNames, things: notebook.thingNames) }.joined(separator: "\n"))
 
         case .readPhoto:
             let entry = try line(arguments, in: notebook)
@@ -406,6 +441,8 @@ public struct Door: Sendable {
                     if !entry.notes.isEmpty { tail.append("[\(entry.notes.count) notes]") }
                     if !entry.carriesOn.isEmpty { tail.append("[continues \(entry.carriesOn.map(\.to.string).joined(separator: " "))]") }
                     if let done = entry.done { tail.append(done.by.map { "[done by \($0)]" } ?? "[done]") }
+                    tail.append(contentsOf: entry.belongsTo.map { "[with \(notebook.thing($0.to)?.name ?? $0.to.string)]" })
+                    tail.append(contentsOf: entry.facts.map { "[\($0.key) \($0.value.words(calendar: calendar))]" })
                     tail.append(contentsOf: entry.labels.map { "#\($0)" })
                     lines.append("\(entry.id)  \(day.key) \(Projector.time(entry.startedAt, calendar: calendar))  \(text)\(tail.isEmpty ? "" : "  " + tail.joined(separator: " "))")
                 }
@@ -449,18 +486,23 @@ public struct Door: Sendable {
 
         case .link:
             guard grant.writesLinks else { throw Failure.notAllowed("write links") }
-            let to = try line(arguments, key: "to", in: notebook)
+            guard let rawTo = arguments["to"] as? String else { throw Failure.missing("to") }
+            guard let to = ULID(rawTo), notebook.entry(to) != nil || notebook.thing(to) != nil else { throw Failure.noSuchThing(rawTo) }
             guard let raw = arguments["from"] as? String else { throw Failure.missing("from") }
             guard let from = ULID(raw) else { throw Failure.noSuchThing(raw) }
-            let target = notebook.entry(to)!
-            if let later = notebook.entry(from) {
-                // A line carries on only from one that started before it.
-                guard (target.startedAt, target.id) < (later.startedAt, later.id) else { throw Failure.notEarlier(to.string) }
-            } else if let (note, _) = notebook.note(from) {
-                // A note cites a line; only the note's own author speaks through it.
-                guard note.author == grant.author else { throw Failure.notAllowed("link from a note that is not its own") }
+            if let target = notebook.entry(to) {
+                if let later = notebook.entry(from) {
+                    // A line carries on only from one that started before it.
+                    guard (target.startedAt, target.id) < (later.startedAt, later.id) else { throw Failure.notEarlier(to.string) }
+                } else if let (note, _) = notebook.note(from) {
+                    // A note cites a line; only the note's own author speaks through it.
+                    guard note.author == grant.author else { throw Failure.notAllowed("link from a note that is not its own") }
+                } else {
+                    throw Failure.noSuchThing(raw)
+                }
             } else {
-                throw Failure.noSuchThing(raw)
+                // A line belongs to a thing; nothing else does.
+                guard notebook.entry(from) != nil else { throw Failure.noSuchLine(raw) }
             }
             let on = arguments["on"] as? Bool ?? true
             let now = Date()
@@ -477,6 +519,65 @@ public struct Door: Sendable {
             let payload: Payload = on ? .done(.init(entry: entry, by: by)) : .undone(.init(entry: entry))
             try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
             return .text(on ? "Marked \(entry) done\(by.map { " by \($0)" } ?? "")." : "Took done back from \(entry).")
+
+        case .setThing:
+            guard grant.writesLabels else { throw Failure.notAllowed("write shapes") }
+            let on = arguments["on"] as? Bool ?? true
+            let now = Date()
+            if let raw = arguments["thing"] as? String {
+                guard let id = ULID(raw), let thing = notebook.thing(id) else { throw Failure.noSuchThing(raw) }
+                guard thing.author == grant.author else { throw Failure.notAllowed("set a thing that is not its own") }
+                if !on {
+                    try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
+                                    payload: .thingRemove(.init(thing: id))))
+                    return .text("Took back \(thing.name) (\(id)).")
+                }
+                let name = (arguments["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let kind = (arguments["kind"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
+                                payload: .thingSet(.init(thing: id, name: name?.isEmpty == false ? name! : thing.name, kind: kind ?? thing.kind))))
+                return .text("Set \(id): \(name ?? thing.name)\(kind.map { ", a \($0)" } ?? "").")
+            }
+            guard on else { throw Failure.missing("thing") }
+            guard let name = (arguments["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
+                throw Failure.missing("name")
+            }
+            let kind = (arguments["kind"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let id = generator.next(at: now)
+            try write(Event(id: id, author: grant.author, device: grant.device, at: now,
+                            payload: .thingSet(.init(thing: id, name: name, kind: kind?.isEmpty == false ? kind : nil))))
+            return .text("Made \(name) as \(id). Lines belong to it through link, with to=\(id).")
+
+        case .listThings:
+            let things = (arguments["kind"] as? String).map { notebook.things(kind: $0) } ?? notebook.allThings
+            try receipt(.init(what: .things, count: things.count))
+            if things.isEmpty { return .text("No things yet.") }
+            return .text(things.map { thing in
+                var tail: [String] = []
+                if let kind = thing.kind { tail.append("a \(kind)") }
+                tail.append("\(thing.lines.count) line\(thing.lines.count == 1 ? "" : "s")")
+                tail.append(contentsOf: thing.facts.map { "\($0.key) \($0.value.words(calendar: calendar))" })
+                tail.append("by \(notebook.name(of: thing.author) ?? thing.author.rawValue)")
+                return "\(thing.id)  \(thing.name)  \(tail.joined(separator: " · "))"
+            }.joined(separator: "\n"))
+
+        case .setFact:
+            guard grant.writesLabels else { throw Failure.notAllowed("write shapes") }
+            guard let rawOn = arguments["on"] as? String else { throw Failure.missing("on") }
+            guard let on = ULID(rawOn), notebook.entry(on) != nil || notebook.thing(on) != nil else { throw Failure.noSuchThing(rawOn) }
+            guard let key = (arguments["key"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !key.isEmpty else {
+                throw Failure.missing("key")
+            }
+            let now = Date()
+            if arguments["on_"] as? Bool == false {
+                try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
+                                payload: .factRemove(.init(on: on, key: key))))
+                return .text("Took \(key) off \(on).")
+            }
+            let value = try Self.factValue(arguments)
+            try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
+                            payload: .factSet(.init(on: on, key: key, value: value))))
+            return .text("Put \(key) \(value.words(calendar: calendar)) on \(on).")
 
         case .writeLine:
             guard grant.writesLines else { throw Failure.notAllowed("write lines of its own") }
@@ -563,6 +664,31 @@ public struct Door: Sendable {
             days = days.filter { $0.key >= since }
         }
         return days
+    }
+
+    /// Exactly one value, of one of the five kinds, from a set_fact call.
+    static func factValue(_ arguments: [String: Any]) throws -> FactValue {
+        var values: [FactValue] = []
+        if let number = arguments["number"] as? Double ?? (arguments["number"] as? Int).map(Double.init) {
+            let unit = (arguments["unit"] as? String)?.trimmingCharacters(in: .whitespaces)
+            values.append(.number(number, unit: unit?.isEmpty == false ? unit : nil))
+        }
+        if let words = (arguments["words"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty {
+            values.append(.words(words))
+        }
+        if let raw = arguments["moment"] as? String {
+            guard let moment = ISO8601.date(from: raw) else { throw Failure.badDay(raw) }
+            values.append(.moment(moment))
+        }
+        if let span = arguments["span"] as? Double ?? (arguments["span"] as? Int).map(Double.init) {
+            values.append(.span(span))
+        }
+        if let place = arguments["place"] as? [String: Any],
+           let latitude = place["latitude"] as? Double, let longitude = place["longitude"] as? Double {
+            values.append(.place(Location(latitude: latitude, longitude: longitude)))
+        }
+        guard values.count == 1 else { throw Failure.badValue }
+        return values[0]
     }
 
     /// A line this grant wrote. Anyone else's is refused before anything is written.

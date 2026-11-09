@@ -9,6 +9,8 @@ enum Route: Hashable {
     case inbox
     /// Someone else's page: their own lines, with your replies under them.
     case author(Author)
+    /// A thing's page: its facts and the lines that belong to it.
+    case thing(ULID)
 }
 
 /// Everything anyone else did in the notebook, newest first: each read, note, label and

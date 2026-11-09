@@ -50,6 +50,76 @@ public struct Location: Hashable, Codable, Sendable {
     }
 }
 
+/// What a fact says, in one of five kinds, so a page can add yields, draw a streak or put a
+/// thing on a map. Written as one key naming the kind: `{"number": 10, "unit": "L"}`,
+/// `{"words": "potted"}`, `{"moment": "2026-11-01T10:00:00.000Z"}`, `{"span": 2460}`
+/// in seconds, `{"place": {"latitude": …, "longitude": …}}`.
+public enum FactValue: Hashable, Sendable, Codable {
+    case number(Double, unit: String?)
+    case words(String)
+    case moment(Date)
+    case span(TimeInterval)
+    case place(Location)
+
+    enum CodingKeys: String, CodingKey {
+        case number, unit, words, moment, span, place
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let number = try container.decodeIfPresent(Double.self, forKey: .number) {
+            self = .number(number, unit: try container.decodeIfPresent(String.self, forKey: .unit))
+        } else if let words = try container.decodeIfPresent(String.self, forKey: .words) {
+            self = .words(words)
+        } else if let moment = try container.decodeIfPresent(Date.self, forKey: .moment) {
+            self = .moment(moment)
+        } else if let span = try container.decodeIfPresent(TimeInterval.self, forKey: .span) {
+            self = .span(span)
+        } else if let place = try container.decodeIfPresent(Location.self, forKey: .place) {
+            self = .place(place)
+        } else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "A fact value names its kind: number, words, moment, span or place."))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .number(let number, let unit):
+            try container.encode(number, forKey: .number)
+            try container.encodeIfPresent(unit, forKey: .unit)
+        case .words(let words): try container.encode(words, forKey: .words)
+        case .moment(let moment): try container.encode(moment.toMilliseconds, forKey: .moment)
+        case .span(let span): try container.encode(span, forKey: .span)
+        case .place(let place): try container.encode(place, forKey: .place)
+        }
+    }
+
+    /// The value as the page says it: "10 L", "potted", "2026-11-01 10:00", "41 min", "38.70, -9.10".
+    public func words(calendar: Calendar) -> String {
+        switch self {
+        case .number(let number, let unit):
+            let shown = number == number.rounded() && abs(number) < 1e15 ? String(Int(number)) : String(format: "%.2f", number)
+            return unit.map { "\(shown) \($0)" } ?? shown
+        case .words(let words):
+            return words
+        case .moment(let moment):
+            return Projector.moment(moment, calendar: calendar)
+        case .span(let seconds):
+            let total = Int(seconds.rounded())
+            if total < 60 { return "\(total) s" }
+            if total < 3600 { return "\(total / 60) min" }
+            if total < 86_400 {
+                let minutes = (total % 3600) / 60
+                return minutes == 0 ? "\(total / 3600) h" : "\(total / 3600) h \(minutes) min"
+            }
+            return "\(total / 86_400) d"
+        case .place(let place):
+            return String(format: "%.2f, %.2f", place.latitude, place.longitude)
+        }
+    }
+}
+
 /// The vocabulary. Versioned by addition only; a kind never changes meaning.
 public enum Kind: String, Codable, Sendable, CaseIterable {
     case entryCreate = "entry.create"
@@ -74,6 +144,10 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case loopSet = "loop.set"
     case loopStop = "loop.stop"
     case loopRan = "loop.ran"
+    case thingSet = "thing.set"
+    case thingRemove = "thing.remove"
+    case factSet = "fact.set"
+    case factRemove = "fact.remove"
 }
 
 /// What happened. One case per kind, each with a fixed shape.
@@ -100,6 +174,10 @@ public enum Payload: Hashable, Sendable {
     case loopSet(LoopSet)
     case loopStop(LoopStop)
     case loopRan(LoopRan)
+    case thingSet(ThingSet)
+    case thingRemove(ThingRemove)
+    case factSet(FactSet)
+    case factRemove(FactRemove)
 
     public var kind: Kind {
         switch self {
@@ -125,6 +203,10 @@ public enum Payload: Hashable, Sendable {
         case .loopSet: .loopSet
         case .loopStop: .loopStop
         case .loopRan: .loopRan
+        case .thingSet: .thingSet
+        case .thingRemove: .thingRemove
+        case .factSet: .factSet
+        case .factRemove: .factRemove
         }
     }
 
@@ -184,6 +266,60 @@ public enum Payload: Hashable, Sendable {
             self.summary = summary
             self.startedAt = startedAt.toMilliseconds
             self.endedAt = endedAt.toMilliseconds
+        }
+    }
+
+    /// A thing: a shape with an id and a name that lines belong to, a fig, a book, a person,
+    /// the detox, a tag. Made by whoever proposes it; it stands until dropped. Only its own
+    /// originator sets it again, to rename it or give it a kind, and the newest set stands.
+    /// A kind is a word for now, plant, book, person, not a link. Since 10 November 2026.
+    public struct ThingSet: Hashable, Codable, Sendable {
+        public var thing: ULID
+        public var name: String
+        public var kind: String?
+
+        public init(thing: ULID, name: String, kind: String? = nil) {
+            self.thing = thing
+            self.name = name
+            self.kind = kind
+        }
+    }
+
+    /// A thing dropped: by the owner with one hold, or taken back by the one who made it.
+    /// Final; the lines that belonged to it keep nothing of it.
+    public struct ThingRemove: Hashable, Codable, Sendable {
+        public var thing: ULID
+
+        public init(thing: ULID) { self.thing = thing }
+    }
+
+    /// A fact: a key and a value put on a line or a thing by an originator. The yield on the
+    /// harvest line, the state of the fig, the days of the detox. One fact per originator per
+    /// key on a thing; the newest word of that originator wins. Since 10 November 2026.
+    public struct FactSet: Hashable, Codable, Sendable {
+        /// The line or the thing it is on.
+        public var on: ULID
+        public var key: String
+        public var value: FactValue
+
+        public init(on: ULID, key: String, value: FactValue) {
+            self.on = on
+            self.key = key
+            self.value = value
+        }
+    }
+
+    /// A fact taken off: by its own originator, or by the owner, who names whose it was.
+    public struct FactRemove: Hashable, Codable, Sendable {
+        public var on: ULID
+        public var key: String
+        /// Whose fact, when the remover is not the one who put it. Absent, the remover's own.
+        public var of: Author?
+
+        public init(on: ULID, key: String, of: Author? = nil) {
+            self.on = on
+            self.key = key
+            self.of = of
         }
     }
 
@@ -308,6 +444,8 @@ public enum Payload: Hashable, Sendable {
             case days, lines, photo
             /// A look at what happened since the last look.
             case inbox
+            /// A look at the things: shapes lines belong to, with their facts.
+            case things
         }
 
         public var what: What
@@ -520,6 +658,10 @@ extension Event: Codable {
         case .loopSet: .loopSet(try container.decode(Payload.LoopSet.self, forKey: .payload))
         case .loopStop: .loopStop(try container.decode(Payload.LoopStop.self, forKey: .payload))
         case .loopRan: .loopRan(try container.decode(Payload.LoopRan.self, forKey: .payload))
+        case .thingSet: .thingSet(try container.decode(Payload.ThingSet.self, forKey: .payload))
+        case .thingRemove: .thingRemove(try container.decode(Payload.ThingRemove.self, forKey: .payload))
+        case .factSet: .factSet(try container.decode(Payload.FactSet.self, forKey: .payload))
+        case .factRemove: .factRemove(try container.decode(Payload.FactRemove.self, forKey: .payload))
         }
     }
 
@@ -553,6 +695,10 @@ extension Event: Codable {
         case .loopSet(let p): try container.encode(p, forKey: .payload)
         case .loopStop(let p): try container.encode(p, forKey: .payload)
         case .loopRan(let p): try container.encode(p, forKey: .payload)
+        case .thingSet(let p): try container.encode(p, forKey: .payload)
+        case .thingRemove(let p): try container.encode(p, forKey: .payload)
+        case .factSet(let p): try container.encode(p, forKey: .payload)
+        case .factRemove(let p): try container.encode(p, forKey: .payload)
         }
     }
 }

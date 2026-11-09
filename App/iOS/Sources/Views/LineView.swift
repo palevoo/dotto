@@ -109,6 +109,7 @@ struct LineView: View {
                 // The thread: the lines this one is joined to, and, for your own lines, the way
                 // to join it to an earlier one yourself.
                 let threaded = !entry.carriesOn.isEmpty || !entry.carriedOnBy.isEmpty || !entry.citedBy.isEmpty || entry.done != nil
+                    || !entry.belongsTo.isEmpty || !entry.facts.isEmpty
                 if threaded || entry.author == owner {
                     VStack(alignment: .leading, spacing: 10) {
                         if threaded {

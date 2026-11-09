@@ -69,18 +69,18 @@ detox, nursery, a project's code name are all tags, and a label on a line is a l
 the line to its tag.
 
 Two kinds hide under the one word and need different mechanics: a fact on one line, the
-yield, the kilometres, done; and an entity many lines share, a book, a person, a fig. The
-first fact is done, which replaces closes.
+yield, the kilometres, done; and a thing many lines share, a book, a person, a fig. See
+the design below.
 
-Today: tags, as labels. Missing: everything else. The reader's count of 9 November on its
-page is the backlog, and the proposed state, with a place for the owner to see a proposal
-and drop it, is the first thing shapes need.
+Today, since 10 November: things and facts, as designed; tags still as labels. Missing:
+labels folding into things, so a tag has a page like any thing; a kind as more than a
+word; streaks, which are a thing with a loop that sets its facts.
 
 ### Links
 
 A link joins one thing to another by their ids, and that is all it is. See the design
 below. Built 9 November as designed: threads, citations, done as the first fact, the older
-shape folded in; a shape as an end waits for shapes.
+shape folded in. Since 10 November a line to a thing is belonging.
 
 ### Loops
 
@@ -153,6 +153,49 @@ shape; existing closes fold into done.
 page. Pinning is a mark and belongs to pages. If a word on a link is ever needed, it
 arrives as a shape between two things, not as a type.
 
+## Shapes, the design
+
+Decided 9 November, built 10 November. From the notebook: the yield on the harvest line,
+the kilometres on a walk, done; eleven lines that are one fig, ten that are one book,
+seven one person, four the baby plant; the detox and a reading streak fed over days.
+
+**A thing** is a shape with an id, a name and the originator that made it. Nothing else is
+required. Lines belong to it by the link we already have, line to thing, and that is the
+belonging; nothing points from a thing, and a note belongs to nothing. Only its own
+originator sets it again, to rename it or give it a kind; the newest set stands. A kind is
+a word for now, plant, book, person, not a link: nothing in the notebook has asked for a
+plant to inherit from a living thing, and a word folds into a link later the way labels
+will fold into things.
+
+**A fact** is a key and a value put on a line or a thing by an originator. One per
+originator per key; the newest word wins, by the same mark as everything else. Values
+are of five kinds, so a page can add yields, draw a streak or put a thing on a map: a
+number with a unit, words, a moment, a span, a place. Due, at and span are facts, which
+answers the open item on time and place. An unknown key still reads as "key value".
+
+**Done stays its own mark.** It carries evidence, the line that finished it, which no
+fact value holds, and a reference kind would duplicate links. It is the first fact in
+what it means, not in how it is kept.
+
+**Proposals need no state.** Anything shaped by someone other than the owner stands
+unless dropped. The owner drops a thing with one hold, which sets every line loose from
+it; takes a fact off, naming whose; takes a line out of a thing. An originator takes back
+its own. A drop of a thing is final, and a set arriving late does not bring it back.
+
+**How they show.** On the page a line gets one quiet row: the things it is with and its
+facts. On the line's page, "with fig" is a jump to the thing's page, and the facts are a
+plain list, each signed, hold to take off. A thing's page: its name, kind and maker, its
+facts as its state, the lines that belong to it by day. The inbox gets a row for each
+thing made and each fact put on the owner's line or on a thing. The day files say
+`_with fig_` and `_yield 10 L · Moss_`.
+
+**Through the door.** `set_thing` makes one, after `list_things`, so the fig is made once;
+`link` with a thing as its end is belonging; `set_fact` takes exactly one value. Looking
+at the things leaves a receipt like every read.
+
+**Not done, on purpose.** Shape-to-shape links, "same as" for two things that are one,
+tags as things, pages as definitions.
+
 ## The cases, run through
 
 A quote photo: one capture, linked to the work, on the shelf page, a loop fetching the
@@ -166,15 +209,13 @@ the test the parts keep passing.
 
 ## Open
 
-- Shapes beyond tags: the fact and the entity, how a proposal is shown and dropped.
-- Loops as data: trigger, originator, budget, receipt, stop.
+- Labels as things, so a tag has a page like any other thing.
 - Pages as definitions over shapes.
 - Three kinds of written words, the owner's line, an originator's page line and a reply,
   are three event kinds for one act. Not merged; shapes must not deepen the split.
 - One originator with two hands, a session and the reader, shares one memory of what it
   has seen.
-- Time and place: a shape needs due, at and span, and a named place; a capture has only
-  when and where.
+- A named place: a place fact is coordinates; what calls it the nursery is not built.
 - Where loops run and pages are served, the home; media leaving the phone. Both parked,
   and both gate loops and pages.
 - The old names: Margin and weeju in code, bundle ids and the conduct note. They stay

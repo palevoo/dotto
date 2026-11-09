@@ -95,6 +95,16 @@ struct EntryRow: View {
                         .truncationMode(.tail)
                         .padding(.top, 2)
                 }
+                if let hint = shapeHint {
+                    // What the line is, as one quiet line: the things it belongs to and its facts.
+                    Text(hint)
+                        .font(Theme.sansSmall)
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .padding(.top, 2)
+                        .accessibilityIdentifier("shapes")
+                }
             }
             .padding(.top, 4)
         }
@@ -130,6 +140,13 @@ struct EntryRow: View {
         let words = model.notebook.entry(other)?.text.replacingOccurrences(of: "\n", with: " ") ?? ""
         let count = links.count > 1 ? "\(links.count) · " : ""
         return "\(count)\(last.from == entry.id ? "from" : "on to") \(words.isEmpty ? "a photo" : words)"
+    }
+
+    private var shapeHint: String? {
+        let things = entry.belongsTo.compactMap { model.notebook.thing($0.to)?.name }
+        let facts = entry.facts.map { "\($0.key) \($0.value.words(calendar: model.calendar))" }
+        let parts = things + facts
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// Stores the words and leaves the edit, whichever way it ended. Safe to call twice.

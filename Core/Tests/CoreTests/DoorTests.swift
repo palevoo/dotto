@@ -57,9 +57,46 @@ final class DoorTests: XCTestCase {
 
         let tools = (try rpc("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
         XCTAssertEqual(tools?.map { $0["name"] as? String },
-                       ["whats_new", "read_days", "list_lines", "read_photo", "add_note", "set_label", "link", "mark_done", "write_line", "add_line", "edit_line", "delete_line", "choose_name"])
+                       ["whats_new", "read_days", "list_lines", "read_photo", "add_note", "set_label", "link", "mark_done", "set_thing", "list_things", "set_fact",
+                        "write_line", "add_line", "edit_line", "delete_line", "choose_name"])
         let conduct = result?["instructions"] as? String ?? ""
         XCTAssertTrue(conduct.contains("You have no name yet"))
+    }
+
+    /// A thing is made once, lines belong to it through link, facts go on both, and the
+    /// listing says it all. Exactly one value per fact.
+    func testThingsAndFactsThroughTheDoor() throws {
+        let made = text(try rpc("tools/call", ["name": "set_thing", "arguments": ["name": "fig", "kind": "Plant"]]))
+        XCTAssertTrue(made.hasPrefix("Made fig as "), made)
+        let fig = try XCTUnwrap(ULID(String(made.split(separator: " ")[3].dropLast())))
+
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "link", "arguments": ["from": wall.string, "to": fig.string]])).hasPrefix("Linked"))
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "set_fact", "arguments": ["on": wall.string, "key": "Yield", "number": 10, "unit": "L"]])).hasPrefix("Put yield 10 L on"))
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "set_fact", "arguments": ["on": fig.string, "key": "state", "words": "potted"]])).hasPrefix("Put state potted on"))
+
+        let two = text(try rpc("tools/call", ["name": "set_fact", "arguments": ["on": fig.string, "key": "x", "words": "a", "number": 1]]))
+        XCTAssertTrue(two.contains("exactly one value"), two)
+        let none = text(try rpc("tools/call", ["name": "set_fact", "arguments": ["on": fig.string, "key": "x"]]))
+        XCTAssertTrue(none.contains("exactly one value"), none)
+
+        let listed = text(try rpc("tools/call", ["name": "list_things", "arguments": [:]]))
+        XCTAssertTrue(listed.contains("\(fig)  fig  a plant · 1 line · state potted · by"), listed)
+        let lines = text(try rpc("tools/call", ["name": "list_lines", "arguments": [:]]))
+        XCTAssertTrue(lines.contains("[with fig] [yield 10 L]"), lines)
+        let days = text(try rpc("tools/call", ["name": "read_days", "arguments": [:]]))
+        XCTAssertTrue(days.contains("_with fig_"), days)
+
+        // Only its own originator sets it again; a rename keeps the id and the lines.
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "set_thing", "arguments": ["thing": fig.string, "name": "The fig"]])).hasPrefix("Set"))
+        XCTAssertEqual(try store.load().thing(fig)?.name, "The fig")
+        XCTAssertEqual(try store.load().thing(fig)?.lines, [wall])
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "set_fact", "arguments": ["on": wall.string, "key": "yield", "on_": false]])).hasPrefix("Took yield off"))
+        XCTAssertEqual(try store.load().entry(wall)?.facts, [])
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "set_thing", "arguments": ["thing": fig.string, "on": false]])).hasPrefix("Took back"))
+        XCTAssertNil(try store.load().thing(fig))
+
+        // Looking at the things leaves a receipt, like every read.
+        XCTAssertTrue(try store.load().visits.contains { $0.read.what == .things })
     }
 
     func testTheSameGrantFromAnotherHand() throws {

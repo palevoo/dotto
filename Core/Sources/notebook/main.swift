@@ -77,7 +77,7 @@ func parseDay(_ text: String) -> DayKey {
 
 let arguments = Arguments(Array(CommandLine.arguments.dropFirst()))
 guard let command = arguments.positional.first else {
-    fail("usage: notebook init|add|note|label|link|done|name|list|show|labels|project|log <folder> ...")
+    fail("usage: notebook init|add|note|label|link|done|thing|fact|name|list|show|labels|project|log <folder> ...")
 }
 
 let generator = ULIDGenerator()
@@ -173,6 +173,39 @@ do {
         let payload: Payload = remove ? .undone(.init(entry: entry)) : .done(.init(entry: entry, by: by))
         try store.append(Event(id: generator.next(at: at), author: author, device: host, at: at, payload: payload))
         print("\(remove ? "-" : "+")done \(entry)\(by.map { " by \($0)" } ?? "")")
+
+    case "thing":
+        let store = try FileStore.open(folder(arguments, at: 1))
+        guard arguments.positional.count > 2, !arguments.positional[2].trimmingCharacters(in: .whitespaces).isEmpty else {
+            fail("usage: thing <folder> <name> [--kind <word>] --author <id>    a thing lines can belong to, through link")
+        }
+        let at = parseDate(arguments.options["at"])
+        let author = author(arguments)
+        let id = generator.next(at: at)
+        try store.append(Event(id: id, author: author, device: host, at: at,
+                               payload: .thingSet(.init(thing: id, name: arguments.positional[2], kind: arguments.options["kind"]))))
+        print("+\(id) \(arguments.positional[2])")
+
+    case "fact":
+        let store = try FileStore.open(folder(arguments, at: 1))
+        guard arguments.positional.count > 4, let on = ULID(arguments.positional[2]) else {
+            fail("usage: fact <folder> <line-or-thing-id> <key> <value> [--unit <unit>] [--remove] --author <id>    a number with a unit, or words")
+        }
+        let notebook = try store.load()
+        guard notebook.entry(on) != nil || notebook.thing(on) != nil else { fail("no such line or thing: \(on)") }
+        let at = parseDate(arguments.options["at"])
+        let author = author(arguments)
+        let key = arguments.positional[3]
+        let payload: Payload
+        if arguments.flags.contains("remove") {
+            payload = .factRemove(.init(on: on, key: key))
+        } else if let number = Double(arguments.positional[4]) {
+            payload = .factSet(.init(on: on, key: key, value: .number(number, unit: arguments.options["unit"])))
+        } else {
+            payload = .factSet(.init(on: on, key: key, value: .words(arguments.positional[4])))
+        }
+        try store.append(Event(id: generator.next(at: at), author: author, device: host, at: at, payload: payload))
+        print("\(arguments.flags.contains("remove") ? "-" : "+")\(key.lowercased()) \(on)")
 
     case "name":
         let store = try FileStore.open(folder(arguments, at: 1))

@@ -16,7 +16,8 @@ public enum Projector {
     ///     > Kept as a to-do.
     ///
     /// A note is signed with its author's chosen name when `names` has one, else their id.
-    public static func markdown(for day: Day, calendar: Calendar, names: [Author: String] = [:]) -> String {
+    /// `things` names the things lines belong to, by id.
+    public static func markdown(for day: Day, calendar: Calendar, names: [Author: String] = [:], things: [ULID: String] = [:]) -> String {
         var lines: [String] = []
         lines.append("# \(day.key) · \(weekday(day.key, calendar: calendar))")
         lines.append("")
@@ -44,11 +45,14 @@ public enum Projector {
                 }
             }
             // The thread, as someone placed it, and done. The other line is named by its day and time.
+            // Then what the line belongs to, and the facts on it, each signed.
             var threads = entry.carriesOn.map { "continues \(moment($0.toAt, calendar: calendar))" }
                 + entry.carriedOnBy.map { "continued by \(moment($0.fromAt, calendar: calendar))" }
             if let done = entry.done {
                 threads.append(done.byAt.map { "done by \(moment($0, calendar: calendar))" } ?? "done")
             }
+            threads += entry.belongsTo.map { "with \(things[$0.to] ?? $0.to.string)" }
+            threads += entry.facts.map { "\($0.key) \($0.value.words(calendar: calendar)) · \(names[$0.author] ?? $0.author.rawValue)" }
             if !threads.isEmpty {
                 lines.append("")
                 lines.append(contentsOf: threads.map { "_\($0)_" })
@@ -78,7 +82,7 @@ public enum Projector {
             let name = "\(day.key).md"
             keep.insert(name)
             let url = store.daysDirectory.appendingPathComponent(name)
-            let text = markdown(for: day, calendar: calendar, names: notebook.chosenNames)
+            let text = markdown(for: day, calendar: calendar, names: notebook.chosenNames, things: notebook.thingNames)
             let data = Data(text.utf8)
             if fm.contents(atPath: url.path) != data {
                 try data.write(to: url, options: .atomic)
