@@ -137,6 +137,87 @@ public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
+/// The one machine behind a running loop, as a value: what phase it is in and what each
+/// thing that can happen to it means in that phase. The runner on the Mac only carries out
+/// the steps this hands back; it decides nothing itself, so the decisions are under test.
+///
+///     idle ── woke ──▶ waking ── looked(found) ──▶ running(again: false)
+///      ▲                 │  looked(nothing)            │ woke / forced: again = true
+///      └─────────────────┘◀──── finished ──────────────┘  (again: look once more)
+public struct LoopMachine: Equatable, Sendable {
+    public enum Phase: Equatable, Sendable {
+        /// Nothing pending.
+        case idle
+        /// Something landed; a look is scheduled after the grace.
+        case waking
+        /// A session is under way. `again` is owed when something landed, or a look was
+        /// forced, while it ran.
+        case running(again: Bool)
+    }
+
+    /// What the runner should do now.
+    public enum Step: Equatable, Sendable {
+        case nothing
+        /// Schedule a look after the grace, cancelling any look already scheduled.
+        case scheduleLook
+        /// Start a session.
+        case startRun
+        /// The run is over and something was owed: look once more.
+        case lookAgain
+    }
+
+    public private(set) var phase: Phase = .idle
+
+    public init() {}
+
+    /// Something landed in the folder.
+    public mutating func woke() -> Step {
+        switch phase {
+        case .idle, .waking:
+            phase = .waking
+            return .scheduleLook
+        case .running:
+            phase = .running(again: true)
+            return .nothing
+        }
+    }
+
+    /// The grace passed and the look was taken: `found` says whether there was anything to do.
+    public mutating func looked(found: Bool) -> Step {
+        guard case .waking = phase else { return .nothing }
+        if found {
+            phase = .running(again: false)
+            return .startRun
+        }
+        phase = .idle
+        return .nothing
+    }
+
+    /// A look was asked for now, by the clock or by hand: it runs whatever is new.
+    public mutating func forced() -> Step {
+        switch phase {
+        case .running:
+            phase = .running(again: true)
+            return .nothing
+        case .idle, .waking:
+            phase = .running(again: false)
+            return .startRun
+        }
+    }
+
+    /// The session ended.
+    public mutating func finished() -> Step {
+        guard case .running(let again) = phase else { return .nothing }
+        phase = .idle
+        return again ? .lookAgain : .nothing
+    }
+
+    public var isRunning: Bool {
+        if case .running = phase { return true }
+        return false
+    }
+}
+
 /// What the reader is doing: waiting, woken, running, and what stands in its way.
 public struct ReaderStatus: Codable, Sendable {
     public enum State: String, Codable, Sendable {

@@ -40,6 +40,48 @@ final class ReaderTests: XCTestCase {
         XCTAssertEqual(died.steps.map(\.what), ["ended"])
     }
 
+    /// The loop machine: every event in every phase, so the runner has nothing to decide.
+    func testTheLoopMachineDecidesEveryStep() {
+        var loop = LoopMachine()
+        XCTAssertEqual(loop.phase, .idle)
+
+        // A line lands: a look is scheduled. Another lands before the grace: rescheduled.
+        XCTAssertEqual(loop.woke(), .scheduleLook)
+        XCTAssertEqual(loop.phase, .waking)
+        XCTAssertEqual(loop.woke(), .scheduleLook)
+
+        // The look finds nothing: back to idle. Finds something: a run starts.
+        XCTAssertEqual(loop.looked(found: false), .nothing)
+        XCTAssertEqual(loop.phase, .idle)
+        XCTAssertEqual(loop.woke(), .scheduleLook)
+        XCTAssertEqual(loop.looked(found: true), .startRun)
+        XCTAssertEqual(loop.phase, .running(again: false))
+        XCTAssertTrue(loop.isRunning)
+
+        // Lines landing during the run are owed one more look; a late look result changes nothing.
+        XCTAssertEqual(loop.woke(), .nothing)
+        XCTAssertEqual(loop.looked(found: true), .nothing)
+        XCTAssertEqual(loop.phase, .running(again: true))
+        XCTAssertEqual(loop.finished(), .lookAgain)
+        XCTAssertEqual(loop.phase, .idle)
+
+        // A run that owed nothing ends quietly; finishing when not running is nothing.
+        XCTAssertEqual(loop.woke(), .scheduleLook)
+        XCTAssertEqual(loop.looked(found: true), .startRun)
+        XCTAssertEqual(loop.finished(), .nothing)
+        XCTAssertEqual(loop.finished(), .nothing)
+
+        // A forced look, by the clock or by hand, runs at once from idle or waking, and is
+        // owed when running.
+        XCTAssertEqual(loop.forced(), .startRun)
+        XCTAssertEqual(loop.forced(), .nothing)
+        XCTAssertEqual(loop.phase, .running(again: true))
+        XCTAssertEqual(loop.finished(), .lookAgain)
+        XCTAssertEqual(loop.woke(), .scheduleLook)
+        XCTAssertEqual(loop.forced(), .startRun)
+        XCTAssertEqual(loop.phase, .running(again: false))
+    }
+
     func testRunsAreListedNewestFirst() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("reader-runs-\(ULID().string)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -28,7 +28,18 @@ final class MacModel {
     private(set) var inbox: [InboxItem] = []
     /// The grants that open the door, from the fold, with the keys this Mac holds filled in.
     private(set) var grants: [Grant] = []
-    private(set) var port: UInt16?
+    /// The door: shut until the server is up, open on a port, or failed with the reason.
+    enum Door: Equatable {
+        case closed
+        case open(UInt16)
+        case failed(String)
+    }
+    private(set) var door: Door = .closed
+    /// The port the door is on, when it is open.
+    var port: UInt16? {
+        if case .open(let port) = door { return port }
+        return nil
+    }
     private(set) var problem: String?
     /// The push key on this Mac, if one has been chosen.
     private(set) var pushKey: PushKey? = PushKeyStore.load()
@@ -523,11 +534,11 @@ final class MacModel {
         do {
             let server = try DoorServer(port: Self.defaultPort) { router.respond($0) }
             self.server = server
-            port = try await server.start()
+            door = .open(try await server.start())
             // The door is open: the loops may look now.
             if let store { for runner in runners.values { runner.wake(store) } }
         } catch {
-            problem = "The door could not open on port \(Self.defaultPort): \(error)"
+            door = .failed("The door could not open on port \(Self.defaultPort): \(error)")
         }
     }
 }

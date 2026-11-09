@@ -85,13 +85,29 @@ struct GrantsView: View {
         }
     }
 
+    private var doorColour: Color {
+        switch model.door {
+        case .closed: MacTheme.faint
+        case .open: MacTheme.accent
+        case .failed: MacTheme.recording
+        }
+    }
+
+    private var doorWords: String {
+        switch model.door {
+        case .closed: "Closed"
+        case .open(let port): "Open on 127.0.0.1:\(port)"
+        case .failed(let why): why
+        }
+    }
+
     private var doorSection: some View {
         Section("Door") {
             HStack(spacing: 8) {
                 Circle()
-                    .fill(model.port == nil ? MacTheme.faint : MacTheme.accent)
+                    .fill(doorColour)
                     .frame(width: 8, height: 8)
-                Text(model.port.map { "Open on 127.0.0.1:\($0)" } ?? "Closed")
+                Text(doorWords)
                     .font(MacTheme.mono)
                     .foregroundStyle(MacTheme.foreground)
             }

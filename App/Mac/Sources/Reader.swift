@@ -28,10 +28,10 @@ final class ReaderRunner {
     /// Told when a run has ended, with its record, so the receipt can be written.
     var onRan: (ReaderRun) -> Void = { _ in }
 
+    /// The phase the loop is in and what each event means there. Decided in Core, under test.
+    private var machine = LoopMachine()
     private var pendingWake: DispatchWorkItem?
     private var clock: Timer?
-    private var running = false
-    private var runAgain = false
     private let calendar = Calendar.current
     /// A line and its photo land a moment apart; one run takes both.
     private let grace: TimeInterval = 5
@@ -99,16 +99,51 @@ final class ReaderRunner {
     func wake(_ store: FileStore) {
         lastStore = store
         guard loop.wake == .line else { return }
-        pendingWake?.cancel()
-        let item = DispatchWorkItem { [weak self] in self?.look(store, always: false) }
-        pendingWake = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + grace, execute: item)
+        carry(machine.woke())
     }
 
     /// Looks now, whatever woke it, and runs even with nothing new.
     func lookNow() {
-        guard let store = lastStore else { return }
-        look(store, always: true)
+        carry(machine.forced())
+    }
+
+    /// Carries out what the machine asked for.
+    private func carry(_ step: LoopMachine.Step) {
+        switch step {
+        case .nothing:
+            break
+        case .scheduleLook:
+            pendingWake?.cancel()
+            let item = DispatchWorkItem { [weak self] in self?.lookAfterGrace() }
+            pendingWake = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + grace, execute: item)
+        case .startRun:
+            if let store = lastStore { start(store) } else { carry(machine.finished()) }
+        case .lookAgain:
+            carry(machine.woke())
+        }
+    }
+
+    /// The grace passed: is there anything new for this loop's grant?
+    private func lookAfterGrace() {
+        guard let store = lastStore else { carry(machine.looked(found: false)); return }
+        let now = Date()
+        let found: Bool
+        do {
+            let files = try store.loadEventsByFile()
+            let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
+            let pending = Core.Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
+            found = pending.count > 0 && claude != nil
+            status.lastWake = ReaderStatus.Wake(at: now, new: pending.count, ran: found)
+            log(found ? "woke: \(pending.count) new, running" : "woke: \(pending.count) new")
+        } catch {
+            found = false
+            status.lastWake = ReaderStatus.Wake(at: now, new: 0, ran: false)
+            status.trouble = "could not read the notebook: \(error)"
+            log("woke: \(status.trouble!)")
+        }
+        onChange()
+        carry(machine.looked(found: found))
     }
 
     /// The clock: the next time the loop's hour comes round, then every day after.
@@ -121,7 +156,7 @@ final class ReaderRunner {
         let timer = Timer(fire: next, interval: 0, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
-                if let store = self.lastStore { self.look(store, always: true) }
+                self.carry(self.machine.forced())
                 self.scheduleClock()
             }
         }
@@ -130,17 +165,23 @@ final class ReaderRunner {
         onChange()
     }
 
-    private func look(_ store: FileStore, always: Bool) {
-        if running { runAgain = true; return }
+    /// A session begins. The machine has already said so; this only sets it going.
+    private func start(_ store: FileStore) {
         let now = Date()
+        guard let claude else {
+            status.lastWake = ReaderStatus.Wake(at: now, new: 0, ran: false)
+            onChange()
+            carry(machine.finished())
+            return
+        }
         do {
             let files = try store.loadEventsByFile()
             let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
-            let pending = Core.Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
-            let willRun = (always || pending.count > 0) && claude != nil
-            status.lastWake = ReaderStatus.Wake(at: now, new: pending.count, ran: willRun)
-            log(willRun ? "woke: \(pending.count) new, running" : "woke: \(pending.count) new")
-            guard willRun, let claude else { onChange(); return }
+            if status.lastWake == nil || status.lastWake?.ran == false {
+                let pending = Core.Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
+                status.lastWake = ReaderStatus.Wake(at: now, new: pending.count, ran: true)
+                log("looking now: \(pending.count) new, running")
+            }
 
             var brief = Door.conduct(for: grant, name: notebook.name(of: grant.author), owner: notebook.name(of: store.manifest.owner)) + """
 
@@ -152,7 +193,6 @@ final class ReaderRunner {
             if let words = loop.brief?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty {
                 brief += "\n\nThe owner's brief for this loop, in their words: \(words)"
             }
-            running = true
             status.state = .running
             let run = ReaderRun(loop: loop.id, startedAt: now)
             status.lastRun = run
@@ -172,8 +212,9 @@ final class ReaderRunner {
         } catch {
             status.lastWake = ReaderStatus.Wake(at: now, new: 0, ran: false)
             status.trouble = "could not read the notebook: \(error)"
-            log("woke: \(status.trouble!)")
+            log("start: \(status.trouble!)")
             onChange()
+            carry(machine.finished())
         }
     }
 
@@ -184,16 +225,12 @@ final class ReaderRunner {
     }
 
     private func finish(_ run: ReaderRun) {
-        running = false
         status.state = .waiting
         progress(run)
         log("\(run.ok == true ? "done" : "failed"): \(run.summary) · \(run.turns ?? 0) turns · $\(String(format: "%.2f", run.costUSD ?? 0))")
         onRan(run)
-        if runAgain {
-            runAgain = false
-            // Whatever came in during the run; the store is re-read in look.
-            if let store = lastStore { wake(store) }
-        }
+        // Whatever landed during the run is looked at once more; the store is re-read then.
+        carry(machine.finished())
     }
 }
 
