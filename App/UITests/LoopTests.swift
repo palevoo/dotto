@@ -44,7 +44,14 @@ final class LoopTests: XCTestCase {
         let name = "Evening look \(Int.random(in: 1000...9999))"
         let field = app.textFields["loop-name"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
+        // Every earlier run on this simulator left a loop above the field, which can leave only
+        // its top edge on screen: hittable to XCTest, but a tap on its centre lands below the
+        // screen. It is scrolled until it is wholly in view.
+        let window = app.windows.firstMatch.frame
+        var swipes = 0
+        while field.frame.maxY > window.maxY - 60, swipes < 6 { app.swipeUp(); swipes += 1 }
         field.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "the name field takes the keyboard")
         field.typeText(name)
         app.buttons["loop-set"].tap()
         XCTAssertTrue(app.staticTexts["loop-\(name)"].waitForExistence(timeout: 5), "the loop is set from the phone")

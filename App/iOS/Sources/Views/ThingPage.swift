@@ -2,8 +2,9 @@ import Core
 import SwiftUI
 
 /// A thing's page: its name and kind, who made it, its facts as its state, and the lines
-/// that belong to it by day. Hold a fact to take it off; hold the name to drop the thing.
-/// Tap a line to open it.
+/// that belong to it by day. A tag's page is the same, headed by its word, made by nobody.
+/// Hold a fact to take it off; hold the name to drop the thing, which for a tag takes
+/// every line out from under it. Tap a line to open it.
 struct ThingPage: View {
     let id: ULID
     @Bindable var model: NotebookModel
@@ -27,7 +28,7 @@ struct ThingPage: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(thing.name)
+                    Text(thing.isTag ? "#\(thing.name)" : thing.name)
                         .font(Theme.title)
                         .foregroundStyle(Theme.foreground)
                         .accessibilityIdentifier("thing-name")
@@ -40,15 +41,21 @@ struct ThingPage: View {
                                 .font(Theme.mono)
                                 .foregroundStyle(Theme.faint)
                         }
-                        Text("by")
-                            .font(Theme.mono)
-                            .foregroundStyle(Theme.faint)
-                        Who(author: thing.author, model: model)
+                        if let author = thing.author {
+                            Text("by")
+                                .font(Theme.mono)
+                                .foregroundStyle(Theme.faint)
+                            Who(author: author, model: model)
+                        } else {
+                            Text("a tag")
+                                .font(Theme.mono)
+                                .foregroundStyle(Theme.muted)
+                        }
                     }
                 }
                 .contentShape(Rectangle())
                 .contextMenu {
-                    Button("Drop", systemImage: "trash", role: .destructive) {
+                    Button(thing.isTag ? "Take every line out" : "Drop", systemImage: "trash", role: .destructive) {
                         model.removeThing(thing.id)
                         dismiss()
                     }

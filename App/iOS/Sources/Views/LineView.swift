@@ -8,8 +8,6 @@ import UIKit
 struct LineView: View {
     let entryID: ULID
     @Bindable var model: NotebookModel
-    /// A tag on the line was tapped: whoever holds the page filters it by that tag.
-    var onFilter: ((String) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     /// The words while they are being changed; nil when they are not.
     @State private var draft: String?
@@ -111,7 +109,7 @@ struct LineView: View {
                 // What the line is: the things it is with, done, its facts, its tags. One
                 // block, every row a mark someone placed, each gone with a hold.
                 if MarksBlock.has(entry) {
-                    MarksBlock(entry: entry, model: model, onFilter: onFilter)
+                    MarksBlock(entry: entry, model: model)
                 }
 
                 // The thread it is in, and, for your own lines, the way to join it to an

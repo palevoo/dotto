@@ -2,21 +2,24 @@ import Core
 import SwiftUI
 
 /// What a line is, in one place: the things it is with, done and by what, the facts on it,
-/// the tags it is filed under. Every row is someone's mark, signed where it matters, and
-/// every one goes with a hold. Tap a thing to open its page, a tag to see its lines.
+/// the tags it is under. Every row is someone's mark, signed where it matters, and every
+/// one goes with a hold. Tap a thing or a tag to open its page.
 struct MarksBlock: View {
     let entry: Entry
     @Bindable var model: NotebookModel
-    var onFilter: ((String) -> Void)? = nil
 
     /// Whether there is anything to show at all.
     static func has(_ entry: Entry) -> Bool {
-        !entry.belongsTo.isEmpty || entry.done != nil || !entry.facts.isEmpty || !entry.labels.isEmpty
+        !entry.belongsTo.isEmpty || entry.done != nil || !entry.facts.isEmpty
     }
+
+    /// The links to things made by someone, and the links to tags, apart.
+    private var things: [Core.Link] { entry.belongsTo.filter { !$0.to.isTag } }
+    private var tagLinks: [Core.Link] { entry.belongsTo.filter { $0.to.isTag } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(entry.belongsTo) { link in
+            ForEach(things) { link in
                 thingRow(link)
             }
             if let done = entry.done {
@@ -25,7 +28,7 @@ struct MarksBlock: View {
             if !entry.facts.isEmpty {
                 FactList(facts: entry.facts, model: model)
             }
-            if !entry.labels.isEmpty {
+            if !tagLinks.isEmpty {
                 tags
             }
         }
@@ -101,23 +104,28 @@ struct MarksBlock: View {
         }
     }
 
-    /// Tags, each a way to every line under it.
+    /// Tags, each a way to its page, with every line under it. Hold one to take it off.
     private var tags: some View {
         HStack(spacing: 8) {
-            ForEach(entry.labels, id: \.self) { label in
-                Button {
-                    onFilter?(label)
-                } label: {
-                    Text("#\(label)")
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.muted)
-                        .padding(.horizontal, 10)
-                        .frame(height: 26)
-                        .background(Theme.square(26).fill(Theme.paper))
-                        .overlay(Theme.square(26).strokeBorder(Theme.line, lineWidth: 1))
+            ForEach(tagLinks) { link in
+                if let tag = model.notebook.thing(link.to) {
+                    NavigationLink(value: Route.thing(tag.id)) {
+                        Text("#\(tag.name)")
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.muted)
+                            .padding(.horizontal, 10)
+                            .frame(height: 26)
+                            .background(Theme.square(26).fill(Theme.paper))
+                            .overlay(Theme.square(26).strokeBorder(Theme.line, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("tag-\(tag.name)")
+                    .contextMenu {
+                        Button("Take it off", systemImage: "minus.circle", role: .destructive) {
+                            withAnimation(Motion.settle) { model.unlink(link) }
+                        }
+                    }
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("tag-\(label)")
             }
         }
     }

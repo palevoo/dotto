@@ -66,15 +66,15 @@ owner only drops.
 
 A tag is the simplest shape: a name with no fields that lines belong to. Reading, margin,
 detox, nursery, a project's code name are all tags, and a label on a line is a link from
-the line to its tag.
+the line to its tag. Since 10 November that sentence is literally how it is kept.
 
 Two kinds hide under the one word and need different mechanics: a fact on one line, the
 yield, the kilometres, done; and a thing many lines share, a book, a person, a fig. See
 the design below.
 
-Today, since 10 November: things and facts, as designed; tags still as labels. Missing:
-labels folding into things, so a tag has a page like any thing; a kind as more than a
-word; streaks, which are a thing with a loop that sets its facts.
+Today, since 10 November: things and facts, as designed, and tags as things, each with a
+page. Missing: a kind as more than a word; streaks, which are a tag or a thing with a loop
+that sets its facts; "same as" for two things that are one.
 
 ### Links
 
@@ -111,8 +111,8 @@ milestone.
 Today: all pages are code. Since 10 November two pages stand over shapes, reached from the
 calendar sheet: Todos, the lines anyone marked todo and nobody marked done, due first; and
 a page per kind of thing, the books, the plants, the people, each thing with its facts and
-its lines. The line's page shows what a line is in one block, and the inbox is one flow
-answered in place. Missing: a page as a definition over shapes, which is what lets
+its lines. A tag's page is a thing's page. The line's page shows what a line is in one
+block, and the inbox is one flow answered in place. Missing: a page as a definition over shapes, which is what lets
 dotto make the shelf, the plant page and its own site; search over plain words, a small
 page of its own.
 
@@ -123,6 +123,9 @@ page of its own.
   kinds and a phone and a Mac could be on different builds.
 - Only the owner's hand makes a loop run. Anyone may shape one as a proposal; the owner
   sets it with one tap or declines it.
+- A tag's identity is its word. A thing is its id, and two originators making "the fig"
+  make two figs; a tag must converge with no lookup, so its id is made from the word, and
+  nobody owns it. Found when asking whether things were designed well enough to be tags.
 
 ## Rules found on 9 November
 
@@ -209,8 +212,17 @@ thing made and each fact put on the owner's line or on a thing. The day files sa
 `link` with a thing as its end is belonging; `set_fact` takes exactly one value. Looking
 at the things leaves a receipt like every read.
 
+**A tag is a thing**, since 10 November, with one rule of its own: its id comes from its
+lower-cased word, so every originator on every device lands on the same tag with no lookup,
+and nobody made it. It is there while a line is under it. A label is the link from the line
+to it; the label events already in the files fold into that link, so nothing migrates. The
+owner takes one label off as any link, and drops the tag whole, which takes every line out
+from under it and retires nothing: a label after the drop stands. A tag takes facts like
+any thing; that is how the detox becomes a streak without becoming something else. A tag
+is not set, has no kind, and is not counted among the kinds; it has a page like any thing.
+
 **Not done, on purpose.** Shape-to-shape links, "same as" for two things that are one,
-tags as things, pages as definitions.
+pages as definitions.
 
 ## The cases, run through
 
@@ -225,7 +237,6 @@ the test the parts keep passing.
 
 ## Open
 
-- Labels as things, so a tag has a page like any other thing.
 - Pages as definitions over shapes.
 - Three kinds of written words, the owner's line, an originator's page line and a reply,
   are three event kinds for one act. Not merged; shapes must not deepen the split.

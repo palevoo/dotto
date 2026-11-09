@@ -18,8 +18,8 @@ final class ShapeTests: XCTestCase {
     /// it and the thing's page has its state and the line.
     func testALineSaysWhatItIsAndTheThingHasAPage() {
         let shapes = app.staticTexts.matching(identifier: "shapes")
-        let fact = shapes.matching(NSPredicate(format: "label == %@", "pages 2")).firstMatch
-        XCTAssertTrue(fact.waitForExistence(timeout: 15), "the first line wears its fact")
+        let fact = shapes.matching(NSPredicate(format: "label == %@", "pages 2 · #book")).firstMatch
+        XCTAssertTrue(fact.waitForExistence(timeout: 15), "the first line wears its fact, then its tag")
         // The second line is with the fig and, since the seed also marks it, a todo with a due moment.
         let belongs = shapes.matching(NSPredicate(format: "label BEGINSWITH %@", "the fig · todo · due")).firstMatch
         XCTAssertTrue(belongs.exists, "the second line wears the thing it belongs to and its facts")

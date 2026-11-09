@@ -142,9 +142,10 @@ struct EntryRow: View {
         return "\(count)\(last.from == entry.id ? "from" : "on to") \(words.isEmpty ? "a photo" : words)"
     }
 
-    /// The things the line is with and its facts, in a few words: "fig · todo · due Thu 11:30".
+    /// The things the line is with, its facts and its tags, in a few words:
+    /// "fig · todo · due Thu 11:30 · #nursery".
     private var shapeHint: String? {
-        let things = entry.belongsTo.compactMap { model.notebook.thing($0.to)?.name }
+        let things = entry.belongsTo.compactMap { link in model.notebook.thing(link.to).flatMap { $0.isTag ? nil : $0.name } }
         var facts: [String] = []
         // Todo and due first, in words; then the rest, one per key.
         if entry.isTodo { facts.append("todo") }
@@ -155,7 +156,7 @@ struct EntryRow: View {
         for fact in entry.facts where seen.insert(fact.key).inserted {
             facts.append("\(fact.key) \(fact.value.words(calendar: model.calendar))")
         }
-        let parts = things + facts
+        let parts = things + facts + entry.labels.map { "#\($0)" }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 

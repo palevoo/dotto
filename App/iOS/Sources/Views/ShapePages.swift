@@ -79,7 +79,7 @@ struct ThingsPage: View {
     @Bindable var model: NotebookModel
 
     var body: some View {
-        let things = kind.map { model.notebook.things(kind: $0) } ?? model.notebook.allThings
+        let things = kind.map { model.notebook.things(kind: $0) } ?? model.notebook.madeThings
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 Text(kind.map { Self.plural($0) } ?? "Things")

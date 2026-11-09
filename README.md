@@ -145,8 +145,16 @@ a span or a place. On the page a line gets one quiet row with the things it is w
 facts; on its own page "with fig" is a jump to the thing's page, which has its facts as its
 state and the lines that belong to it by day. Everything shaped stands until you drop it:
 hold a fact to take it off, hold a thing's name to drop it, hold "with fig" to take the line
-out. The inbox shows each thing made and each fact put on your lines. Tags are still labels,
-not yet things.
+out. The inbox shows each thing made and each fact put on your lines.
+
+A tag is the simplest thing: a lower-case word that lines are under, `set_label`. Nobody
+makes it; its id comes from the word, so the reader's #reading and a loop's #reading are one
+tag on every device with no lookup, and it stands as long as a line is under it. A label is
+the link from the line to it, signed by whoever filed it. It has a page like any thing,
+headed by its word, reached from the chips on the calendar sheet or from the tag on a line's
+page, and it takes facts like any thing, which is how a tag becomes a streak. Hold a tag on a
+line to take it off; hold the word on its page to take every line out from under it. The
+word is never retired: a label after that stands.
 
 Replies under a line show on the page as one quiet line, the latest reply's words with a
 count before it. The line's page holds the conversation, with the place to reply pinned at

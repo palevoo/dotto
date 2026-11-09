@@ -51,7 +51,7 @@ public enum Projector {
             if let done = entry.done {
                 threads.append(done.byAt.map { "done by \(moment($0, calendar: calendar))" } ?? "done")
             }
-            threads += entry.belongsTo.map { "with \(things[$0.to] ?? $0.to.string)" }
+            threads += entry.belongsTo.compactMap { link in things[link.to].map { "with \($0)" } }
             threads += entry.facts.map { "\($0.key) \($0.value.words(calendar: calendar)) · \(names[$0.author] ?? $0.author.rawValue)" }
             if !threads.isEmpty {
                 lines.append("")

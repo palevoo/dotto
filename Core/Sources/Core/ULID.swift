@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Universally unique, lexicographically sortable identifier.
@@ -35,6 +36,23 @@ public struct ULID: Hashable, Comparable, Sendable, Codable, CustomStringConvert
               string.allSatisfy({ ULID.decodeTable[$0] != nil })
         else { return nil }
         self.string = string.uppercased()
+    }
+
+    /// The id of a tag: a thing whose identity is its word. Made from the lower-cased word
+    /// alone, so every originator on every device lands on the same thing with no lookup. Its
+    /// time is zero, which no event made on a device ever has, so a tag's id is known by sight.
+    public static func tag(_ word: String) -> ULID {
+        let normalised = ULID.tagWord(word)
+        let digest = SHA256.hash(data: Data(normalised.utf8))
+        return ULID(milliseconds: 0, random: Array(digest.prefix(10)))
+    }
+
+    /// Whether this is a tag's id: made from a word, not at a moment.
+    public var isTag: Bool { milliseconds == 0 }
+
+    /// A tag's word as the fold keeps it: trimmed, lower-cased.
+    public static func tagWord(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     public var milliseconds: UInt64 {

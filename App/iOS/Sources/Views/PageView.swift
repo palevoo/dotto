@@ -22,7 +22,6 @@ struct PageView: View {
     @State private var picked: [PhotosPickerItem] = []
     @State private var viewing: PhotoOpening?
     @Namespace private var zoom
-    @State private var filter: String?
     @State private var revealed: ULID?
     /// Who has the keyboard on the page: nobody, the live line, or a line whose words are
     /// being changed where they stand. One at a time; a tap anywhere else takes it back.
@@ -53,12 +52,7 @@ struct PageView: View {
     private var visibleDay: DayKey { position.viewID(type: DayKey.self) ?? model.today }
     private var awaitedArrived: Bool { awaitedLine.map { model.notebook.entry($0) != nil } ?? false }
 
-    private var days: [Day] {
-        if let filter {
-            return model.notebook.days(labelled: filter, calendar: model.calendar)
-        }
-        return model.days
-    }
+    private var days: [Day] { model.days }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -69,7 +63,7 @@ struct PageView: View {
                             DaySection(
                                 day: day,
                                 model: model,
-                                isToday: filter == nil && day.key == model.today,
+                                isToday: day.key == model.today,
                                 revealed: revealed,
                                 editingRow: editingRow,
                                 onOpen: { id in open { path.append(id) } },
@@ -79,7 +73,7 @@ struct PageView: View {
                             .id(day.key)
                         }
                         if days.isEmpty {
-                            Text(filter == nil ? "Nothing yet. The line below is yours." : "Nothing filed here yet.")
+                            Text("Nothing yet. The line below is yours.")
                                 .font(Theme.serifSmall)
                                 .foregroundStyle(Theme.muted)
                                 .padding(20)
@@ -103,11 +97,9 @@ struct PageView: View {
                         day: visibleDay,
                         today: model.today,
                         calendar: model.calendar,
-                        filter: filter,
                         unread: model.unread,
                         onTap: { showCalendar = true },
                         onInbox: { open { path.append(Route.inbox) } },
-                        onClearFilter: { withAnimation(Motion.settle) { filter = nil } },
                         onCopyDay: { copy(day: visibleDay) },
                         onCopyAll: { copyAll() }
                     )
@@ -139,10 +131,9 @@ struct PageView: View {
                     days: model.days,
                     today: model.today,
                     calendar: model.calendar,
-                    labels: model.notebook.labelCounts,
+                    tags: model.notebook.tags,
                     kinds: model.notebook.kinds,
                     todos: model.notebook.todos.count,
-                    filter: filter,
                     lastVisit: model.notebook.visits.last { $0.author != model.store.manifest.owner }
                         .map { ($0.author, LogView.summary(of: $0, calendar: model.calendar)) },
                     others: model.notebook.others,
@@ -152,9 +143,9 @@ struct PageView: View {
                         showCalendar = false
                         withAnimation(Motion.settle) { position.scrollTo(id: key, anchor: .top) }
                     },
-                    onFilter: { label in
+                    onTag: { tag in
+                        afterCalendar = .thing(tag)
                         showCalendar = false
-                        withAnimation(Motion.settle) { filter = label }
                     },
                     onInbox: {
                         afterCalendar = .inbox
@@ -250,11 +241,7 @@ struct PageView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: ULID.self) { id in
-                LineView(entryID: id, model: model) { label in
-                    // A tag tapped on a line: back to the page, filtered by it.
-                    path = NavigationPath()
-                    withAnimation(Motion.settle) { filter = label }
-                }
+                LineView(entryID: id, model: model)
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {
@@ -294,7 +281,6 @@ struct PageView: View {
         withAnimation(Motion.settle) { stored = model.commitDraft() }
         guard let stored else { return }
         Haptic.store()
-        guard filter == nil else { return }
         let day = model.notebook.entry(stored).map { DayKey($0.startedAt, calendar: model.calendar) } ?? model.today
         if day == model.today {
             // The end of today, by the day's own id: a section the lazy stack has only just
@@ -356,18 +342,16 @@ enum Motion {
     static let settle: Animation = .snappy(duration: 0.28, extraBounce: 0)
 }
 
-/// The date, pinned. Tap it for the calendar; hold it to copy the day as text.
-/// When the page is filtered by a label, the label sits here with its x. When something
-/// arrived for you since you last looked, its count stands at the end; tap it for the inbox.
+/// The date, pinned. Tap it for the calendar; hold it to copy the day as text. When
+/// something arrived for you since you last looked, its count stands at the end; tap it
+/// for the inbox.
 struct PinnedHeader: View {
     let day: DayKey
     let today: DayKey
     let calendar: Calendar
-    let filter: String?
     let unread: Int
     let onTap: () -> Void
     let onInbox: () -> Void
-    let onClearFilter: () -> Void
     let onCopyDay: () -> Void
     let onCopyAll: () -> Void
 
@@ -408,21 +392,7 @@ struct PinnedHeader: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("Inbox, \(unread) new")
             }
-            if let filter {
-                Button(action: onClearFilter) {
-                    HStack(spacing: 6) {
-                        Text("#\(filter)")
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .semibold))
-                    }
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.accent)
-                    .padding(.horizontal, 10)
-                    .frame(height: 28)
-                    .background(Theme.square(28).fill(Theme.accent.opacity(0.1)))
-                }
-                .buttonStyle(.plain)
-            } else if day != today {
+            if day != today {
                 Text(relative)
                     .font(Theme.mono)
                     .foregroundStyle(Theme.muted)

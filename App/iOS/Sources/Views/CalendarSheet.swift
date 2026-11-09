@@ -1,19 +1,18 @@
 import Core
 import SwiftUI
 
-/// The date, tapped: a month with a mark under every day that has lines, the labels
-/// lines have been filed under, the latest read, and the way to Setup. Tap a label to
-/// see only those lines.
+/// The date, tapped: a month with a mark under every day that has lines, the pages over
+/// shapes, the tags, the latest read, and the way to Setup. Tap a tag for its page.
 struct CalendarSheet: View {
     let days: [Day]
     let today: DayKey
     let calendar: Calendar
-    let labels: [String: Int]
+    /// The tags with lines under them, by word.
+    let tags: [Thing]
     /// The kinds of things there are, with how many of each.
     let kinds: [(kind: String?, count: Int)]
     /// How many lines are still to do.
     let todos: Int
-    let filter: String?
     /// The latest read, as who and one line. Nil until someone has been.
     let lastVisit: (author: Author, text: String)?
     /// Everyone else who has left anything, each with a page of their own.
@@ -22,7 +21,7 @@ struct CalendarSheet: View {
     let unread: Int
     let model: NotebookModel
     let onPick: (DayKey) -> Void
-    let onFilter: (String?) -> Void
+    let onTag: (ULID) -> Void
     let onInbox: () -> Void
     let onLog: () -> Void
     let onSetup: () -> Void
@@ -33,24 +32,23 @@ struct CalendarSheet: View {
     @State private var month: DateComponents
     @State private var height: CGFloat = 480
 
-    init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], kinds: [(kind: String?, count: Int)], todos: Int, filter: String?,
+    init(days: [Day], today: DayKey, calendar: Calendar, tags: [Thing], kinds: [(kind: String?, count: Int)], todos: Int,
          lastVisit: (author: Author, text: String)?, others: [Author], unread: Int, model: NotebookModel,
-         onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void, onInbox: @escaping () -> Void,
+         onPick: @escaping (DayKey) -> Void, onTag: @escaping (ULID) -> Void, onInbox: @escaping () -> Void,
          onLog: @escaping () -> Void, onSetup: @escaping () -> Void, onTodos: @escaping () -> Void, onKind: @escaping (String?) -> Void,
          onAuthor: @escaping (Author) -> Void) {
         self.days = days
         self.today = today
         self.calendar = calendar
-        self.labels = labels
+        self.tags = tags
         self.kinds = kinds
         self.todos = todos
-        self.filter = filter
         self.lastVisit = lastVisit
         self.others = others
         self.unread = unread
         self.model = model
         self.onPick = onPick
-        self.onFilter = onFilter
+        self.onTag = onTag
         self.onInbox = onInbox
         self.onLog = onLog
         self.onSetup = onSetup
@@ -130,13 +128,13 @@ struct CalendarSheet: View {
                 }
             }
 
-            if !labels.isEmpty {
+            // The tags, each a thing with a page of its own.
+            if !tags.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(labels.keys.sorted(), id: \.self) { label in
-                            LabelChip(label: label, count: labels[label] ?? 0, selected: filter == label) {
-                                onFilter(filter == label ? nil : label)
-                            }
+                        ForEach(tags) { tag in
+                            LabelChip(label: tag.name, count: tag.lines.count) { onTag(tag.id) }
+                                .accessibilityIdentifier("tag-\(tag.name)")
                         }
                     }
                 }
@@ -268,10 +266,10 @@ struct ShapeChip: View {
     }
 }
 
+/// A tag as a chip: its word and how many lines are under it.
 struct LabelChip: View {
     let label: String
     let count: Int
-    let selected: Bool
     let action: () -> Void
 
     var body: some View {
@@ -279,14 +277,13 @@ struct LabelChip: View {
             HStack(spacing: 6) {
                 Text("#\(label)")
                 Text("\(count)")
-                    .foregroundStyle(selected ? Theme.background.opacity(0.7) : Theme.faint)
+                    .foregroundStyle(Theme.faint)
             }
             .font(Theme.mono)
-            .foregroundStyle(selected ? Theme.background : Theme.foreground)
+            .foregroundStyle(Theme.foreground)
             .padding(.horizontal, 12)
             .frame(height: 30)
-            .background(Theme.square(30).fill(selected ? Theme.foreground : .clear))
-            .overlay(Theme.square(30).strokeBorder(selected ? .clear : Theme.line, lineWidth: 1))
+            .overlay(Theme.square(30).strokeBorder(Theme.line, lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

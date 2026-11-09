@@ -261,7 +261,7 @@ public struct Door: Sendable {
                         "inputSchema": ["type": "object", "properties": ["name": ["type": "string"]], "required": ["name"]]]
             case .setLabel:
                 return ["name": rawValue,
-                        "description": "File a line under a label, or take the label off with on=false. Labels are lower-case words.",
+                        "description": "Put a line under a tag, or take it out with on=false. A tag is a lower-case word; it is a thing made by nobody, whose id is its word, there as long as a line is under it, with a page of its own.",
                         "inputSchema": ["type": "object",
                                         "properties": ["entry": entry, "label": ["type": "string"], "on": ["type": "boolean", "default": true]],
                                         "required": ["entry", "label"]]]
@@ -283,7 +283,7 @@ public struct Door: Sendable {
                                                        "on": ["type": "boolean", "default": true]]]]
             case .listThings:
                 return ["name": rawValue,
-                        "description": "Every thing standing, with its id, kind, how many lines belong to it, and its facts. Use the id with link and set_fact.",
+                        "description": "Every thing standing, tags included, with its id, kind, how many lines belong to it, and its facts. Use the id with link and set_fact.",
                         "inputSchema": ["type": "object", "properties": ["kind": ["type": "string", "description": "Only things of this kind."]]]]
             case .setFact:
                 return ["name": rawValue,
@@ -460,7 +460,7 @@ public struct Door: Sendable {
                     if !entry.notes.isEmpty { tail.append("[\(entry.notes.count) notes]") }
                     if !entry.carriesOn.isEmpty { tail.append("[continues \(entry.carriesOn.map(\.to.string).joined(separator: " "))]") }
                     if let done = entry.done { tail.append(done.by.map { "[done by \($0)]" } ?? "[done]") }
-                    tail.append(contentsOf: entry.belongsTo.map { "[with \(notebook.thing($0.to)?.name ?? $0.to.string)]" })
+                    tail.append(contentsOf: entry.belongsTo.compactMap { link in notebook.thing(link.to).flatMap { $0.isTag ? nil : "[with \($0.name)]" } })
                     tail.append(contentsOf: entry.facts.map { "[\($0.key) \($0.value.words(calendar: calendar))]" })
                     tail.append(contentsOf: entry.labels.map { "#\($0)" })
                     lines.append("\(entry.id)  \(day.key) \(Projector.time(entry.startedAt, calendar: calendar))  \(text)\(tail.isEmpty ? "" : "  " + tail.joined(separator: " "))")
@@ -573,11 +573,12 @@ public struct Door: Sendable {
             if things.isEmpty { return .text("No things yet.") }
             return .text(things.map { thing in
                 var tail: [String] = []
+                if thing.isTag { tail.append("a tag") }
                 if let kind = thing.kind { tail.append("a \(kind)") }
                 tail.append("\(thing.lines.count) line\(thing.lines.count == 1 ? "" : "s")")
                 tail.append(contentsOf: thing.facts.map { "\($0.key) \($0.value.words(calendar: calendar))" })
-                tail.append("by \(notebook.name(of: thing.author) ?? thing.author.rawValue)")
-                return "\(thing.id)  \(thing.name)  \(tail.joined(separator: " · "))"
+                if let author = thing.author { tail.append("by \(notebook.name(of: author) ?? author.rawValue)") }
+                return "\(thing.id)  \(thing.isTag ? "#" : "")\(thing.name)  \(tail.joined(separator: " · "))"
             }.joined(separator: "\n"))
 
         case .setFact:
