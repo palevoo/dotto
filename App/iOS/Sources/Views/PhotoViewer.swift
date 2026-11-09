@@ -57,7 +57,7 @@ struct PhotoViewer: View {
     @State private var passage = ""
     /// Where the words begin, from the top of the screen. The photo is fitted above them.
     @State private var captionTop: CGFloat = 0
-    @FocusState private var focused: Bool
+    @State private var focused = false
 
     private let gap: CGFloat = 24
 

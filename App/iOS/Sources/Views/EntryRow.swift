@@ -16,7 +16,7 @@ struct EntryRow: View {
     let onOpenPhoto: (PhotoOpening) -> Void
     @State private var editing = false
     @State private var text = ""
-    @FocusState private var focused: Bool
+    @State private var focused = false
 
     private var photos: [Media] { entry.media.filter { $0.mime.hasPrefix("image") } }
     private var voices: [Media] { entry.media.filter { $0.mime.hasPrefix("audio") } }

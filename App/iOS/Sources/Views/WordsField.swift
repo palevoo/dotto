@@ -9,17 +9,22 @@ import UIKit
 /// A UIKit text view, because that is where the Return key is told apart from a newline
 /// arriving inside other text: the key comes alone as "\n" in `shouldChangeTextIn`, a paste
 /// comes as the whole passage.
+///
+/// `focused` mirrors the keyboard: true while this field is the first responder. The caller
+/// sets it to raise or dismiss the keyboard and reads it to know. It is a plain Bool, not a
+/// FocusState, because SwiftUI's focus system owns a FocusState and clears one that no
+/// SwiftUI view claims, which a UIKit field never does.
 struct WordsField: View {
     let placeholder: String
     @Binding var text: String
     var size: CGFloat = 18
     var lineSpacing: CGFloat = 4
     var color: Color = Theme.foreground
-    var focused: FocusState<Bool>.Binding
+    @Binding var focused: Bool
     let onCommit: () -> Void
 
     var body: some View {
-        WordsTextView(text: $text, size: size, lineSpacing: lineSpacing, color: color, focused: focused, onCommit: onCommit)
+        WordsTextView(text: $text, size: size, lineSpacing: lineSpacing, color: color, focused: $focused, onCommit: onCommit)
             .background(alignment: .topLeading) {
                 if text.isEmpty, !placeholder.isEmpty {
                     Text(placeholder)
@@ -37,7 +42,7 @@ private struct WordsTextView: UIViewRepresentable {
     let size: CGFloat
     let lineSpacing: CGFloat
     let color: Color
-    var focused: FocusState<Bool>.Binding
+    @Binding var focused: Bool
     let onCommit: () -> Void
 
     private static let maxLines: CGFloat = 8
@@ -69,7 +74,7 @@ private struct WordsTextView: UIViewRepresentable {
             view.attributedText = NSAttributedString(string: text, attributes: attributes)
             view.selectedRange = NSRange(location: (text as NSString).length, length: 0)
         }
-        let wantsKeyboard = focused.wrappedValue
+        let wantsKeyboard = focused
         if wantsKeyboard != view.isFirstResponder {
             DispatchQueue.main.async {
                 guard wantsKeyboard != view.isFirstResponder else { return }
@@ -131,11 +136,11 @@ private struct WordsTextView: UIViewRepresentable {
         }
 
         func textViewDidBeginEditing(_ view: UITextView) {
-            if !parent.focused.wrappedValue { parent.focused.wrappedValue = true }
+            if !parent.focused { parent.focused = true }
         }
 
         func textViewDidEndEditing(_ view: UITextView) {
-            if parent.focused.wrappedValue { parent.focused.wrappedValue = false }
+            if parent.focused { parent.focused = false }
         }
 
         /// Every run of line breaks, with the spaces around it, becomes one space.

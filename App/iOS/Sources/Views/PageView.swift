@@ -30,7 +30,8 @@ struct PageView: View {
     /// than iCloud carries the line it is about. Opened the moment the line arrives.
     @State private var awaitedLine: ULID?
     @State private var recorder = VoiceRecorder()
-    @FocusState private var liveFocused: Bool
+    /// Whether the live line has the keyboard. Mirrors the field's first-responder status.
+    @State private var liveFocused = false
 
     private var visibleDay: DayKey { position.viewID(type: DayKey.self) ?? model.today }
     private var awaitedArrived: Bool { awaitedLine.map { model.notebook.entry($0) != nil } ?? false }
@@ -483,7 +484,7 @@ struct DayDivider: View {
 /// speaking, a red square and the time stand there, and a tap on them stops.
 struct LiveLine: View {
     @Bindable var model: NotebookModel
-    var focused: FocusState<Bool>.Binding
+    @Binding var focused: Bool
     let recorder: VoiceRecorder
     let onReturn: () -> Void
     let onCamera: () -> Void
@@ -521,7 +522,7 @@ struct LiveLine: View {
                     DraftMediaRow(model: model)
                 }
                 // Return stores; a pasted passage waits in the line like typed words.
-                WordsField(placeholder: "", text: $model.draftText, focused: focused) { onReturn() }
+                WordsField(placeholder: "", text: $model.draftText, focused: $focused) { onReturn() }
             }
             if recorder.isRecording, let started = recorder.startedAt {
                 Button(action: onStopSpeaking) {
@@ -574,9 +575,9 @@ struct LiveLine: View {
         .padding(.bottom, 8)
         .contentShape(Rectangle())
         .onTapGesture {
-            guard !focused.wrappedValue else { return }
+            guard !focused else { return }
             Haptic.touch()
-            focused.wrappedValue = true
+            focused = true
         }
     }
 }

@@ -11,7 +11,7 @@ struct SetupView: View {
     @State private var showMove = false
     @State private var naming = false
     @State private var newName = ""
-    @FocusState private var nameFocused: Bool
+    @State private var nameFocused = false
     @Environment(\.openURL) private var openURL
 
     var body: some View {

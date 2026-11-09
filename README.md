@@ -38,6 +38,8 @@ Identity canvas: https://claude.ai/artifact/21R7emDXUxPL4GJcizqLdn
     cd Core && swift test                      # the fold and the projector, under test
     cd App && xcodegen generate                # writes Margin.xcodeproj; do not edit it by hand
     open App/Margin.xcodeproj                  # pick your phone, run
+    xcodebuild test -project App/Margin.xcodeproj -scheme Margin -destination 'id=<booted simulator>'
+                                               # the live line driven as a thumb would, in App/UITests
 
 The Xcode project file is generated. Change `App/project.yml`, then regenerate.
 Every build stamps the commit it was made from into the app (`App/Scripts/stamp.sh`):

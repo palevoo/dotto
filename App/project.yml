@@ -129,6 +129,23 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: true
 
+  # The phone app driven as a thumb would, on a booted simulator, headless:
+  # xcodebuild test -scheme Margin -destination 'id=<simulator>'. The proof for what a tap,
+  # a key and a paste do.
+  MarginUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: UITests
+    dependencies:
+      - target: Margin
+    settings:
+      groups: [signing]
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook.uitests
+        TARGETED_DEVICE_FAMILY: "1"
+        TEST_TARGET_NAME: Margin
+
   MarginMac:
     type: application
     platform: macOS
@@ -164,5 +181,10 @@ schemes:
     build:
       targets:
         Margin: all
+        MarginUITests: [test]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - MarginUITests

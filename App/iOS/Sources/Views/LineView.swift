@@ -13,7 +13,7 @@ struct LineView: View {
     @State private var text = ""
     @State private var viewing: PhotoOpening?
     @State private var picking = false
-    @FocusState private var focused: Bool
+    @State private var focused = false
 
     var body: some View {
         if let entry = model.notebook.entry(entryID) {

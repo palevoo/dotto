@@ -45,7 +45,7 @@ struct ReplyBlock: View {
     @Bindable var model: NotebookModel
     @State private var editing = false
     @State private var text = ""
-    @FocusState private var focused: Bool
+    @State private var focused = false
 
     private var mine: Bool { note.author == model.store.manifest.owner }
 
@@ -104,7 +104,7 @@ struct ReplyBar: View {
     let entry: ULID
     @Bindable var model: NotebookModel
     @State private var text = ""
-    @FocusState private var focused: Bool
+    @State private var focused = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
