@@ -366,7 +366,7 @@ struct GrantsView: View {
                         } label: {
                             Text(Self.runLine(run))
                                 .font(MacTheme.mono)
-                                .foregroundStyle(run.isRunning ? MacTheme.accent : (run.ok == false ? MacTheme.recording : MacTheme.muted))
+                                .foregroundStyle(Self.colour(of: run.outcome))
                                 .lineLimit(1)
                         }
                     }
@@ -380,20 +380,28 @@ struct GrantsView: View {
         Binding(get: { openRuns.contains(id) }, set: { open in if open { openRuns.insert(id) } else { openRuns.remove(id) } })
     }
 
+    private static func colour(of outcome: ReaderRun.Outcome) -> Color {
+        switch outcome {
+        case .running: MacTheme.accent
+        case .failed: MacTheme.recording
+        case .done: MacTheme.muted
+        }
+    }
+
     /// "4 Nov 13:21 · 6 turns · $0.31 · answered under two lines", or, while running, how far it is.
     private static func runLine(_ run: ReaderRun) -> String {
         var parts = [stamp(run.startedAt)]
-        if run.isRunning {
-            parts.append("running")
-            let calls = run.calls
-            if !calls.isEmpty { parts.append(calls.joined(separator: ", ")) }
-            return parts.joined(separator: " · ")
-        }
-        if let turns = run.turns { parts.append("\(turns) turn\(turns == 1 ? "" : "s")") }
-        if let cost = run.costUSD { parts.append(String(format: "$%.2f", cost)) }
         let calls = run.calls
-        if !calls.isEmpty { parts.append(calls.joined(separator: ", ")) }
-        parts.append(run.summary)
+        switch run.outcome {
+        case .running:
+            parts.append("running")
+            if !calls.isEmpty { parts.append(calls.joined(separator: ", ")) }
+        case .done(let said), .failed(let said):
+            if let turns = run.turns { parts.append("\(turns) turn\(turns == 1 ? "" : "s")") }
+            if let cost = run.costUSD { parts.append(String(format: "$%.2f", cost)) }
+            if !calls.isEmpty { parts.append(calls.joined(separator: ", ")) }
+            parts.append(said)
+        }
         return parts.joined(separator: " · ")
     }
 

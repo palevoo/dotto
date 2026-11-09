@@ -21,18 +21,19 @@ public struct ReaderStep: Codable, Sendable, Hashable {
 
 /// One run of the reader, as it unfolds. Built from the session's own stream, line by line.
 public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
-    public var id: ULID
+    public let id: ULID
     /// The loop this run was of. Absent on runs from before loops were things.
-    public var loop: ULID?
-    public var startedAt: Date
-    public var endedAt: Date?
-    /// Nil while running.
-    public var ok: Bool?
-    public var summary: String
-    public var turns: Int?
-    public var costUSD: Double?
-    public var model: String?
-    public var steps: [ReaderStep]
+    public let loop: ULID?
+    public let startedAt: Date
+    /// Set once, by the stream's result or by `fail`. Kept as two fields on disk, as runs
+    /// already written have them; `outcome` is how they are read.
+    public private(set) var endedAt: Date?
+    public private(set) var ok: Bool?
+    public private(set) var summary: String
+    public private(set) var turns: Int?
+    public private(set) var costUSD: Double?
+    public private(set) var model: String?
+    public private(set) var steps: [ReaderStep]
 
     public init(id: ULID = ULID(), loop: ULID? = nil, startedAt: Date = Date()) {
         self.id = id
@@ -42,7 +43,19 @@ public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
         self.steps = []
     }
 
-    public var isRunning: Bool { endedAt == nil }
+    /// How the run stands: still going, done with what it said, or failed with why.
+    public enum Outcome: Equatable, Sendable {
+        case running
+        case done(String)
+        case failed(String)
+    }
+
+    public var outcome: Outcome {
+        guard endedAt != nil else { return .running }
+        return ok == true ? .done(summary) : .failed(summary)
+    }
+
+    public var isRunning: Bool { outcome == .running }
 
     /// The door's tools the run called, by name, in order.
     public var calls: [String] {
@@ -50,9 +63,10 @@ public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
     }
 
     /// Reads one line of the session's stream and records what it says. Lines it does not
-    /// understand are ignored.
+    /// understand are ignored, and so is anything after the end.
     public mutating func absorb(_ line: String, at now: Date) {
-        guard let data = line.data(using: .utf8),
+        guard isRunning,
+              let data = line.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let type = object["type"] as? String else { return }
         switch type {
@@ -96,7 +110,9 @@ public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
     }
 
     /// The run ended without the stream saying so: the process died or said nothing usable.
+    /// A run already ended keeps its ending.
     public mutating func fail(_ why: String, at now: Date) {
+        guard isRunning else { return }
         endedAt = now
         ok = false
         summary = why

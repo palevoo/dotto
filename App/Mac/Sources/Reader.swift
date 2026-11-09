@@ -227,7 +227,13 @@ final class ReaderRunner {
     private func finish(_ run: ReaderRun) {
         status.state = .waiting
         progress(run)
-        log("\(run.ok == true ? "done" : "failed"): \(run.summary) · \(run.turns ?? 0) turns · $\(String(format: "%.2f", run.costUSD ?? 0))")
+        let ending: String
+        switch run.outcome {
+        case .done(let said): ending = "done: \(said)"
+        case .failed(let why): ending = "failed: \(why)"
+        case .running: ending = "still running"
+        }
+        log("\(ending) · \(run.turns ?? 0) turns · $\(String(format: "%.2f", run.costUSD ?? 0))")
         onRan(run)
         // Whatever landed during the run is looked at once more; the store is re-read then.
         carry(machine.finished())

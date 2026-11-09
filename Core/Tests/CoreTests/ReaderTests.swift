@@ -20,24 +20,35 @@ final class ReaderTests: XCTestCase {
         XCTAssertEqual(run.steps[2].detail, "1 new thing since 13:00.  ## Replies wiju under your line: Which pot?")
 
         run.absorb(#"{"type":"result","subtype":"success","is_error":false,"num_turns":3,"total_cost_usd":0.21,"result":"Done."}"#, at: Date(timeIntervalSince1970: 20))
+        XCTAssertEqual(run.outcome, .done("Done."))
         XCTAssertFalse(run.isRunning)
-        XCTAssertEqual(run.ok, true)
         XCTAssertEqual(run.turns, 3)
         XCTAssertEqual(run.costUSD, 0.21)
-        XCTAssertEqual(run.summary, "Done.")
         XCTAssertEqual(run.steps.last?.what, "ended")
+
+        // Nothing after the end changes it: not another line, not a failure reported late.
+        run.absorb(#"{"type":"assistant","message":{"content":[{"type":"text","text":"late"}]}}"#, at: Date(timeIntervalSince1970: 21))
+        run.fail("exited 1", at: Date(timeIntervalSince1970: 22))
+        XCTAssertEqual(run.outcome, .done("Done."))
+        XCTAssertEqual(run.steps.count, 7)
     }
 
     func testAFailedRunKeepsTheReason() {
         var run = ReaderRun()
         run.absorb(#"{"type":"result","subtype":"error_max_budget_usd","is_error":true,"num_turns":4,"total_cost_usd":2.01,"result":"","errors":["Reached maximum budget ($2)"]}"#, at: Date())
-        XCTAssertEqual(run.ok, false)
-        XCTAssertEqual(run.summary, "Reached maximum budget ($2)")
+        XCTAssertEqual(run.outcome, .failed("Reached maximum budget ($2)"))
 
         var died = ReaderRun()
         died.fail("claude exited 1 with no result", at: Date())
-        XCTAssertEqual(died.ok, false)
+        XCTAssertEqual(died.outcome, .failed("claude exited 1 with no result"))
         XCTAssertEqual(died.steps.map(\.what), ["ended"])
+    }
+
+    /// Runs already on disk, with ok and endedAt as two fields, read as the same outcome.
+    func testARunWrittenBeforeOutcomeReadsTheSame() throws {
+        let json = #"{"id":"01KA0000000000000000000000","startedAt":"2026-11-08T10:00:00.000Z","endedAt":"2026-11-08T10:02:00.000Z","ok":false,"summary":"budget","steps":[]}"#
+        let run = try JSONLines.decoder().decode(ReaderRun.self, from: Data(json.utf8))
+        XCTAssertEqual(run.outcome, .failed("budget"))
     }
 
     /// The loop machine: every event in every phase, so the runner has nothing to decide.
