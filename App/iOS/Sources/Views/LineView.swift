@@ -15,6 +15,8 @@ struct LineView: View {
     @State private var draft: String?
     @State private var viewing: PhotoOpening?
     @State private var picking = false
+    /// History is there when asked for, not on every open.
+    @State private var showHistory = false
     @Namespace private var zoom
     @State private var focused = false
 
@@ -106,13 +108,17 @@ struct LineView: View {
                     .buttonStyle(.plain)
                 }
 
-                // The thread: the lines this one is joined to, and, for your own lines, the way
-                // to join it to an earlier one yourself.
-                let threaded = !entry.carriesOn.isEmpty || !entry.carriedOnBy.isEmpty || !entry.citedBy.isEmpty || entry.done != nil
-                    || !entry.belongsTo.isEmpty || !entry.facts.isEmpty
-                if threaded || entry.author == owner {
+                // What the line is: the things it is with, done, its facts, its tags. One
+                // block, every row a mark someone placed, each gone with a hold.
+                if MarksBlock.has(entry) {
+                    MarksBlock(entry: entry, model: model, onFilter: onFilter)
+                }
+
+                // The thread it is in, and, for your own lines, the way to join it to an
+                // earlier one yourself.
+                if ThreadList.has(entry) || entry.author == owner {
                     VStack(alignment: .leading, spacing: 10) {
-                        if threaded {
+                        if ThreadList.has(entry) {
                             ThreadList(entry: entry, model: model)
                         }
                         if entry.author == owner {
@@ -129,49 +135,41 @@ struct LineView: View {
                         .id("replies")
                 }
 
-                if !entry.labels.isEmpty {
-                    // Tap a tag to see every line under it.
-                    HStack(spacing: 8) {
-                        ForEach(entry.labels, id: \.self) { label in
-                            Button {
-                                onFilter?(label)
-                            } label: {
-                                Text("#\(label)")
-                                    .font(Theme.mono)
-                                    .foregroundStyle(Theme.muted)
-                                    .padding(.horizontal, 10)
-                                    .frame(height: 26)
-                                    .background(Theme.square(26).fill(Theme.paper))
-                                    .overlay(Theme.square(26).strokeBorder(Theme.line, lineWidth: 1))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("tag-\(label)")
-                        }
-                    }
-                }
-
+                // History waits behind one line until asked for.
                 let history = history(of: entry, owner: owner)
                 if !history.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("History")
+                        Button {
+                            withAnimation(Motion.settle) { showHistory.toggle() }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text("History · \(history.count)")
+                                Image(systemName: showHistory ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 9, weight: .semibold))
+                            }
                             .font(Theme.mono)
                             .foregroundStyle(Theme.faint)
-                        ForEach(history) { item in
-                            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Text(Format.time(item.at, calendar: model.calendar))
-                                    .font(Theme.mono)
-                                    .foregroundStyle(Theme.faint)
-                                    .frame(width: 44, alignment: .leading)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(item.text)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("history")
+                        if showHistory {
+                            ForEach(history) { item in
+                                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                    Text(Format.time(item.at, calendar: model.calendar))
                                         .font(Theme.mono)
-                                        .foregroundStyle(Theme.muted)
-                                    if let before = item.before {
-                                        // The words as they were, so nothing is lost by changing them.
-                                        Text(before)
-                                            .font(Theme.serifSmall)
+                                        .foregroundStyle(Theme.faint)
+                                        .frame(width: 44, alignment: .leading)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(item.text)
+                                            .font(Theme.mono)
                                             .foregroundStyle(Theme.muted)
-                                            .textSelection(.enabled)
+                                        if let before = item.before {
+                                            // The words as they were, so nothing is lost by changing them.
+                                            Text(before)
+                                                .font(Theme.serifSmall)
+                                                .foregroundStyle(Theme.muted)
+                                                .textSelection(.enabled)
+                                        }
                                     }
                                 }
                             }
@@ -179,22 +177,6 @@ struct LineView: View {
                     }
                     .padding(.top, 6)
                 }
-
-                HStack(spacing: 18) {
-                    Button("Copy") { UIPasteboard.general.string = entry.text }
-                    // Only the line's own author changes it or takes it away.
-                    if entry.author == owner {
-                        Button("Edit") { draft = entry.text; focused = true }
-                        Button("Delete", role: .destructive) {
-                            model.delete(entry.id)
-                            dismiss()
-                        }
-                    }
-                }
-                .font(Theme.mono)
-                .buttonStyle(.plain)
-                .foregroundStyle(Theme.muted)
-                .padding(.top, 10)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
@@ -211,6 +193,26 @@ struct LineView: View {
         .background(Theme.background.ignoresSafeArea())
         .toolbarBackground(Theme.background, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // What can be done to the line, out of the way until wanted. Only the line's
+            // own author changes it or takes it away.
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
+                    if entry.author == owner {
+                        Button("Edit", systemImage: "pencil") { draft = entry.text; focused = true }
+                        Button("Delete", systemImage: "trash", role: .destructive) {
+                            model.delete(entry.id)
+                            dismiss()
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .foregroundStyle(Theme.muted)
+                }
+                .accessibilityIdentifier("line-menu")
+            }
+        }
         // Opening the line reads whatever the inbox holds about it.
         .onAppear { model.lookAt(entry.id) }
         .onDisappear { focused = false }

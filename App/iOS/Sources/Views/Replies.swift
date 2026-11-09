@@ -151,12 +151,16 @@ struct ReplyBar: View {
     }
 }
 
-/// What this line is joined to, as a plain list, grouped: the thread back and forward, done,
-/// and the notes that cite it, each by its day and first words. Tap one to go there; hold
-/// one to take it back.
+/// The thread this line is in: the lines it carries on from, the lines that carry on from
+/// it, and the notes that cite it, each by its day and first words. Tap one to go there;
+/// hold one to take the link back.
 struct ThreadList: View {
     let entry: Entry
     @Bindable var model: NotebookModel
+
+    static func has(_ entry: Entry) -> Bool {
+        !entry.carriesOn.isEmpty || !entry.carriedOnBy.isEmpty || !entry.citedBy.isEmpty
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -166,49 +170,8 @@ struct ThreadList: View {
             ForEach(entry.carriedOnBy) { link in
                 row(link, other: link.fromEntry, label: "on to")
             }
-            if let done = entry.done {
-                doneRow(done)
-            }
             ForEach(entry.citedBy) { link in
                 row(link, other: link.fromEntry, label: "cited")
-            }
-            ForEach(entry.belongsTo) { link in
-                thingRow(link)
-            }
-            if !entry.facts.isEmpty {
-                FactList(facts: entry.facts, model: model)
-            }
-        }
-    }
-
-    /// A thing this line belongs to: tap to open its page, hold to take the line out of it.
-    @ViewBuilder
-    private func thingRow(_ link: Core.Link) -> some View {
-        if let thing = model.notebook.thing(link.to) {
-            NavigationLink(value: Route.thing(thing.id)) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("with")
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.faint)
-                        .frame(width: 44, alignment: .leading)
-                    Text(thing.name)
-                        .font(Theme.sansSmall)
-                        .foregroundStyle(Theme.foreground)
-                    if let kind = thing.kind {
-                        Text(kind)
-                            .font(Theme.mono)
-                            .foregroundStyle(Theme.faint)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("with-\(thing.name)")
-            .contextMenu {
-                Button("Take it out", systemImage: "minus.circle", role: .destructive) {
-                    withAnimation(Motion.settle) { model.unlink(link) }
-                }
             }
         }
     }
@@ -243,43 +206,6 @@ struct ThreadList: View {
         }
     }
 
-    /// Finished, and by which line when one did. Hold to open the line again.
-    @ViewBuilder
-    private func doneRow(_ done: Done) -> some View {
-        let by = done.by.flatMap { model.notebook.entry($0) }
-        let content = HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text("done")
-                .font(Theme.mono)
-                .foregroundStyle(Theme.accent)
-                .frame(width: 44, alignment: .leading)
-            if let by {
-                Text(Format.shortDay(by.startedAt, calendar: model.calendar))
-                    .font(Theme.mono)
-                    .foregroundStyle(Theme.muted)
-                Text(by.text.isEmpty ? "a photo" : by.text)
-                    .font(Theme.sansSmall)
-                    .foregroundStyle(Theme.foreground)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            } else {
-                Who(author: done.author, model: model)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
-        Group {
-            if let by {
-                NavigationLink(value: by.id) { content }.buttonStyle(.plain)
-            } else {
-                content
-            }
-        }
-        .contextMenu {
-            Button("Open it again", systemImage: "arrow.uturn.backward", role: .destructive) {
-                withAnimation(Motion.settle) { model.undone(entry.id) }
-            }
-        }
-    }
 }
 
 /// Your earlier lines, newest first, to pick the one this line carries on from.
