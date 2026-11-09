@@ -22,18 +22,28 @@ struct CameraView: View {
     @State private var camera = CameraController()
     @State private var showLibrary = false
     @State private var latest: UIImage?
-    /// The frame held still, its words live.
-    @State private var held: Held?
-    @State private var holding = false
-    /// What is selected in the held frame right now, and the last passage selected, which is
-    /// what Quote takes: a touch that lands on the button may end the selection first.
+    /// The picture: live, being held, or held still with its words live.
+    @State private var frame: Frame = .live
+    /// What is selected in the held frame right now. The passage Quote takes is the last
+    /// selection that was not empty: a touch that lands on the button may end the selection first.
     @State private var selected = ""
-    @State private var passage = ""
 
-    private struct Held {
+    private enum Frame: Equatable {
+        case live
+        case holding
+        case held(Held)
+
+        var isLive: Bool { self == .live }
+        var held: Held? { if case .held(let held) = self { return held }; return nil }
+    }
+
+    private struct Held: Equatable {
         let data: Data
         let image: UIImage
+        var passage = ""
     }
+
+    private var passage: String { frame.held?.passage ?? "" }
 
     var body: some View {
         GeometryReader { geometry in
@@ -51,7 +61,7 @@ struct CameraView: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Close")
                     Spacer()
-                    if held == nil, LiveTextView.isSupported, !camera.denied {
+                    if frame.held == nil, LiveTextView.isSupported, camera.stage.hasCamera {
                         Button {
                             hold()
                         } label: {
@@ -61,7 +71,7 @@ struct CameraView: View {
                                 .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.plain)
-                        .disabled(holding || camera.isCapturing)
+                        .disabled(!frame.isLive || camera.stage != .live)
                         .accessibilityLabel("Hold the frame and read its words")
                     }
                 }
@@ -70,10 +80,10 @@ struct CameraView: View {
                 Spacer(minLength: 0)
                 ZStack {
                     CameraPreview(camera: camera)
-                    if let held {
+                    if let held = frame.held {
                         LiveTextView(image: held.image, selected: $selected)
                     }
-                    if let mark = camera.focusMark, held == nil {
+                    if let mark = camera.focusMark, frame.isLive {
                         Theme.square(64)
                             .strokeBorder(Color.white.opacity(0.9), lineWidth: 1.5)
                             .frame(width: 64, height: 64)
@@ -91,7 +101,8 @@ struct CameraView: View {
                             .padding(.bottom, 14)
                             .transition(.opacity)
                     }
-                    if camera.denied {
+                    switch camera.stage {
+                    case .denied:
                         VStack(spacing: 10) {
                             Text("dotto has no camera permission.")
                                 .font(Theme.serifSmall)
@@ -100,6 +111,12 @@ struct CameraView: View {
                                 .font(Theme.mono)
                                 .foregroundStyle(Color.white.opacity(0.6))
                         }
+                    case .unavailable:
+                        Text("No camera on this device.")
+                            .font(Theme.serifSmall)
+                            .foregroundStyle(Color.white.opacity(0.85))
+                    case .starting, .live, .capturing:
+                        EmptyView()
                     }
                 }
                 .frame(width: side, height: side)
@@ -108,18 +125,20 @@ struct CameraView: View {
                 .animation(.easeOut(duration: 0.25), value: camera.focusMark == nil)
                 .animation(.easeOut(duration: 0.25), value: camera.isZooming)
                 Spacer(minLength: 0)
-                if held != nil {
+                if frame.held != nil {
                     reading
                 } else {
                     controls
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .animation(.easeOut(duration: 0.2), value: held == nil)
+            .animation(.easeOut(duration: 0.2), value: frame.held == nil)
             .animation(.easeOut(duration: 0.15), value: passage.isEmpty)
         }
         .onChange(of: selected) { _, words in
-            if !words.isEmpty { passage = words }
+            guard !words.isEmpty, var held = frame.held else { return }
+            held.passage = words
+            frame = .held(held)
         }
         .background(Color(white: 0.08))
         .photosPicker(isPresented: $showLibrary, selection: $picked, maxSelectionCount: 20,
@@ -132,14 +151,16 @@ struct CameraView: View {
     /// The frame as it is now, held still so its words can be read. The picture does not
     /// move, only the controls under it change.
     private func hold() {
-        holding = true
+        guard frame.isLive else { return }
+        frame = .holding
         camera.capture { data in
             Task {
-                defer { holding = false }
-                guard let data, let image = await Photo.decode(data) else { return }
+                guard let data, let image = await Photo.decode(data) else {
+                    frame = .live
+                    return
+                }
                 selected = ""
-                passage = ""
-                held = Held(data: data, image: image)
+                frame = .held(Held(data: data, image: image))
                 Haptic.touch()
             }
         }
@@ -149,9 +170,8 @@ struct CameraView: View {
     private var reading: some View {
         HStack {
             Button {
-                held = nil
+                frame = .live
                 selected = ""
-                passage = ""
             } label: {
                 Image(systemName: "arrow.uturn.backward")
                     .font(.system(size: 20, weight: .light))
@@ -164,9 +184,9 @@ struct CameraView: View {
             if !passage.isEmpty {
                 HStack(spacing: 10) {
                     Button {
-                        guard let held else { return }
+                        guard let held = frame.held else { return }
                         Haptic.store()
-                        onCapture(Shot(data: held.data, quote: passage))
+                        onCapture(Shot(data: held.data, quote: held.passage))
                     } label: {
                         Text("Quote")
                             .font(Theme.sansSmall.weight(.medium))
@@ -224,7 +244,10 @@ struct CameraView: View {
             .accessibilityLabel("From the library")
             Spacer()
             Button {
-                camera.capture { data in onCapture(data.map { Shot(data: $0) }) }
+                // A photo that did not come back leaves the camera open to try again.
+                camera.capture { data in
+                    if let data { onCapture(Shot(data: data)) }
+                }
             } label: {
                 Theme.square(72)
                     .strokeBorder(Color.white, lineWidth: 3)
@@ -232,7 +255,7 @@ struct CameraView: View {
                     .overlay(Theme.square(56).fill(Color.white).frame(width: 56, height: 56))
             }
             .buttonStyle(.plain)
-            .disabled(camera.denied || camera.isCapturing || holding)
+            .disabled(camera.stage != .live || !frame.isLive)
             .accessibilityLabel("Take photo")
             Spacer()
             Button {
@@ -294,8 +317,21 @@ struct CameraPreview: UIViewRepresentable {
 @Observable
 final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
     let session = AVCaptureSession()
-    private(set) var denied = false
-    private(set) var isCapturing = false
+
+    /// Where the camera stands. It starts when the view appears and is live once the session
+    /// runs with a lens; a capture takes it out of live until the photo is back. Denied and
+    /// unavailable are final for this showing. Only live takes a photo or switches lenses.
+    enum Stage: Equatable {
+        case starting
+        case live
+        case capturing
+        case denied
+        case unavailable
+
+        /// Whether there is a picture to show at all.
+        var hasCamera: Bool { self == .starting || self == .live || self == .capturing }
+    }
+    private(set) var stage: Stage = .starting
     /// Where the last tap asked for focus, in preview points; gone again once the camera has settled.
     private(set) var focusMark: CGPoint?
     /// The zoom as the system camera would show it: 0.5 on the ultra wide, 1 on the wide.
@@ -318,12 +354,13 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
     }
 
     func start() async {
+        guard stage == .starting else { return }
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized: break
         case .notDetermined:
-            guard await AVCaptureDevice.requestAccess(for: .video) else { denied = true; return }
+            guard await AVCaptureDevice.requestAccess(for: .video) else { stage = .denied; return }
         default:
-            denied = true
+            stage = .denied
             return
         }
         let session = self.session
@@ -338,6 +375,11 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
             if session.canAddOutput(output) { session.addOutput(output) }
             session.commitConfiguration()
             session.startRunning()
+            let live = session.isRunning && !session.inputs.isEmpty
+            Task { @MainActor in
+                guard self.stage == .starting else { return }
+                self.stage = live ? .live : .unavailable
+            }
         }
     }
 
@@ -351,6 +393,7 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
     }
 
     func flip() {
+        guard stage == .live else { return }
         position = position == .back ? .front : .back
         let session = self.session
         let position = self.position
@@ -424,8 +467,8 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
 
     /// Hands back the photo's bytes untouched; decoding happens off the main thread later.
     func capture(_ completion: @escaping (Data?) -> Void) {
-        guard !isCapturing else { return }
-        isCapturing = true
+        guard stage == .live else { return }
+        stage = .capturing
         self.completion = completion
         let settings = AVCapturePhotoSettings()
         settings.photoQualityPrioritization = .balanced
@@ -438,7 +481,7 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         let data = photo.fileDataRepresentation()
         Task { @MainActor in
-            isCapturing = false
+            if stage == .capturing { stage = .live }
             let done = completion
             completion = nil
             done?(data)
