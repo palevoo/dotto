@@ -50,11 +50,9 @@ struct EntryRow: View {
                 if editing {
                     // The words stay where they are, at their size and spacing, on paper.
                     // Return stores; so does a tap anywhere else, through the page.
-                    WordsField(placeholder: "Words for this", text: $text, font: Theme.serif,
-                               color: Theme.foreground, focused: $focused) {
+                    WordsField(placeholder: "Words for this", text: $text, focused: $focused) {
                         finishEditing()
                     }
-                    .lineSpacing(4)
                     .editingSurface()
                     // Focus is asked for once the field exists, not while the menu is still closing.
                     .onAppear { focused = true }

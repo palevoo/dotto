@@ -26,10 +26,14 @@ struct PageView: View {
     /// The line whose words are being changed on the page, if any.
     @State private var editingRow: ULID?
     @State private var launch = Launch.shared
+    /// A line a push named that the fold does not hold yet: Apple carries the push faster
+    /// than iCloud carries the line it is about. Opened the moment the line arrives.
+    @State private var awaitedLine: ULID?
     @State private var recorder = VoiceRecorder()
     @FocusState private var liveFocused: Bool
 
     private var visibleDay: DayKey { position.viewID(type: DayKey.self) ?? model.today }
+    private var awaitedArrived: Bool { awaitedLine.map { model.notebook.entry($0) != nil } ?? false }
 
     private var days: [Day] {
         if let filter {
@@ -202,8 +206,18 @@ struct PageView: View {
                 case .photo: showCamera = true
                 case .speak: speak()
                 case .line(let raw):
-                    if let id = ULID(raw), model.notebook.entry(id) != nil { path.append(id) }
+                    guard let id = ULID(raw) else { return }
+                    if model.notebook.entry(id) != nil {
+                        path.append(id)
+                    } else {
+                        awaitedLine = id
+                    }
                 }
+            }
+            .onChange(of: awaitedArrived) { _, arrived in
+                guard arrived, let id = awaitedLine else { return }
+                awaitedLine = nil
+                path.append(id)
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: ULID.self) { id in
@@ -247,8 +261,10 @@ struct PageView: View {
         guard filter == nil else { return }
         let day = model.notebook.entry(stored).map { DayKey($0.startedAt, calendar: model.calendar) } ?? model.today
         if day == model.today {
-            // The end of the page, wherever that is once the new line is in it.
-            withAnimation(Motion.settle) { position.scrollTo(edge: .bottom) }
+            // The end of today, by the day's own id: a section the lazy stack has only just
+            // been given has no measured height yet, so a move to the page's bottom edge
+            // lands past the end of it, on nothing. The day is found once it is laid out.
+            withAnimation(Motion.settle) { position.scrollTo(id: day, anchor: .bottom) }
         } else {
             reveal(stored, on: day)
         }
@@ -504,19 +520,8 @@ struct LiveLine: View {
                 if !model.draftMedia.isEmpty {
                     DraftMediaRow(model: model)
                 }
-                TextField("", text: $model.draftText, axis: .vertical)
-                    .font(Theme.serif)
-                    .foregroundStyle(Theme.foreground)
-                    .lineSpacing(4)
-                    .lineLimit(1...8)
-                    .focused(focused)
-                    .textInputAutocapitalization(.sentences)
-                    .submitLabel(.done)
-                    .onChange(of: model.draftText) { _, text in
-                        guard text.contains("\n") else { return }
-                        model.draftText = text.replacingOccurrences(of: "\n", with: " ")
-                        onReturn()
-                    }
+                // Return stores; a pasted passage waits in the line like typed words.
+                WordsField(placeholder: "", text: $model.draftText, focused: focused) { onReturn() }
             }
             if recorder.isRecording, let started = recorder.startedAt {
                 Button(action: onStopSpeaking) {

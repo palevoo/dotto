@@ -55,6 +55,8 @@ struct PhotoViewer: View {
     /// Quote takes: a touch that lands on the button may end the selection first.
     @State private var selected = ""
     @State private var passage = ""
+    /// Where the words begin, from the top of the screen. The photo is fitted above them.
+    @State private var captionTop: CGFloat = 0
     @FocusState private var focused: Bool
 
     private let gap: CGFloat = 24
@@ -175,7 +177,8 @@ struct PhotoViewer: View {
         }
     }
 
-    /// The photo at the width or height of the screen, whichever it reaches first, centred.
+    /// The photo at the width or height of the room above the words, whichever it reaches
+    /// first, centred there. The words never lie over the photo, however many there are.
     private func fitted(_ photo: Media, in size: CGSize) -> CGRect {
         var ratio: CGFloat = 1
         if let width = photo.width, let height = photo.height, width > 0, height > 0 {
@@ -183,9 +186,10 @@ struct PhotoViewer: View {
         } else if let image = images[photo.hash], image.size.height > 0 {
             ratio = image.size.width / image.size.height
         }
-        let width = min(size.width, size.height * ratio)
+        let room = captionTop > 0 ? min(size.height, captionTop) : size.height
+        let width = min(size.width, room * ratio)
         let height = width / ratio
-        return CGRect(x: (size.width - width) / 2, y: (size.height - height) / 2, width: width, height: height)
+        return CGRect(x: (size.width - width) / 2, y: (room - height) / 2, width: width, height: height)
     }
 
     /// The photo on screen at viewing size, then its neighbours, each once.
@@ -265,10 +269,9 @@ struct PhotoViewer: View {
     private var caption: some View {
         Group {
             if editing {
-                WordsField(placeholder: "Words for this", text: $words, font: Theme.serif, color: Theme.foreground, focused: $focused) {
+                WordsField(placeholder: "Words for this", text: $words, focused: $focused) {
                     store()
                 }
-                .lineSpacing(4)
                 .editingSurface()
             } else {
                 Button {
@@ -277,10 +280,12 @@ struct PhotoViewer: View {
                     focused = true
                 } label: {
                     let text = entry?.text ?? ""
+                    // As many lines as the field would hold; the line's page has them all.
                     Text(text.isEmpty ? "Words for this" : text)
                         .font(Theme.serif)
                         .foregroundStyle(text.isEmpty ? Theme.faint : Theme.foreground)
                         .lineSpacing(4)
+                        .lineLimit(8)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -288,14 +293,16 @@ struct PhotoViewer: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 28)
+        .padding(.top, 20)
         .padding(.bottom, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            // So the words read over a photo that reaches the bottom.
-            LinearGradient(colors: [Theme.background.opacity(0), Theme.background.opacity(0.92)], startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea(edges: .bottom)
-        )
+        // On the page's own ground, below the photo, not over it.
+        .background(Theme.background.ignoresSafeArea(edges: .bottom))
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.frame(in: .global).minY
+        } action: { top in
+            captionTop = top
+        }
     }
 
     // MARK: - Hands
@@ -421,30 +428,5 @@ extension View {
             .background(Theme.square(44).fill(Theme.paper))
             .overlay(Theme.square(44).strokeBorder(Theme.line, lineWidth: 1))
             .padding(-10)
-    }
-}
-
-/// Words for a line, edited in place. Return stores them; a newline never lands in a line.
-struct WordsField: View {
-    let placeholder: String
-    @Binding var text: String
-    let font: Font
-    let color: Color
-    var focused: FocusState<Bool>.Binding
-    let onCommit: () -> Void
-
-    var body: some View {
-        TextField(placeholder, text: $text, axis: .vertical)
-            .font(font)
-            .foregroundStyle(color)
-            .lineLimit(1...8)
-            .focused(focused)
-            .submitLabel(.done)
-            .textInputAutocapitalization(.sentences)
-            .onChange(of: text) { _, value in
-                guard value.contains("\n") else { return }
-                text = value.replacingOccurrences(of: "\n", with: " ")
-                onCommit()
-            }
     }
 }

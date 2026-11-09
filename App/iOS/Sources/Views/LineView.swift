@@ -69,11 +69,9 @@ struct LineView: View {
                 if editing {
                     // The words stay where they are, at their size and spacing; the paper
                     // under them says they are being changed.
-                    WordsField(placeholder: "Words for this", text: $text, font: .system(size: 20, design: .serif),
-                               color: Theme.foreground, focused: $focused) {
+                    WordsField(placeholder: "Words for this", text: $text, size: 20, lineSpacing: 5, focused: $focused) {
                         focused = false
                     }
-                    .lineSpacing(5)
                     .editingSurface()
                     .id("words")
                     .onChange(of: focused) { _, isFocused in

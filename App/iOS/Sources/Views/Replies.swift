@@ -63,9 +63,7 @@ struct ReplyBlock: View {
                 }
             }
             if editing {
-                WordsField(placeholder: "Reply", text: $text, font: Theme.serifSmall,
-                           color: Theme.foreground, focused: $focused) { finish() }
-                    .lineSpacing(3)
+                WordsField(placeholder: "Reply", text: $text, size: 15, lineSpacing: 3, focused: $focused) { finish() }
                     .editingSurface()
                     .onAppear { focused = true }
                     .onChange(of: focused) { _, isFocused in if !isFocused, editing { finish() } }
@@ -110,14 +108,12 @@ struct ReplyBar: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            WordsField(placeholder: "Reply", text: $text, font: Theme.serifSmall,
-                       color: Theme.foreground, focused: $focused) {
+            WordsField(placeholder: "Reply", text: $text, size: 15, lineSpacing: 3, focused: $focused) {
                 let words = text
                 text = ""
                 withAnimation(Motion.settle) { model.reply(to: entry, text: words) }
                 Haptic.store()
             }
-            .lineSpacing(3)
             .padding(.vertical, 8)
         }
         .padding(.horizontal, 20)

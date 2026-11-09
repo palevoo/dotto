@@ -53,11 +53,9 @@ struct SetupView: View {
         let name = model.notebook.name(of: model.store.manifest.owner)
         return Step("Name", done: name != nil) {
             if naming {
-                WordsField(placeholder: "What you are called", text: $newName, font: Theme.serif,
-                           color: Theme.foreground, focused: $nameFocused) {
+                WordsField(placeholder: "What you are called", text: $newName, focused: $nameFocused) {
                     nameFocused = false
                 }
-                .lineSpacing(4)
                 .editingSurface()
                 .onChange(of: nameFocused) { _, isFocused in
                     guard !isFocused else { return }

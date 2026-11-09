@@ -1,0 +1,162 @@
+import SwiftUI
+import UIKit
+
+/// Words for a line, wherever they are typed: the live line, a line being changed, a reply,
+/// a name. Return stores and never lands in the words. A passage pasted or dictated with
+/// line breaks keeps its words and loses the breaks, and waits in the field like anything
+/// typed, until Return. The field grows with the words up to eight lines, then scrolls.
+///
+/// A UIKit text view, because that is where the Return key is told apart from a newline
+/// arriving inside other text: the key comes alone as "\n" in `shouldChangeTextIn`, a paste
+/// comes as the whole passage.
+struct WordsField: View {
+    let placeholder: String
+    @Binding var text: String
+    var size: CGFloat = 18
+    var lineSpacing: CGFloat = 4
+    var color: Color = Theme.foreground
+    var focused: FocusState<Bool>.Binding
+    let onCommit: () -> Void
+
+    var body: some View {
+        WordsTextView(text: $text, size: size, lineSpacing: lineSpacing, color: color, focused: focused, onCommit: onCommit)
+            .background(alignment: .topLeading) {
+                if text.isEmpty, !placeholder.isEmpty {
+                    Text(placeholder)
+                        .font(.system(size: size, design: .serif))
+                        .foregroundStyle(Theme.faint)
+                        .lineSpacing(lineSpacing)
+                        .allowsHitTesting(false)
+                }
+            }
+    }
+}
+
+private struct WordsTextView: UIViewRepresentable {
+    @Binding var text: String
+    let size: CGFloat
+    let lineSpacing: CGFloat
+    let color: Color
+    var focused: FocusState<Bool>.Binding
+    let onCommit: () -> Void
+
+    private static let maxLines: CGFloat = 8
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.delegate = context.coordinator
+        view.backgroundColor = .clear
+        view.textContainerInset = .zero
+        view.textContainer.lineFragmentPadding = 0
+        view.showsVerticalScrollIndicator = false
+        view.alwaysBounceVertical = false
+        view.returnKeyType = .done
+        view.autocapitalizationType = .sentences
+        view.adjustsFontForContentSizeCategory = false
+        view.font = Self.font(size)
+        view.typingAttributes = attributes
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        context.coordinator.parent = self
+        view.textColor = UIColor(color)
+        view.typingAttributes = attributes
+        if view.text != text {
+            // Set from outside: cleared after Return, a quote or a transcript appended.
+            // The words land with their style and the cursor goes to the end of them.
+            view.attributedText = NSAttributedString(string: text, attributes: attributes)
+            view.selectedRange = NSRange(location: (text as NSString).length, length: 0)
+        }
+        let wantsKeyboard = focused.wrappedValue
+        if wantsKeyboard != view.isFirstResponder {
+            DispatchQueue.main.async {
+                guard wantsKeyboard != view.isFirstResponder else { return }
+                if wantsKeyboard { view.becomeFirstResponder() } else { view.resignFirstResponder() }
+            }
+        }
+    }
+
+    /// As tall as the words, one line at least, eight at most; then the words scroll inside.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let width = proposal.width ?? uiView.bounds.width
+        guard width > 0, width.isFinite else { return nil }
+        let line = Self.font(size).lineHeight
+        let fitted = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        let most = line * Self.maxLines + lineSpacing * (Self.maxLines - 1)
+        return CGSize(width: width, height: min(max(fitted, line), most).rounded(.up))
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
+
+    static func font(_ size: CGFloat) -> UIFont {
+        let base = UIFont.systemFont(ofSize: size)
+        guard let serif = base.fontDescriptor.withDesign(.serif) else { return base }
+        return UIFont(descriptor: serif, size: size)
+    }
+
+    var attributes: [NSAttributedString.Key: Any] {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = lineSpacing
+        return [.font: Self.font(size), .foregroundColor: UIColor(color), .paragraphStyle: paragraph]
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: WordsTextView
+
+        init(parent: WordsTextView) {
+            self.parent = parent
+        }
+
+        func textView(_ view: UITextView, shouldChangeTextIn range: NSRange, replacementText replacement: String) -> Bool {
+            // The Return key arrives alone.
+            if replacement == "\n" {
+                parent.onCommit()
+                return false
+            }
+            // A passage with breaks in it arrives whole: a paste, dictation, a drop. Each
+            // break becomes one space and the passage lands where the cursor is.
+            guard replacement.rangeOfCharacter(from: .newlines) != nil else { return true }
+            let flat = Self.flattened(replacement)
+            view.textStorage.replaceCharacters(in: range, with: NSAttributedString(string: flat, attributes: parent.attributes))
+            view.selectedRange = NSRange(location: range.location + (flat as NSString).length, length: 0)
+            textViewDidChange(view)
+            return false
+        }
+
+        func textViewDidChange(_ view: UITextView) {
+            if parent.text != view.text { parent.text = view.text }
+            view.invalidateIntrinsicContentSize()
+        }
+
+        func textViewDidBeginEditing(_ view: UITextView) {
+            if !parent.focused.wrappedValue { parent.focused.wrappedValue = true }
+        }
+
+        func textViewDidEndEditing(_ view: UITextView) {
+            if parent.focused.wrappedValue { parent.focused.wrappedValue = false }
+        }
+
+        /// Every run of line breaks, with the spaces around it, becomes one space.
+        static func flattened(_ passage: String) -> String {
+            var out = ""
+            var pendingSpace = false
+            var sawBreak = false
+            for scalar in passage.unicodeScalars {
+                if CharacterSet.newlines.contains(scalar) {
+                    sawBreak = true
+                    pendingSpace = true
+                } else if sawBreak, scalar == " " {
+                    pendingSpace = true
+                } else {
+                    if pendingSpace, !out.isEmpty, !out.hasSuffix(" ") { out.append(" ") }
+                    pendingSpace = false
+                    sawBreak = false
+                    out.unicodeScalars.append(scalar)
+                }
+            }
+            return out
+        }
+    }
+}
