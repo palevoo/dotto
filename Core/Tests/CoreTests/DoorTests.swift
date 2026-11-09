@@ -62,10 +62,30 @@ final class DoorTests: XCTestCase {
 
         let tools = (try rpc("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
         XCTAssertEqual(tools?.map { $0["name"] as? String },
-                       ["whats_new", "read_days", "list_lines", "read_photo", "add_note", "set_label", "link", "mark_done", "set_thing", "list_things", "set_fact",
+                       ["whats_new", "read_days", "list_lines", "search", "read_photo", "add_note", "set_label", "link", "mark_done", "set_thing", "list_things", "set_fact",
                         "propose_loop", "list_loops", "write_line", "add_line", "edit_line", "delete_line", "choose_name"])
         let conduct = result?["instructions"] as? String ?? ""
         XCTAssertTrue(conduct.contains("You have no name yet"))
+    }
+
+    /// Search finds lines by their words, newest first, names the things that match, and
+    /// leaves a receipt that says what was looked for.
+    func testSearchThroughTheDoor() throws {
+        let made = text(try rpc("tools/call", ["name": "set_thing", "arguments": ["name": "the camera", "kind": "device"]]))
+        let camera = try XCTUnwrap(firstID(in: made))
+        _ = try rpc("tools/call", ["name": "add_note", "arguments": ["entry": wall.string, "text": "Fixed in the evening build."]])
+
+        let found = text(try rpc("tools/call", ["name": "search", "arguments": ["words": "CAMERA"]]))
+        XCTAssertTrue(found.hasPrefix("\(camera)  the camera  a device · 0 lines\n\n\(wall.string)  2026-11-02 09:14  Camera is a black screen"), found)
+        let viaReply = text(try rpc("tools/call", ["name": "search", "arguments": ["words": "evening"]]))
+        XCTAssertTrue(viaReply.contains("[in a reply: Fixed in the evening build.]"), viaReply)
+        XCTAssertEqual(text(try rpc("tools/call", ["name": "search", "arguments": ["words": "tractor"]])), "Nothing for “tractor”.")
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "search", "arguments": [:]])).contains("words"))
+
+        let notebook = try store.load()
+        let searches = notebook.visits.filter { $0.read.what == .search }
+        XCTAssertEqual(searches.map(\.what), ["searched for “CAMERA”, 1 line", "searched for “evening”, 1 line", "searched for “tractor”, 0 lines"])
+        XCTAssertEqual(notebook.reads(of: notebook.entry(wall)!, calendar: utc).filter { $0.read.what == .search }.count, 2)
     }
 
     /// A thing is made once, lines belong to it through link, facts go on both, and the

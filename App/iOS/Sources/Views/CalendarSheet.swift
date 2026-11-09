@@ -23,6 +23,7 @@ struct CalendarSheet: View {
     let onPick: (DayKey) -> Void
     let onTag: (ULID) -> Void
     let onInbox: () -> Void
+    let onSearch: () -> Void
     let onLog: () -> Void
     let onSetup: () -> Void
     let onTodos: () -> Void
@@ -35,8 +36,8 @@ struct CalendarSheet: View {
     init(days: [Day], today: DayKey, calendar: Calendar, tags: [Thing], kinds: [(kind: String?, count: Int)], todos: Int,
          lastVisit: (author: Author, text: String)?, others: [Author], unread: Int, model: NotebookModel,
          onPick: @escaping (DayKey) -> Void, onTag: @escaping (ULID) -> Void, onInbox: @escaping () -> Void,
-         onLog: @escaping () -> Void, onSetup: @escaping () -> Void, onTodos: @escaping () -> Void, onKind: @escaping (String?) -> Void,
-         onAuthor: @escaping (Author) -> Void) {
+         onSearch: @escaping () -> Void, onLog: @escaping () -> Void, onSetup: @escaping () -> Void, onTodos: @escaping () -> Void,
+         onKind: @escaping (String?) -> Void, onAuthor: @escaping (Author) -> Void) {
         self.days = days
         self.today = today
         self.calendar = calendar
@@ -50,6 +51,7 @@ struct CalendarSheet: View {
         self.onPick = onPick
         self.onTag = onTag
         self.onInbox = onInbox
+        self.onSearch = onSearch
         self.onLog = onLog
         self.onSetup = onSetup
         self.onTodos = onTodos
@@ -154,23 +156,34 @@ struct CalendarSheet: View {
                 }
             }
 
-            // The inbox: what others left that may want you, with how much is new.
-            Button(action: onInbox) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Inbox")
-                        .font(Theme.mono)
-                        .foregroundStyle(unread > 0 ? Theme.accent : Theme.muted)
-                    if unread > 0 {
-                        Text("\(unread)")
+            // The inbox: what others left that may want you, with how much is new. Beside it,
+            // the way to find any line by its words.
+            HStack(spacing: 18) {
+                Button(action: onInbox) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("Inbox")
                             .font(Theme.mono)
-                            .foregroundStyle(Theme.accent)
-                            .monospacedDigit()
+                            .foregroundStyle(unread > 0 ? Theme.accent : Theme.muted)
+                        if unread > 0 {
+                            Text("\(unread)")
+                                .font(Theme.mono)
+                                .foregroundStyle(Theme.accent)
+                                .monospacedDigit()
+                        }
                     }
+                    .frame(minHeight: 30)
                 }
-                .frame(minHeight: 30)
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("inbox")
+                Button(action: onSearch) {
+                    Text("Search")
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.muted)
+                        .frame(minHeight: 30)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("search")
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("inbox")
 
             // The latest read, and the way to everything else.
             HStack(alignment: .firstTextBaseline) {

@@ -155,7 +155,7 @@ public struct Door: Sendable {
         for themselves with no audience in mind. Read them as a sharp friend would.
 
         Start with whats_new: what happened since you last looked, replies first. You can read \
-        the days or list the lines, look at a photo, leave a note under a line, file a line under \
+        the days or list the lines, search for words, look at a photo, leave a note under a line, file a line under \
         a label, link a line to an earlier one it carries on from, and write lines of your own on \
         your own page, which the owner reads and replies under. Your own lines you may change or \
         delete; the words they had stay in their history. Something that is the owner's and \
@@ -187,6 +187,7 @@ public struct Door: Sendable {
         case whatsNew = "whats_new"
         case readDays = "read_days"
         case listLines = "list_lines"
+        case search = "search"
         case readPhoto = "read_photo"
         case addNote = "add_note"
         case setLabel = "set_label"
@@ -228,6 +229,10 @@ public struct Door: Sendable {
                 return ["name": rawValue,
                         "description": "One line per entry with its id, day, time, text, and labels. Use the id with add_note, set_label, link and mark_done. With mine=true, your own page.",
                         "inputSchema": ["type": "object", "properties": ["since": since, "label": label, "mine": mine]]]
+            case .search:
+                return ["name": rawValue,
+                        "description": "The owner's lines in which every word appears, newest first, in the shape of list_lines: found through the line's own words, a reply under it, a thing it is with or a tag it is under; case and accents aside, a word found inside a longer word. Things whose names match come first.",
+                        "inputSchema": ["type": "object", "properties": ["words": ["type": "string"]], "required": ["words"]]]
             case .addNote:
                 return ["name": rawValue,
                         "description": "A short note under a line, under your name: an answer to what it asks, or the one thing worth saying. When the note speaks of other lines, cite them by id and the page makes each a jump.",
@@ -449,22 +454,28 @@ public struct Door: Sendable {
             let days = try select(notebook, arguments)
             try receipt(.lines, for: days, arguments)
             if days.isEmpty { return .text("No lines.") }
-            var lines: [String] = []
-            for day in days {
-                for entry in day.entries {
-                    var text = entry.text.replacingOccurrences(of: "\n", with: " ")
-                    if text.count > 120 { text = String(text.prefix(119)) + "…" }
-                    var tail: [String] = []
-                    if entry.author != entry.page { tail.append("[by \(notebook.name(of: entry.author) ?? entry.author.rawValue)]") }
-                    if !entry.media.isEmpty { tail.append("[\(entry.media.count) media]") }
-                    if !entry.notes.isEmpty { tail.append("[\(entry.notes.count) notes]") }
-                    if !entry.carriesOn.isEmpty { tail.append("[continues \(entry.carriesOn.map(\.to.string).joined(separator: " "))]") }
-                    if let done = entry.done { tail.append(done.by.map { "[done by \($0)]" } ?? "[done]") }
-                    tail.append(contentsOf: entry.belongsTo.compactMap { link in notebook.thing(link.to).flatMap { $0.isTag ? nil : "[with \($0.name)]" } })
-                    tail.append(contentsOf: entry.facts.map { "[\($0.key) \($0.value.words(calendar: calendar))]" })
-                    tail.append(contentsOf: entry.labels.map { "#\($0)" })
-                    lines.append("\(entry.id)  \(day.key) \(Projector.time(entry.startedAt, calendar: calendar))  \(text)\(tail.isEmpty ? "" : "  " + tail.joined(separator: " "))")
+            return .text(days.flatMap { day in day.entries.map { row($0, in: notebook) } }.joined(separator: "\n"))
+
+        case .search:
+            guard let words = (arguments["words"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty else {
+                throw Failure.missing("words")
+            }
+            let hits = notebook.search(words)
+            let things = notebook.things(matching: words)
+            try receipt(.init(what: .search, count: hits.count, words: words))
+            if hits.isEmpty, things.isEmpty { return .text("Nothing for “\(words)”.") }
+            var lines = things.map { thing in
+                "\(thing.id)  \(thing.isTag ? "#" : "")\(thing.name)  \(thing.isTag ? "a tag" : thing.kind.map { "a \($0)" } ?? "a thing") · \(thing.lines.count) line\(thing.lines.count == 1 ? "" : "s")"
+            }
+            if !lines.isEmpty, !hits.isEmpty { lines.append("") }
+            lines += hits.map { hit in
+                var line = row(hit.entry, in: notebook)
+                if let via = hit.via {
+                    var reply = via.text.replacingOccurrences(of: "\n", with: " ")
+                    if reply.count > 80 { reply = String(reply.prefix(79)) + "…" }
+                    line += "  [in a reply: \(reply)]"
                 }
+                return line
             }
             return .text(lines.joined(separator: "\n"))
 
@@ -703,6 +714,23 @@ public struct Door: Sendable {
                             payload: .nameSet(.init(name: name))))
             return .text("You are called \(name) now.")
         }
+    }
+
+    /// One line as list_lines and search say it: id, day, time, words, and what is on it.
+    private func row(_ entry: Entry, in notebook: Notebook) -> String {
+        var text = entry.text.replacingOccurrences(of: "\n", with: " ")
+        if text.count > 120 { text = String(text.prefix(119)) + "…" }
+        var tail: [String] = []
+        if entry.author != entry.page { tail.append("[by \(notebook.name(of: entry.author) ?? entry.author.rawValue)]") }
+        if !entry.media.isEmpty { tail.append("[\(entry.media.count) media]") }
+        if !entry.notes.isEmpty { tail.append("[\(entry.notes.count) notes]") }
+        if !entry.carriesOn.isEmpty { tail.append("[continues \(entry.carriesOn.map(\.to.string).joined(separator: " "))]") }
+        if let done = entry.done { tail.append(done.by.map { "[done by \($0)]" } ?? "[done]") }
+        tail.append(contentsOf: entry.belongsTo.compactMap { link in notebook.thing(link.to).flatMap { $0.isTag ? nil : "[with \($0.name)]" } })
+        tail.append(contentsOf: entry.facts.map { "[\($0.key) \($0.value.words(calendar: calendar))]" })
+        tail.append(contentsOf: entry.labels.map { "#\($0)" })
+        let day = DayKey(entry.startedAt, calendar: calendar)
+        return "\(entry.id)  \(day) \(Projector.time(entry.startedAt, calendar: calendar))  \(text)\(tail.isEmpty ? "" : "  " + tail.joined(separator: " "))"
     }
 
     /// The receipt for a read of days or lines: what was asked for, how many came back.

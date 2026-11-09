@@ -77,7 +77,7 @@ func parseDay(_ text: String) -> DayKey {
 
 let arguments = Arguments(Array(CommandLine.arguments.dropFirst()))
 guard let command = arguments.positional.first else {
-    fail("usage: notebook init|add|note|label|link|done|thing|fact|name|list|show|labels|project|log <folder> ...")
+    fail("usage: notebook init|add|note|label|link|done|thing|fact|name|list|search|show|labels|project|log <folder> ...")
 }
 
 let generator = ULIDGenerator()
@@ -241,6 +241,21 @@ do {
         let days = arguments.options["label"].map { notebook.days(labelled: $0, calendar: calendar()) } ?? notebook.days(calendar: calendar())
         for day in days {
             print(Projector.markdown(for: day, calendar: calendar()))
+        }
+
+    case "search":
+        let store = try FileStore.open(folder(arguments, at: 1))
+        let words = arguments.positional.dropFirst(2).joined(separator: " ")
+        guard !words.trimmingCharacters(in: .whitespaces).isEmpty else { fail("usage: search <folder> <words>    every word must appear; case and accents aside") }
+        let notebook = try store.load()
+        for thing in notebook.things(matching: words) {
+            print("\(thing.id)  \(thing.isTag ? "#" : "")\(thing.name)  \(thing.lines.count) line\(thing.lines.count == 1 ? "" : "s")")
+        }
+        for hit in notebook.search(words) {
+            var text = hit.entry.text.replacingOccurrences(of: "\n", with: " ")
+            if text.count > 90 { text = String(text.prefix(89)) + "…" }
+            let via = hit.via.map { "  [in a reply: \($0.text.replacingOccurrences(of: "\n", with: " "))]" } ?? ""
+            print("\(hit.entry.id)  \(DayKey(hit.entry.startedAt, calendar: calendar())) \(time(hit.entry.startedAt))  \(text)\(via)")
         }
 
     case "labels":

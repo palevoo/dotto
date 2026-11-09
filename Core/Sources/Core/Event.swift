@@ -478,7 +478,9 @@ public enum Payload: Hashable, Sendable {
     /// Someone read something through the door. The receipt: what was asked for and how much came back,
     /// so the owner can see every read, not only every write.
     public struct Visit: Hashable, Codable, Sendable {
-        public enum What: String, Codable, Sendable {
+        /// What was read. A kind this build does not know, from a newer one, is carried as
+        /// its word and written back as it came: the vocabulary grows by addition here too.
+        public enum What: Hashable, Codable, Sendable {
             case days, lines, photo
             /// A look at what happened since the last look.
             case inbox
@@ -486,6 +488,33 @@ public enum Payload: Hashable, Sendable {
             case things
             /// A look at the loops that run, and the ones proposed.
             case loops
+            /// A search for plain words across the notebook.
+            case search
+            /// A kind of read from a newer build, by its word.
+            case other(String)
+
+            private static let words: [(What, String)] = [
+                (.days, "days"), (.lines, "lines"), (.photo, "photo"), (.inbox, "inbox"),
+                (.things, "things"), (.loops, "loops"), (.search, "search"),
+            ]
+
+            public var rawValue: String {
+                if case .other(let word) = self { return word }
+                return Self.words.first { $0.0 == self }!.1
+            }
+
+            public init(rawValue: String) {
+                self = Self.words.first { $0.1 == rawValue }?.0 ?? .other(rawValue)
+            }
+
+            public init(from decoder: Decoder) throws {
+                self.init(rawValue: try decoder.singleValueContainer().decode(String.self))
+            }
+
+            public func encode(to encoder: Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(rawValue)
+            }
         }
 
         public var what: What
@@ -502,9 +531,11 @@ public enum Payload: Hashable, Sendable {
         /// For an inbox look: how many events each file held when it was taken, by file
         /// name. The next look starts after these, whatever order the files grew in.
         public var seen: [String: Int]?
+        /// For a search: the words looked for.
+        public var words: String?
 
         public init(what: What, since: String? = nil, label: String? = nil, count: Int, entry: ULID? = nil, hash: String? = nil,
-                    seen: [String: Int]? = nil) {
+                    seen: [String: Int]? = nil, words: String? = nil) {
             self.what = what
             self.since = since
             self.label = label
@@ -512,6 +543,7 @@ public enum Payload: Hashable, Sendable {
             self.entry = entry
             self.hash = hash
             self.seen = seen
+            self.words = words
         }
     }
 

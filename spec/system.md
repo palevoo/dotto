@@ -112,9 +112,11 @@ Today: all pages are code. Since 10 November two pages stand over shapes, reache
 calendar sheet: Todos, the lines anyone marked todo and nobody marked done, due first; and
 a page per kind of thing, the books, the plants, the people, each thing with its facts and
 its lines. A tag's page is a thing's page. The line's page shows what a line is in one
-block, and the inbox is one flow answered in place. Missing: a page as a definition over shapes, which is what lets
-dotto make the shelf, the plant page and its own site; search over plain words, a small
-page of its own.
+block, and the inbox is one flow answered in place. Search is a small page of its own
+since 10 November: plain words, every one found, through a line's words, a reply, a thing
+or a tag; the same search is the door's `search`, with a receipt. Missing: a page as a
+definition over shapes, which is what lets dotto make the shelf, the plant page and its
+own site.
 
 ## Rules found on 10 November
 
@@ -126,6 +128,9 @@ page of its own.
 - A tag's identity is its word. A thing is its id, and two originators making "the fig"
   make two figs; a tag must converge with no lookup, so its id is made from the word, and
   nobody owns it. Found when asking whether things were designed well enough to be tags.
+- The vocabulary grows by addition one level down too: a kind of read an older build does
+  not know is carried by its word, not refused. Found when search needed a new kind of
+  receipt and a known event kind with an unknown word inside would have cost the file.
 
 ## Rules found on 9 November
 

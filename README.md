@@ -73,6 +73,7 @@ command in the Core package does that from a terminal:
                                                               a later line to the earlier one it carries on from, or a note to a line
     .build/debug/notebook done <folder> <entry-id> [--by <id>] --author <id>   the line is finished
     .build/debug/notebook name <folder> Moss --author <id>    what that author is called from now on
+    .build/debug/notebook search <folder> olive oil           the lines in which every word appears, newest first
     .build/debug/notebook show <folder>                       the fold, as day pages
 
 Anything written by someone other than the owner names its author; there is no default.
@@ -90,9 +91,10 @@ a fresh id and no name, or for an author who has already written, who then has o
 and stays the same being; a key can also be handed to another author after the fact. Because
 grants are in the folder, every device knows the same ones and any could serve the door.
 The keys themselves stay in the Mac's keychain, for the Copy button; lose them and you issue
-a new key for the same author. Tools: `whats_new`, `read_days`, `list_lines`,
+a new key for the same author. Tools: `whats_new`, `read_days`, `list_lines`, `search`,
 `read_photo`, `add_note`, `set_label`, `link`, `mark_done`, `set_thing`, `list_things`,
-`set_fact`, `write_line`, `add_line`, `edit_line`, `delete_line`, `choose_name`. Writes
+`set_fact`, `propose_loop`, `list_loops`, `write_line`, `add_line`, `edit_line`,
+`delete_line`, `choose_name`. Writes
 land in the grant's own event file; no grant can touch
 your lines, and a grant changes or deletes only lines it wrote. Revoke the grant and the key
 stops opening the door; the author's events stay. A request may add a `Dotto-Device`
@@ -160,6 +162,14 @@ Replies under a line show on the page as one quiet line, the latest reply's word
 count before it. The line's page holds the conversation, with the place to reply pinned at
 the foot; hold a reply of yours to change or delete it. Everyone has a colour of their own,
 from their id, which is their mark everywhere until they choose a name and after.
+
+Search is plain words over the notebook, the same on the phone, through the door and in the
+CLI: every word typed must appear, case and accents aside, and a word is found inside a
+longer one so a Russian ending does not hide it. A line is found through its own words, a
+reply under it, a thing it is with or a tag it is under, and the reply that held the word is
+shown with it; things whose names match come first. On the phone it is one page, reached from
+the calendar sheet beside Inbox, that finds as you type. Through the door it is `search`, and
+its receipt says what was searched for, so a line's History knows it was found that way.
 
 Every read leaves a receipt: a `visit` event in the grant's file saying what was asked for
 and how much came back. The phone shows the latest one on the calendar sheet and the whole

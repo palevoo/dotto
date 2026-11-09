@@ -17,6 +17,8 @@ enum Route: Hashable {
     case todos
     /// The things of one kind, or every thing when nil.
     case things(String?)
+    /// Plain words over the notebook.
+    case search
 }
 
 /// Everything anyone else did in the notebook, newest first: each read, note, label and

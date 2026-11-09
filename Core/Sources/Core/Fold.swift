@@ -270,6 +270,10 @@ public struct Visit: Hashable, Sendable, Identifiable {
             return "looked at \(read.count) thing\(read.count == 1 ? "" : "s")"
         case .loops:
             return "looked at the loops"
+        case .search:
+            return "searched for “\(read.words ?? "")”, \(read.count) line\(read.count == 1 ? "" : "s")"
+        case .other(let word):
+            return "looked at \(word)"
         case .days, .lines:
             var text = "read \(read.count) line\(read.count == 1 ? "" : "s")"
             if let label = read.label { text += " under #\(label)" }
@@ -277,6 +281,14 @@ public struct Visit: Hashable, Sendable, Identifiable {
             return text
         }
     }
+}
+
+/// A line found by search: the line, and, when its own words did not hold every term,
+/// the reply under it that did.
+public struct SearchHit: Hashable, Sendable, Identifiable {
+    public let entry: Entry
+    public let via: Note?
+    public var id: ULID { entry.id }
 }
 
 /// One thing anyone other than the owner's pen did, anywhere in the notebook: a visit, a
@@ -1179,13 +1191,59 @@ public struct Notebook: Sendable {
             switch visit.read.what {
             case .photo:
                 return visit.read.entry == entry.id
-            case .inbox, .things, .loops:
+            case .search:
+                return visit.read.words.map { search($0).contains { $0.id == entry.id } } ?? false
+            case .inbox, .things, .loops, .other:
                 return false
             case .days, .lines:
                 if let since = visit.read.since, day < since { return false }
                 if let label = visit.read.label, !entry.labels.contains(label) { return false }
                 return true
             }
+        }
+    }
+
+    // MARK: - Search
+
+    /// Words as search compares them: case, accents and width set aside.
+    public static func folded(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil).lowercased()
+    }
+
+    /// The terms of a query: its words, folded, in order, none empty.
+    public static func terms(_ query: String) -> [String] {
+        folded(query).split(whereSeparator: { $0.isWhitespace || $0.isNewline }).map(String.init).filter { !$0.isEmpty }
+    }
+
+    /// The owner's lines in which every word of the query appears, newest first. A word is
+    /// found inside a longer word, so an ending does not hide it. A line is found through
+    /// its own words, a reply under it, a thing it is with, or a tag it is under; when the
+    /// line's own words did not hold every term, the hit names the reply that did.
+    public func search(_ query: String) -> [SearchHit] {
+        let terms = Self.terms(query)
+        guard !terms.isEmpty else { return [] }
+        return entries.reversed().compactMap { entry -> SearchHit? in
+            let own = Self.folded(entry.text)
+            let around = entry.labels.map { Self.folded($0) }
+                + entry.belongsTo.compactMap { things[$0.to].map { Self.folded($0.name) } }
+            let notes = entry.notes.map { ($0, Self.folded($0.text)) }
+            for term in terms {
+                guard own.contains(term) || around.contains(where: { $0.contains(term) }) || notes.contains(where: { $0.1.contains(term) })
+                else { return nil }
+            }
+            let missing = terms.filter { !own.contains($0) }
+            let via = missing.isEmpty ? nil : notes.first { note in missing.contains { note.1.contains($0) } }?.0
+            return SearchHit(entry: entry, via: via)
+        }
+    }
+
+    /// The things, tags among them, whose names hold every word of the query.
+    public func things(matching query: String) -> [Thing] {
+        let terms = Self.terms(query)
+        guard !terms.isEmpty else { return [] }
+        return allThings.filter { thing in
+            let name = Self.folded(thing.name)
+            return terms.allSatisfy { name.contains($0) }
         }
     }
 

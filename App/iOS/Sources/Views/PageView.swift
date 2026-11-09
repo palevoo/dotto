@@ -151,6 +151,10 @@ struct PageView: View {
                         afterCalendar = .inbox
                         showCalendar = false
                     },
+                    onSearch: {
+                        afterCalendar = .search
+                        showCalendar = false
+                    },
                     onLog: {
                         afterCalendar = .log
                         showCalendar = false
@@ -253,6 +257,7 @@ struct PageView: View {
                 case .loops: LoopsView(model: model)
                 case .todos: TodosPage(model: model)
                 case .things(let kind): ThingsPage(kind: kind, model: model)
+                case .search: SearchPage(model: model)
                 }
             }
         }
