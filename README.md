@@ -170,7 +170,12 @@ Mac, the home, runs them (`App/Mac/Sources/Reader.swift`). Set one in the Mac wi
 one of the grants: it uses that grant's key and author, so it is the same being as a session
 started by hand, and it sends the header `Dotto-Device: reader` so Logs say which hand. The
 reader is the first loop, woken by lines; a Mac that had the reader switched on writes that
-loop once and sets the switch aside.
+loop once and sets the switch aside. The phone sets one too, in Setup under Loops, with the
+same fields. Anyone through the door proposes one with `propose_loop`, `loop.propose` in
+the notebook, when you have said in a line that you want something kept happening: the
+proposal waits in your inbox and on the Loops page, on the phone and the Mac, and you set it
+with one tap, as the proposer's grant under the proposal's own id, or decline it, which is a
+stop of that id. Only your hand makes a loop run. `list_loops` says which run and which wait.
 
 When a loop wakes it runs one headless session of the `claude` command you already pay for:
 the door as its only server, every built-in tool off, no settings and no project in reach,

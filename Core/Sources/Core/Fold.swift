@@ -67,6 +67,27 @@ public struct Loop: Hashable, Sendable, Identifiable {
             case .clock(let hour, let minute): String(format: "every day at %02d:%02d", hour, minute)
             }
         }
+
+        /// As the event says it: "line" or "clock", with "HH:MM" for the clock.
+        public var kind: String {
+            switch self {
+            case .line: "line"
+            case .clock: "clock"
+            }
+        }
+
+        public var at: String? {
+            if case .clock(let hour, let minute) = self { return String(format: "%02d:%02d", hour, minute) }
+            return nil
+        }
+
+        /// From the event's words. A clock without a readable hour is a line.
+        public static func parse(_ kind: String, at: String?) -> Wake {
+            guard kind == "clock", let at, let colon = at.firstIndex(of: ":"),
+                  let hour = Int(at[..<colon]), let minute = Int(at[at.index(after: colon)...]),
+                  (0..<24).contains(hour), (0..<60).contains(minute) else { return .line }
+            return .clock(hour: hour, minute: minute)
+        }
     }
 
     /// The loop's id, kept across sets; `setBy` is the event that last set it.
@@ -81,6 +102,21 @@ public struct Loop: Hashable, Sendable, Identifiable {
     public let createdAt: Date
     /// The last receipt, if the loop has run.
     public var lastRun: LoopRun?
+}
+
+/// A loop someone other than the owner asked for, waiting for the owner's hand: set with
+/// one tap, or declined. Gone from the proposals once either has happened.
+public struct LoopProposal: Hashable, Sendable, Identifiable {
+    public let id: ULID
+    public let author: Author
+    public let at: Date
+    public let name: String
+    /// The grant it would run as: the proposer's own.
+    public let grant: ULID?
+    public let wake: Loop.Wake
+    public let brief: String?
+    public let turns: Int
+    public let budget: Double
 }
 
 /// A receipt for one run of a loop, as folded.
@@ -224,6 +260,8 @@ public struct Visit: Hashable, Sendable, Identifiable {
             return read.count == 0 ? "found nothing new" : "found \(read.count) new thing\(read.count == 1 ? "" : "s")"
         case .things:
             return "looked at \(read.count) thing\(read.count == 1 ? "" : "s")"
+        case .loops:
+            return "looked at the loops"
         case .days, .lines:
             var text = "read \(read.count) line\(read.count == 1 ? "" : "s")"
             if let label = read.label { text += " under #\(label)" }
@@ -313,6 +351,8 @@ public struct Notebook: Sendable {
     private var loopMarks: [ULID: LoopMark] = [:]
     /// The newest receipt per loop.
     private var loopRuns: [ULID: Newest<LoopRun>] = [:]
+    /// Every loop proposed by someone other than the owner, by its id, taken or not.
+    private var proposals: [ULID: LoopProposal] = [:]
 
     private struct LoopMark: Hashable, Sendable {
         var loop: Loop
@@ -486,15 +526,19 @@ public struct Notebook: Sendable {
             revokedGrants.insert(p.grant)
             grantMarks[p.grant]?.revoked = true
 
+        case .loopPropose(let p):
+            // Said once; a second proposal with the same id changes nothing.
+            guard proposals[p.loop] == nil else { return }
+            let name = p.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return }
+            let wake = Loop.Wake.parse(p.wake, at: p.at)
+            proposals[p.loop] = LoopProposal(id: p.loop, author: event.author, at: event.at, name: name, grant: p.grant, wake: wake,
+                                             brief: p.brief?.trimmingCharacters(in: .whitespacesAndNewlines), turns: p.turns, budget: p.budget)
+            trace(event, "proposed a loop: \(name), \(wake.words)", entry: nil)
+
         case .loopSet(let p):
             guard loopMarks[p.loop].map({ $0.loop.setBy < event.id }) ?? true else { return }
-            let wake: Loop.Wake
-            if p.wake == "clock", let at = p.at, let colon = at.firstIndex(of: ":"),
-               let hour = Int(at[..<colon]), let minute = Int(at[at.index(after: colon)...]), (0..<24).contains(hour), (0..<60).contains(minute) {
-                wake = .clock(hour: hour, minute: minute)
-            } else {
-                wake = .line
-            }
+            let wake = Loop.Wake.parse(p.wake, at: p.at)
             let loop = Loop(id: p.loop, setBy: event.id, name: p.name, grant: p.grant, wake: wake, brief: p.brief,
                             turns: p.turns, budget: p.budget, createdAt: loopMarks[p.loop]?.loop.createdAt ?? event.at, lastRun: loopRuns[p.loop]?.value)
             loopMarks[p.loop] = LoopMark(loop: loop, stoppedBy: loopMarks[p.loop]?.stoppedBy)
@@ -551,6 +595,18 @@ public struct Notebook: Sendable {
     /// Every loop ever set, stopped ones included, oldest first.
     public var allLoops: [Loop] {
         loopMarks.values.map(\.loop).sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+    }
+
+    /// The loops proposed and still waiting for the owner: not set, not declined, oldest first.
+    public var loopProposals: [LoopProposal] {
+        proposals.values
+            .filter { loopMarks[$0.id] == nil && stoppedLoops[$0.id] == nil }
+            .sorted { ($0.at, $0.id) < ($1.at, $1.id) }
+    }
+
+    /// A proposal by its id, waiting or not.
+    public func loopProposal(_ id: ULID) -> LoopProposal? {
+        proposals[id]
     }
 
     /// The open grant a key belongs to, with the key filled in. Nil means the door stays shut.
@@ -952,7 +1008,7 @@ public struct Notebook: Sendable {
             }
 
         case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .link, .unlink, .done, .undone, .visit, .nameSet, .grantCreate, .grantRevoke,
-             .loopSet, .loopStop, .loopRan, .thingSet, .thingRemove, .factSet, .factRemove:
+             .loopSet, .loopStop, .loopRan, .thingSet, .thingRemove, .factSet, .factRemove, .loopPropose:
             break
         }
     }
@@ -1037,7 +1093,7 @@ public struct Notebook: Sendable {
             switch visit.read.what {
             case .photo:
                 return visit.read.entry == entry.id
-            case .inbox, .things:
+            case .inbox, .things, .loops:
                 return false
             case .days, .lines:
                 if let since = visit.read.since, day < since { return false }

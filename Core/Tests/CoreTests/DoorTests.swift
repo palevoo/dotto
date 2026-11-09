@@ -43,6 +43,11 @@ final class DoorTests: XCTestCase {
         return try JSONSerialization.jsonObject(with: response) as? [String: Any]
     }
 
+    /// The first id in a tool's words, wherever it falls in the sentence.
+    func firstID(in text: String) -> ULID? {
+        text.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).lazy.compactMap { ULID(String($0)) }.first
+    }
+
     func text(_ response: [String: Any]?) -> String {
         let result = response?["result"] as? [String: Any]
         let content = result?["content"] as? [[String: Any]]
@@ -58,7 +63,7 @@ final class DoorTests: XCTestCase {
         let tools = (try rpc("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
         XCTAssertEqual(tools?.map { $0["name"] as? String },
                        ["whats_new", "read_days", "list_lines", "read_photo", "add_note", "set_label", "link", "mark_done", "set_thing", "list_things", "set_fact",
-                        "write_line", "add_line", "edit_line", "delete_line", "choose_name"])
+                        "propose_loop", "list_loops", "write_line", "add_line", "edit_line", "delete_line", "choose_name"])
         let conduct = result?["instructions"] as? String ?? ""
         XCTAssertTrue(conduct.contains("You have no name yet"))
     }
@@ -97,6 +102,47 @@ final class DoorTests: XCTestCase {
 
         // Looking at the things leaves a receipt, like every read.
         XCTAssertTrue(try store.load().visits.contains { $0.read.what == .things })
+    }
+
+    /// A grant proposes a loop; it waits for the owner, who sets it with the proposal's id
+    /// or declines it with a stop; the listing says which loops run and which wait.
+    func testAProposedLoopWaitsForTheOwner() throws {
+        XCTAssertEqual(text(try rpc("tools/call", ["name": "list_loops", "arguments": [:]])), "No loops yet.")
+        let said = text(try rpc("tools/call", ["name": "propose_loop", "arguments": ["name": "Bring the walks", "wake": "clock", "at": "21:00", "brief": "Each walk as a line."]]))
+        XCTAssertTrue(said.hasPrefix("Proposed Bring the walks, every day at 21:00, as "), said)
+        let id = try XCTUnwrap(firstID(in: said))
+
+        let bad = text(try rpc("tools/call", ["name": "propose_loop", "arguments": ["name": "x", "wake": "clock", "at": "soon"]]))
+        XCTAssertTrue(bad.contains("Not a day"), bad)
+
+        var notebook = try store.load()
+        XCTAssertEqual(notebook.loopProposals.map(\.name), ["Bring the walks"])
+        XCTAssertEqual(notebook.loopProposals.first?.grant, grant.id)
+        XCTAssertEqual(notebook.loops, [])
+        let listed = text(try rpc("tools/call", ["name": "list_loops", "arguments": [:]]))
+        XCTAssertTrue(listed.contains("## Proposed, waiting for the owner\n\(id)  Bring the walks  every day at 21:00 · as you · “Each walk as a line.”"), listed)
+
+        // The owner sets it: the same id, so the proposal is answered and the loop runs.
+        let proposal = try XCTUnwrap(notebook.loopProposals.first)
+        let now = Date()
+        try store.append(Event(id: generator.next(at: now), author: "me", device: "iphone", at: now,
+                               payload: .loopSet(.init(loop: proposal.id, name: proposal.name, grant: proposal.grant!, wake: proposal.wake.kind,
+                                                       at: proposal.wake.at, brief: proposal.brief))))
+        notebook = try store.load()
+        XCTAssertEqual(notebook.loopProposals, [])
+        XCTAssertEqual(notebook.loops.map(\.name), ["Bring the walks"])
+        XCTAssertEqual(notebook.loops.first?.wake, .clock(hour: 21, minute: 0))
+        XCTAssertTrue(text(try rpc("tools/call", ["name": "list_loops", "arguments": [:]])).hasPrefix("\(id)  Bring the walks  every day at 21:00 · as you"))
+
+        // Another proposal, declined with a stop of its id: gone from the proposals, never a loop.
+        let second = text(try rpc("tools/call", ["name": "propose_loop", "arguments": ["name": "Spy"]]))
+        let declined = try XCTUnwrap(firstID(in: second))
+        try store.append(Event(id: generator.next(at: now), author: "me", device: "iphone", at: now, payload: .loopStop(.init(loop: declined))))
+        notebook = try store.load()
+        XCTAssertEqual(notebook.loopProposals, [])
+        XCTAssertEqual(notebook.loops.map(\.name), ["Bring the walks"])
+        XCTAssertNotNil(notebook.loopProposal(declined), "the record of the proposal stays")
+        XCTAssertTrue(try store.load().visits.contains { $0.read.what == .loops })
     }
 
     func testTheSameGrantFromAnotherHand() throws {

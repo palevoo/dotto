@@ -96,6 +96,9 @@ struct InboxView: View {
         } else if let thing = item.thing, model.notebook.thing(thing) != nil {
             NavigationLink(value: Route.thing(thing)) { content }
                 .buttonStyle(.plain)
+        } else if item.kind == .loop {
+            NavigationLink(value: Route.loops) { content }
+                .buttonStyle(.plain)
         } else {
             content
         }

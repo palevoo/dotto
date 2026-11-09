@@ -92,10 +92,14 @@ the grant it runs as, what wakes it, a line landing or the clock at an hour each
 brief in the owner's words, a cap on turns and on spend. The Mac, the home, runs each one
 and writes a receipt per run into the notebook under the loop's originator, so Logs say it
 ran, what it cost and what it said; the owner sets and stops loops in the Mac window, and
-the reader is the first loop, carried over from the old switch. Still in Swift with no loop
-record: Health's import, pushes on words, the projector. Missing: a loop set from the phone
-or through the door in a sentence; isolation; loops that run programs other than a Claude
-session.
+the reader is the first loop, carried over from the old switch. Since 10 November the
+owner also sets one on the phone, in Setup under Loops, and anyone through the door
+proposes one with `propose_loop`: the proposal waits in the inbox and on the Loops page,
+and the owner sets it with one tap, under the proposal's own id, or declines it, which is
+a stop of that id; the sentence stays the owner's, the shaping is the originator's, and
+only the owner's hand makes it run. Still in Swift with no loop record: Health's import,
+pushes on words, the projector. Missing: a loop's own originator; a loop reaching outside
+with a key; isolation; loops that run programs other than a Claude session.
 
 ### Pages
 

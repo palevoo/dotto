@@ -58,6 +58,18 @@ enum Seed {
                 Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .factSet(.init(on: line, key: "pages", value: .number(2, unit: nil)))),
             ])
         }
+        // A grant for the seed, so a loop can run as it, and a loop it proposes.
+        let seedGrant = model.notebook.allGrants.first { $0.author == seed } ?? Grant(name: "Seed", author: seed, device: "seed")
+        if !model.notebook.allGrants.contains(where: { $0.author == seed }) {
+            try? model.store.append(Event(id: ULID(), author: model.store.manifest.owner, device: model.device, at: Date(),
+                                          payload: .grantCreate(seedGrant.create)))
+        }
+        if model.notebook.loopProposals.isEmpty, !model.notebook.allLoops.contains(where: { $0.name == proposal }) {
+            let id = ULID()
+            try? model.store.append(Event(id: id, author: seed, device: model.device, at: Date(),
+                                          payload: .loopPropose(.init(loop: id, name: proposal, grant: seedGrant.id, wake: "line",
+                                                                      brief: "Each walk as a line, in Health's name."))))
+        }
         // A walk, as Health would put it on the owner's page under its own name.
         if !model.notebook.entries.contains(where: { $0.text == walk }) {
             let health = NotebookModel.health
@@ -75,6 +87,7 @@ enum Seed {
 
     static let walk = "Walk, 3.1 km, 41 min"
     static let thing = "the fig"
+    static let proposal = "Bring the walks"
     static let cited = "Meaning comes later, says the second page"
     static let citing = "Both pages say the same; see the second."
 

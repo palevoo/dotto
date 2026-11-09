@@ -471,10 +471,29 @@ final class MacModel {
 
     /// The loop stops: an event of the owner's, and the runner goes.
     func stopLoop(_ loop: Loop) {
+        stop(loop.id)
+    }
+
+    /// A proposal taken: the loop set under the proposal's id, as the proposer's grant.
+    func takeProposal(_ proposal: LoopProposal) {
+        guard let store, let grant = proposal.grant, grants.contains(where: { $0.id == grant }) else { return }
+        let now = Date()
+        try? store.append(Event(id: generator.next(at: now), author: store.manifest.owner, device: device, at: now,
+                                payload: .loopSet(.init(loop: proposal.id, name: proposal.name, grant: grant, wake: proposal.wake.kind,
+                                                        at: proposal.wake.at, brief: proposal.brief, turns: proposal.turns, budget: proposal.budget))))
+        refreshSummary()
+    }
+
+    /// A proposal declined: a stop of its id before any set.
+    func declineProposal(_ proposal: LoopProposal) {
+        stop(proposal.id)
+    }
+
+    private func stop(_ id: ULID) {
         guard let store else { return }
         let now = Date()
         try? store.append(Event(id: generator.next(at: now), author: store.manifest.owner, device: device, at: now,
-                                payload: .loopStop(.init(loop: loop.id))))
+                                payload: .loopStop(.init(loop: id))))
         refreshSummary()
     }
 

@@ -253,6 +253,7 @@ struct PageView: View {
                 case .setup: SetupView(model: model, onRelocate: onRelocate)
                 case .author(let author): AuthorPage(author: author, model: model)
                 case .thing(let id): ThingPage(id: id, model: model)
+                case .loops: LoopsView(model: model)
                 }
             }
         }
@@ -361,6 +362,7 @@ struct PinnedHeader: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Button(action: onTap) {
+                // The date is the one header; tap it for the calendar and everything else.
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(label)
                         .font(Theme.title)
@@ -371,6 +373,7 @@ struct PinnedHeader: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("date")
             .contextMenu {
                 Button("Copy this day", systemImage: "doc.on.doc", action: onCopyDay)
                 Button("Copy every day", systemImage: "doc.on.doc.fill", action: onCopyAll)

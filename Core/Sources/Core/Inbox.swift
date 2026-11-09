@@ -8,6 +8,8 @@ public struct InboxItem: Hashable, Sendable, Identifiable {
         /// A thing made, or a fact put on the owner's line or on a thing: a proposal that
         /// stands unless dropped.
         case shape
+        /// A loop proposed, waiting for the owner to set it or decline it.
+        case loop
     }
 
     /// The event that made it, or the last of a group.
@@ -210,6 +212,15 @@ public enum Inbox {
                             asks: false, answered: false, unread: fresh, thing: thing.id))
                     }
 
+                case .loopPropose(let p):
+                    // Asks for the owner's hand until it is set or declined.
+                    guard let proposal = notebook.loopProposal(p.loop) else { continue }
+                    let waiting = notebook.loopProposals.contains { $0.id == p.loop }
+                    items.append(InboxItem(
+                        id: event.id, author: event.author, at: event.at, kind: .loop, entry: nil,
+                        what: "proposes a loop", text: "\(proposal.name) · \(proposal.wake.words)", about: proposal.brief,
+                        asks: true, answered: !waiting, unread: fresh && waiting))
+
                 case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .unlink, .undone,
                      .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .thingRemove, .factRemove:
                     continue
@@ -328,6 +339,8 @@ public enum Inbox {
                 marks.append("\(who(event.author)) put \(p.key) \(p.value.words(calendar: calendar)) on \(onWhat)")
             case .factRemove(let p):
                 takenBack.append("\(who(event.author)) took \(p.key) off \(p.on)\(p.of.map { $0 == me ? ", yours" : "" } ?? "")")
+            case .loopPropose(let p):
+                marks.append("\(who(event.author)) proposed a loop: \(p.name), \(Loop.Wake.parse(p.wake, at: p.at).words) (\(p.loop))")
             case .done(let p):
                 marks.append("\(who(event.author)) marked \(p.entry) done\(p.by.map { " by \($0)" } ?? "")")
             case .nameSet(let p):

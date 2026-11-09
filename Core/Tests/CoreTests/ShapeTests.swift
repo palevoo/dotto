@@ -192,6 +192,34 @@ final class ShapeTests: XCTestCase {
         XCTAssertTrue(items.allSatisfy(\.unread))
     }
 
+    /// A proposed loop is an inbox item that wants the owner until it is set or declined.
+    func testAProposedLoopWantsTheOwnerUntilAnswered() {
+        let grant = Grant(name: "Claude Code", author: .weeju, device: "claude-code")
+        let proposal = ULID(timestamp: clock)
+        var files: [String: [Event]] = [:]
+        func write(_ payload: Payload, by author: Author) {
+            let event = event(payload, author: author)
+            files["\(author).iphone.jsonl", default: []].append(event)
+        }
+        write(.grantCreate(grant.create), by: me)
+        write(.loopPropose(.init(loop: proposal, name: "The evening look", grant: grant.id, wake: "clock", at: "21:00", brief: "Read the day once.")), by: .weeju)
+        func items() -> [InboxItem] {
+            let byFile = files.keys.sorted().map { ($0, files[$0]!) }
+            return Inbox.items(files: byFile, notebook: Notebook(owner: me, events: byFile.flatMap(\.1)), calendar: utc)
+        }
+        var item = items()[0]
+        XCTAssertEqual(item.kind, .loop)
+        XCTAssertEqual(item.text, "The evening look · every day at 21:00")
+        XCTAssertEqual(item.about, "Read the day once.")
+        XCTAssertTrue(item.wantsYou)
+
+        write(.loopSet(.init(loop: proposal, name: "The evening look", grant: grant.id, wake: "clock", at: "21:00")), by: me)
+        item = items()[0]
+        XCTAssertTrue(item.answered)
+        XCTAssertFalse(item.wantsYou)
+        XCTAssertFalse(item.unread)
+    }
+
     func testTheDayPageNamesBelongingAndFacts() {
         let fig = ULID(timestamp: clock)
         let line = ULID(timestamp: clock.addingTimeInterval(60))

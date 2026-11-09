@@ -26,6 +26,7 @@ struct SetupView: View {
                 location
                 notifications
                 walks
+                loops
                 voice
                 presses
                 logs
@@ -166,6 +167,27 @@ struct SetupView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Loops: a sentence said once, kept in the notebook, run by the Mac. Set here or on the
+    /// Mac; what others propose waits for one tap.
+    private var loops: some View {
+        let running = model.notebook.loops.count
+        let proposed = model.notebook.loopProposals.count
+        return Step("Loops", done: running > 0) {
+            Status(running == 0 ? "A sentence said once, kept, run by the Mac, with a receipt each time"
+                               : "\(running) loop\(running == 1 ? "" : "s") run\(running == 1 ? "s" : "") on the Mac")
+            if proposed > 0 {
+                Status("\(proposed) proposed, waiting for you", pending: true)
+            }
+            NavigationLink(value: Route.loops) {
+                Text("Loops")
+                    .font(Theme.mono)
+                    .foregroundStyle(Theme.accent)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("open-loops")
         }
     }
 

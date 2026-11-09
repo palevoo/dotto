@@ -11,6 +11,8 @@ enum Route: Hashable {
     case author(Author)
     /// A thing's page: its facts and the lines that belong to it.
     case thing(ULID)
+    /// The loops that run, the ones proposed, and the place to set one.
+    case loops
 }
 
 /// Everything anyone else did in the notebook, newest first: each read, note, label and

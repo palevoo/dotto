@@ -323,6 +323,37 @@ final class NotebookModel {
         record(.undone(.init(entry: entry)))
     }
 
+    // MARK: - Loops
+
+    /// A loop set: your event, which every device knows and the Mac runs. With an id, a loop
+    /// set again, or a proposal taken under its own id.
+    func setLoop(id: ULID? = nil, name: String, grant: ULID, wake: Loop.Wake, brief: String?, turns: Int = 40, budget: Double = 2) {
+        let words = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty else { return }
+        let said = brief?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let now = Date()
+        let loop = id ?? generator.next(at: now)
+        record([Event(id: generator.next(at: now), author: store.manifest.owner, device: device, at: now,
+                      payload: .loopSet(.init(loop: loop, name: words, grant: grant, wake: wake.kind, at: wake.at,
+                                              brief: said?.isEmpty == false ? said : nil, turns: turns, budget: budget)))])
+    }
+
+    /// A loop stopped; or a proposal declined, which is a stop of its id before any set.
+    func stopLoop(_ id: ULID) {
+        record(.loopStop(.init(loop: id)))
+    }
+
+    /// A proposal taken: the loop set under the proposal's id, as the proposer's grant.
+    func takeProposal(_ proposal: LoopProposal) {
+        guard let grant = proposal.grant, notebook.grants.contains(where: { $0.id == grant }) else { return }
+        setLoop(id: proposal.id, name: proposal.name, grant: grant, wake: proposal.wake, brief: proposal.brief,
+                turns: proposal.turns, budget: proposal.budget)
+    }
+
+    func declineProposal(_ proposal: LoopProposal) {
+        stopLoop(proposal.id)
+    }
+
     /// A fact taken off, whoever put it there: one hold.
     func removeFact(_ fact: Fact) {
         record(.factRemove(.init(on: fact.on, key: fact.key, of: fact.author)))

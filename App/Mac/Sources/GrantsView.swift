@@ -217,6 +217,9 @@ struct GrantsView: View {
                     .foregroundStyle(MacTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            ForEach(model.notebook?.loopProposals ?? []) { proposal in
+                proposalRow(proposal)
+            }
             ForEach(model.loops) { loop in
                 loopRow(loop)
             }
@@ -283,6 +286,39 @@ struct GrantsView: View {
             }
         }
         .font(MacTheme.body)
+    }
+
+    /// A loop someone proposed through the door, waiting for one click.
+    private func proposalRow(_ proposal: LoopProposal) -> some View {
+        let runnable = proposal.grant.map { id in model.grants.contains { $0.id == id } } ?? false
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text("proposed")
+                    .foregroundStyle(MacTheme.accent)
+                Text(proposal.name)
+                    .foregroundStyle(MacTheme.foreground)
+                Text("· \(proposal.wake.words) · by")
+                    .foregroundStyle(MacTheme.muted)
+                Text(model.name(of: proposal.author))
+                    .foregroundStyle(MacTheme.ink(for: proposal.author, owner: model.notebook?.owner))
+                Spacer()
+                Button("Set It") { model.takeProposal(proposal) }.controlSize(.small).disabled(!runnable)
+                Button("Not Now") { model.declineProposal(proposal) }.controlSize(.small)
+            }
+            .font(MacTheme.mono)
+            if let brief = proposal.brief, !brief.isEmpty {
+                Text(brief)
+                    .font(MacTheme.body)
+                    .foregroundStyle(MacTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !runnable {
+                Text("Its grant is gone; it cannot run.")
+                    .font(MacTheme.mono)
+                    .foregroundStyle(MacTheme.recording)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     @ViewBuilder

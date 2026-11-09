@@ -171,7 +171,9 @@ public struct Door: Sendable {
         one thing, a fig, a book, a person, a project, make it once with set_thing, after looking \
         in list_things, and put each line with it through link; a fact, a yield, a state, a count, \
         goes on a line or a thing with set_fact, one per key under your name. Everything you shape \
-        is a proposal: it stands unless the owner drops it. Your own page is for what you \
+        is a proposal: it stands unless the owner drops it. When the owner says they want \
+        something kept happening, propose_loop shapes it as a loop that runs as you; it waits \
+        for their one tap. Your own page is for what you \
         noticed and chose not to say under a line, a structure forming, a question for the owner. \
         It is also simply yours: what you got wrong, what you don't follow, what you think, about \
         the notebook or not. Under your own lines it is a conversation; say what it takes.
@@ -193,6 +195,8 @@ public struct Door: Sendable {
         case setThing = "set_thing"
         case listThings = "list_things"
         case setFact = "set_fact"
+        case proposeLoop = "propose_loop"
+        case listLoops = "list_loops"
         case writeLine = "write_line"
         case addLine = "add_line"
         case editLine = "edit_line"
@@ -295,6 +299,21 @@ public struct Door: Sendable {
                                                        "place": ["type": "object", "properties": ["latitude": ["type": "number"], "longitude": ["type": "number"]]],
                                                        "on_": ["type": "boolean", "default": true, "description": "false takes the fact off."]],
                                         "required": ["on", "key"]]]
+            case .proposeLoop:
+                return ["name": rawValue,
+                        "description": "Propose a loop: something the owner said they want kept happening, shaped as a sentence said once. It runs as you, when a line lands or at an hour every day, once the owner sets it; they see the proposal in their inbox and set or decline it with one tap. Look in list_loops first.",
+                        "inputSchema": ["type": "object",
+                                        "properties": ["name": ["type": "string", "description": "A few words: Bring the walks, The evening look."],
+                                                       "wake": ["type": "string", "enum": ["line", "clock"], "default": "line"],
+                                                       "at": ["type": "string", "description": "For the clock: HH:MM in the owner's local time."],
+                                                       "brief": ["type": "string", "description": "What the loop is for, in the owner's words where you have them."],
+                                                       "turns": ["type": "integer", "default": 40],
+                                                       "budget": ["type": "number", "default": 2, "description": "The most one run may spend, in dollars."]],
+                                        "required": ["name"]]]
+            case .listLoops:
+                return ["name": rawValue,
+                        "description": "The loops that run, with what wakes each, who it runs as, its brief and its last run; then the ones proposed and still waiting for the owner.",
+                        "inputSchema": ["type": "object", "properties": [:]]]
             case .markDone:
                 return ["name": rawValue,
                         "description": "Say a line is finished, and by which later line when there is one; the line is struck through on the page. on=false takes it back.",
@@ -578,6 +597,55 @@ public struct Door: Sendable {
             try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
                             payload: .factSet(.init(on: on, key: key, value: value))))
             return .text("Put \(key) \(value.words(calendar: calendar)) on \(on).")
+
+        case .proposeLoop:
+            guard grant.writesLines else { throw Failure.notAllowed("propose loops") }
+            guard let name = (arguments["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
+                throw Failure.missing("name")
+            }
+            let kind = arguments["wake"] as? String ?? "line"
+            let at = arguments["at"] as? String
+            let wake = Loop.Wake.parse(kind, at: at)
+            if kind == "clock", wake == .line { throw Failure.badDay(at ?? "") }
+            let brief = (arguments["brief"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let turns = arguments["turns"] as? Int ?? 40
+            let budget = arguments["budget"] as? Double ?? (arguments["budget"] as? Int).map(Double.init) ?? 2
+            let now = Date()
+            let id = generator.next(at: now)
+            try write(Event(id: id, author: grant.author, device: grant.device, at: now,
+                            payload: .loopPropose(.init(loop: id, name: name, grant: grant.id, wake: wake.kind, at: wake.at,
+                                                        brief: brief?.isEmpty == false ? brief : nil, turns: turns, budget: budget))))
+            return .text("Proposed \(name), \(wake.words), as \(id). It runs as you once the owner sets it; they see it in their inbox.")
+
+        case .listLoops:
+            let loops = notebook.loops
+            let proposed = notebook.loopProposals
+            try receipt(.init(what: .loops, count: loops.count + proposed.count))
+            if loops.isEmpty, proposed.isEmpty { return .text("No loops yet.") }
+            func who(_ grantID: ULID?) -> String {
+                if grantID == grant.id { return "you" }
+                guard let author = notebook.allGrants.first(where: { $0.id == grantID })?.author else { return "a grant that is gone" }
+                return author == grant.author ? "you" : notebook.name(of: author) ?? author.rawValue
+            }
+            var out: [String] = []
+            for loop in loops {
+                var tail = ["\(loop.wake.words)", "as \(who(loop.grant))"]
+                if let brief = loop.brief, !brief.isEmpty { tail.append("“\(brief)”") }
+                if let run = loop.lastRun {
+                    tail.append("last ran \(Projector.moment(run.endedAt, calendar: calendar)), \(run.ok ? "" : "failed: ")\(run.summary)")
+                }
+                out.append("\(loop.id)  \(loop.name)  \(tail.joined(separator: " · "))")
+            }
+            if !proposed.isEmpty {
+                out.append("")
+                out.append("## Proposed, waiting for the owner")
+                for proposal in proposed {
+                    var tail = ["\(proposal.wake.words)", "as \(who(proposal.grant))"]
+                    if let brief = proposal.brief, !brief.isEmpty { tail.append("“\(brief)”") }
+                    out.append("\(proposal.id)  \(proposal.name)  \(tail.joined(separator: " · "))")
+                }
+            }
+            return .text(out.joined(separator: "\n"))
 
         case .writeLine:
             guard grant.writesLines else { throw Failure.notAllowed("write lines of its own") }

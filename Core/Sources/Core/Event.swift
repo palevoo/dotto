@@ -148,6 +148,7 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case thingRemove = "thing.remove"
     case factSet = "fact.set"
     case factRemove = "fact.remove"
+    case loopPropose = "loop.propose"
 }
 
 /// What happened. One case per kind, each with a fixed shape.
@@ -178,6 +179,7 @@ public enum Payload: Hashable, Sendable {
     case thingRemove(ThingRemove)
     case factSet(FactSet)
     case factRemove(FactRemove)
+    case loopPropose(LoopPropose)
 
     public var kind: Kind {
         switch self {
@@ -207,6 +209,7 @@ public enum Payload: Hashable, Sendable {
         case .thingRemove: .thingRemove
         case .factSet: .factSet
         case .factRemove: .factRemove
+        case .loopPropose: .loopPropose
         }
     }
 
@@ -243,6 +246,33 @@ public enum Payload: Hashable, Sendable {
         public var loop: ULID
 
         public init(loop: ULID) { self.loop = loop }
+    }
+
+    /// A loop someone other than the owner asks for: a sentence the owner wrote, heard and
+    /// shaped as a loop, with the same fields a set has. Only the owner sets a loop, so a
+    /// proposal waits for their hand: set with the proposal's id as the loop's, or declined
+    /// with a stop of that id. The proposer's own grant is the one it would run as. Since
+    /// 10 November 2026.
+    public struct LoopPropose: Hashable, Codable, Sendable {
+        public var loop: ULID
+        public var name: String
+        public var grant: ULID?
+        public var wake: String
+        public var at: String?
+        public var brief: String?
+        public var turns: Int
+        public var budget: Double
+
+        public init(loop: ULID, name: String, grant: ULID?, wake: String, at: String? = nil, brief: String? = nil, turns: Int = 40, budget: Double = 2) {
+            self.loop = loop
+            self.name = name
+            self.grant = grant
+            self.wake = wake
+            self.at = at
+            self.brief = brief
+            self.turns = turns
+            self.budget = budget
+        }
     }
 
     /// The receipt for one run of a loop, written by the loop's own originator: when, how it
@@ -446,6 +476,8 @@ public enum Payload: Hashable, Sendable {
             case inbox
             /// A look at the things: shapes lines belong to, with their facts.
             case things
+            /// A look at the loops that run, and the ones proposed.
+            case loops
         }
 
         public var what: What
@@ -662,6 +694,7 @@ extension Event: Codable {
         case .thingRemove: .thingRemove(try container.decode(Payload.ThingRemove.self, forKey: .payload))
         case .factSet: .factSet(try container.decode(Payload.FactSet.self, forKey: .payload))
         case .factRemove: .factRemove(try container.decode(Payload.FactRemove.self, forKey: .payload))
+        case .loopPropose: .loopPropose(try container.decode(Payload.LoopPropose.self, forKey: .payload))
         }
     }
 
@@ -699,6 +732,7 @@ extension Event: Codable {
         case .thingRemove(let p): try container.encode(p, forKey: .payload)
         case .factSet(let p): try container.encode(p, forKey: .payload)
         case .factRemove(let p): try container.encode(p, forKey: .payload)
+        case .loopPropose(let p): try container.encode(p, forKey: .payload)
         }
     }
 }
