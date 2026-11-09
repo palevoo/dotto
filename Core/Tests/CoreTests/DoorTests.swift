@@ -57,7 +57,7 @@ final class DoorTests: XCTestCase {
 
         let tools = (try rpc("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
         XCTAssertEqual(tools?.map { $0["name"] as? String },
-                       ["whats_new", "read_days", "list_lines", "read_photo", "add_note", "set_label", "link", "mark_done", "write_line", "edit_line", "delete_line", "choose_name"])
+                       ["whats_new", "read_days", "list_lines", "read_photo", "add_note", "set_label", "link", "mark_done", "write_line", "add_line", "edit_line", "delete_line", "choose_name"])
         let conduct = result?["instructions"] as? String ?? ""
         XCTAssertTrue(conduct.contains("You have no name yet"))
     }
@@ -202,6 +202,24 @@ final class DoorTests: XCTestCase {
         door = Door(store: store, grant: noLinks, calendar: utc)
         let refused = try rpc("tools/call", ["name": "link", "arguments": ["from": wall.string, "to": olives.id.string]])
         XCTAssertTrue(text(refused).contains("may not write links"))
+    }
+
+    func testAddLinePutsALineOnTheOwnersPageUnderTheGrantsName() throws {
+        let reply = text(try rpc("tools/call", ["name": "add_line", "arguments": ["text": "Aula de Grupo A1.1", "at": "2026-11-14T09:30:00Z"]]))
+        XCTAssertTrue(reply.hasPrefix("Added to the owner's page as "))
+        let notebook = try store.load()
+        let line = notebook.entries.first { $0.text == "Aula de Grupo A1.1" }
+        XCTAssertEqual(line?.author, .weeju)
+        XCTAssertEqual(line?.page, "me")
+        XCTAssertEqual(line?.startedAt, ISO8601.date(from: "2026-11-14T09:30:00Z"))
+        XCTAssertEqual(notebook.entries(of: .weeju).count, 0)
+        let listed = text(try rpc("tools/call", ["name": "list_lines", "arguments": [:]]))
+        XCTAssertTrue(listed.contains("Aula de Grupo A1.1  [by weeju]"))
+        let days = text(try rpc("tools/call", ["name": "read_days", "arguments": ["since": "2026-11-14"]]))
+        XCTAssertTrue(days.contains("## 09:30 · weeju"))
+
+        let bad = text(try rpc("tools/call", ["name": "add_line", "arguments": ["text": "x", "at": "Saturday"]]))
+        XCTAssertTrue(bad.contains("Not a day"))
     }
 
     func testANoteCitesTheLinesItSpeaksOf() throws {

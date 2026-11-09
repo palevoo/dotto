@@ -66,6 +66,8 @@ public struct Done: Hashable, Sendable {
 public struct Entry: Hashable, Sendable, Identifiable {
     public var id: ULID
     public var author: Author
+    /// Whose page it is on: its author's, or the owner's when another originator put it there.
+    public var page: Author
     public var startedAt: Date
     public var text: String
     public var location: Location?
@@ -297,6 +299,7 @@ public struct Notebook: Sendable {
             table[p.entry] = Entry(
                 id: p.entry,
                 author: event.author,
+                page: p.page ?? event.author,
                 startedAt: p.startedAt,
                 text: p.text,
                 location: p.location,
@@ -556,9 +559,12 @@ public struct Notebook: Sendable {
         defer { table[entryID] = entry }
 
         switch event.payload {
-        case .entryEdit, .entryDelete, .mediaAttach:
-            // The line is its author's. Anyone else's edit, deletion or media is ignored.
+        case .entryEdit, .mediaAttach:
+            // The line is its author's. Anyone else's edit or media is ignored.
             guard event.author == entry.author else { return }
+        case .entryDelete:
+            // Its author may delete it, and the owner may drop a line another put on the owner's page.
+            guard event.author == entry.author || (event.author == owner && entry.page == owner) else { return }
         default:
             break
         }
@@ -663,10 +669,11 @@ public struct Notebook: Sendable {
         entries(of: owner)
     }
 
-    /// One author's live entries, oldest first: their page.
+    /// One author's page, oldest first: the lines on it, their own and, on the owner's page,
+    /// the ones other originators put there under their own names.
     public func entries(of author: Author) -> [Entry] {
         table.values
-            .filter { !$0.isDeleted && $0.author == author }
+            .filter { !$0.isDeleted && $0.page == author }
             .sorted { ($0.startedAt, $0.id) < ($1.startedAt, $1.id) }
     }
 

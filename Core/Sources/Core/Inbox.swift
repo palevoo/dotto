@@ -128,7 +128,7 @@ public enum Inbox {
                     guard let entry = notebook.entry(p.entry) else { continue }
                     items.append(InboxItem(
                         id: event.id, author: event.author, at: event.at, kind: .line, entry: entry.id,
-                        what: "wrote", text: words(entry), about: nil,
+                        what: entry.page == owner ? "added to your page" : "wrote", text: words(entry), about: nil,
                         asks: asks(entry.text), answered: entry.notes.contains { $0.author == owner }, unread: unread(event, about: entry.id)))
 
                 case .labelAttach(let p):

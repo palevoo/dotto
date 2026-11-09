@@ -368,6 +368,32 @@ final class FoldTests: XCTestCase {
         XCTAssertEqual(deletedFirst.entry(pot)?.carriedOnBy, [])
     }
 
+    /// Another originator puts a line on the owner's page under its own name. It is on the
+    /// owner's page and not on the originator's; the owner may drop it; nobody else may touch it.
+    func testALineOnTheOwnersPageUnderAnotherName() {
+        let health: Author = "health"
+        let walk = ULID(timestamp: clock)
+        var notebook = Notebook(owner: me)
+        notebook.apply(event(.nameSet(.init(name: "Health")), author: health))
+        notebook.apply(event(.entryCreate(.init(entry: walk, text: "Walk, 4.2 km, 52 min", startedAt: clock, page: me)), author: health))
+        XCTAssertEqual(notebook.entries.map(\.id), [walk])
+        XCTAssertEqual(notebook.entries(of: health), [])
+        XCTAssertEqual(notebook.entry(walk)?.author, health)
+        XCTAssertEqual(notebook.entry(walk)?.page, me)
+
+        // A stranger cannot drop it; Health, its author, could; the owner drops it with one hold.
+        notebook.apply(event(.entryDelete(.init(entry: walk)), author: "stranger"))
+        XCTAssertNotNil(notebook.entry(walk))
+        notebook.apply(event(.entryDelete(.init(entry: walk)), author: me))
+        XCTAssertNil(notebook.entry(walk))
+
+        // A line without a page named is on its author's own page, as before.
+        let own = ULID(timestamp: clock.addingTimeInterval(60))
+        notebook.apply(event(.entryCreate(.init(entry: own, text: "A thought of mine", startedAt: clock.addingTimeInterval(60))), author: .weeju))
+        XCTAssertEqual(notebook.entries(of: .weeju).map(\.id), [own])
+        XCTAssertEqual(notebook.entries, [])
+    }
+
     func testDuplicateEventsAreIgnored() {
         let id = ULID()
         let create = event(.entryCreate(.init(entry: id, text: "line", startedAt: clock)))

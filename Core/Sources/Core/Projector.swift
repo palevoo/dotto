@@ -22,7 +22,9 @@ public enum Projector {
         lines.append("")
 
         for entry in day.entries {
-            lines.append("## \(time(entry.startedAt, calendar: calendar))")
+            // A line another originator put on this page wears its name beside the time.
+            let by = entry.author == entry.page ? "" : " · \(names[entry.author] ?? entry.author.rawValue)"
+            lines.append("## \(time(entry.startedAt, calendar: calendar))\(by)")
             if !entry.text.isEmpty {
                 lines.append(entry.text)
             }

@@ -32,6 +32,11 @@ struct EntryRow: View {
                 .monospacedDigit()
                 .padding(.top, 6)
             VStack(alignment: .leading, spacing: 10) {
+                if entry.author != model.store.manifest.owner {
+                    // A line another originator put on your page wears its name.
+                    Who(author: entry.author, model: model)
+                        .accessibilityIdentifier("by-\(entry.author.rawValue)")
+                }
                 if !photos.isEmpty {
                     // Several photos run past the edge; the row scrolls sideways.
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -103,13 +108,19 @@ struct EntryRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onOpen)
         .contextMenu {
-            Button("Edit", systemImage: "pencil") {
-                text = entry.text
-                editing = true
-                editingRow = entry.id
+            if entry.author == model.store.manifest.owner {
+                Button("Edit", systemImage: "pencil") {
+                    text = entry.text
+                    editing = true
+                    editingRow = entry.id
+                }
+                Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
+                Button("Delete", systemImage: "trash", role: .destructive) { model.delete(entry.id) }
+            } else {
+                // Someone else's line on your page: yours to drop, never to change.
+                Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
+                Button("Drop", systemImage: "trash", role: .destructive) { model.delete(entry.id) }
             }
-            Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
-            Button("Delete", systemImage: "trash", role: .destructive) { model.delete(entry.id) }
         }
     }
 

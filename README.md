@@ -119,6 +119,11 @@ up its page, reached from the calendar sheet; you reply under them as under your
 reads your replies with `mine=true`. It chooses what it is called when it wants to, and the
 name stands beside everything it does from then on. Until then it is only a mark.
 
+Something that is yours and happened, a book you asked for, a booking, a walk, another
+originator puts onto your page under its own name with `add_line`, on the day it happened; it
+wears that name on the page, and you drop it with one hold. Health is such an originator:
+each walk is a line in Health's name on your day.
+
 A link joins one thing to another by their ids, and that is all it is. A later line to an
 earlier one it carries on from is a thread: the same plant, book or errand, written days
 apart. A note to a line it speaks of is a citation, and the page makes it a jump. Finishing

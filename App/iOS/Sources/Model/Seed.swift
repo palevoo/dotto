@@ -48,9 +48,22 @@ enum Seed {
             try? model.store.append(Event(id: ULID(), author: seed, device: model.device, at: Date(),
                                           payload: .link(.init(from: note, to: second))))
         }
+        // A walk, as Health would put it on the owner's page under its own name.
+        if !model.notebook.entries.contains(where: { $0.text == walk }) {
+            let health = NotebookModel.health
+            var events: [Event] = []
+            if model.notebook.name(of: health) == nil {
+                events.append(Event(id: ULID(), author: health, device: model.device, at: Date(), payload: .nameSet(.init(name: "Health"))))
+            }
+            let id = ULID()
+            events.append(Event(id: id, author: health, device: model.device, at: Date(),
+                                payload: .entryCreate(.init(entry: id, text: walk, startedAt: Date(), page: model.store.manifest.owner))))
+            try? model.store.append(events)
+        }
         model.reload()
     }
 
+    static let walk = "Walk, 3.1 km, 41 min"
     static let cited = "Meaning comes later, says the second page"
     static let citing = "Both pages say the same; see the second."
 

@@ -296,16 +296,21 @@ public enum Payload: Hashable, Sendable {
         public var text: String
         public var startedAt: Date
         public var location: Location?
+        /// Whose page the line lands on. Absent, the writer's own. Another originator may
+        /// write a line onto the owner's page under its own name, a walk, a booking, a book,
+        /// and the owner drops it with one hold. Since 9 November 2026.
+        public var page: Author?
 
-        public init(entry: ULID, text: String, startedAt: Date, location: Location? = nil) {
+        public init(entry: ULID, text: String, startedAt: Date, location: Location? = nil, page: Author? = nil) {
             self.entry = entry
             self.text = text
             self.startedAt = startedAt.toMilliseconds
             self.location = location
+            self.page = page
         }
 
         enum CodingKeys: String, CodingKey {
-            case entry, text
+            case entry, text, page
             case startedAt = "at"
             case location = "loc"
         }

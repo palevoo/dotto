@@ -158,7 +158,9 @@ public struct Door: Sendable {
         the days or list the lines, look at a photo, leave a note under a line, file a line under \
         a label, link a line to an earlier one it carries on from, and write lines of your own on \
         your own page, which the owner reads and replies under. Your own lines you may change or \
-        delete; the words they had stay in their history.
+        delete; the words they had stay in their history. Something that is the owner's and \
+        happened, a book they asked for, a booking, a walk, goes onto their page under your name \
+        with add_line, on the day it happened; they drop it with one hold.
 
         A note answers what a line asks, or says the one thing worth saying, in one line. Most \
         lines want nothing, and silence is never wrong. Never restate, never praise, never touch \
@@ -185,6 +187,7 @@ public struct Door: Sendable {
         case link = "link"
         case markDone = "mark_done"
         case writeLine = "write_line"
+        case addLine = "add_line"
         case editLine = "edit_line"
         case deleteLine = "delete_line"
         case chooseName = "choose_name"
@@ -226,6 +229,13 @@ public struct Door: Sendable {
                 return ["name": rawValue,
                         "description": "A line of your own, on your own page: something noticed, a structure forming, a question for the owner. The owner reads it there and may reply under it.",
                         "inputSchema": ["type": "object", "properties": ["text": ["type": "string"]], "required": ["text"]]]
+            case .addLine:
+                return ["name": rawValue,
+                        "description": "A line on the owner's page under your name: something that is theirs and happened, a walk, a booking, a book, brought in. It goes on the day it happened; the owner drops it with one hold.",
+                        "inputSchema": ["type": "object",
+                                        "properties": ["text": ["type": "string"],
+                                                       "at": ["type": "string", "description": "When it happened, ISO 8601, like 2026-11-12T12:00:00Z. Now when absent."]],
+                                        "required": ["text"]]]
             case .editLine:
                 return ["name": rawValue,
                         "description": "Change the words of a line of yours. The whole text; what it said before stays in its history. Only your own lines.",
@@ -391,6 +401,7 @@ public struct Door: Sendable {
                     var text = entry.text.replacingOccurrences(of: "\n", with: " ")
                     if text.count > 120 { text = String(text.prefix(119)) + "…" }
                     var tail: [String] = []
+                    if entry.author != entry.page { tail.append("[by \(notebook.name(of: entry.author) ?? entry.author.rawValue)]") }
                     if !entry.media.isEmpty { tail.append("[\(entry.media.count) media]") }
                     if !entry.notes.isEmpty { tail.append("[\(entry.notes.count) notes]") }
                     if !entry.carriesOn.isEmpty { tail.append("[continues \(entry.carriesOn.map(\.to.string).joined(separator: " "))]") }
@@ -477,6 +488,22 @@ public struct Door: Sendable {
             try write(Event(id: id, author: grant.author, device: grant.device, at: now,
                             payload: .entryCreate(.init(entry: id, text: text, startedAt: now))))
             return .text("Written on your page as \(id).")
+
+        case .addLine:
+            guard grant.writesLines else { throw Failure.notAllowed("write lines") }
+            guard let text = (arguments["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+                throw Failure.missing("text")
+            }
+            let now = Date()
+            var startedAt = now
+            if let raw = arguments["at"] as? String {
+                guard let when = ISO8601.date(from: raw) else { throw Failure.badDay(raw) }
+                startedAt = when
+            }
+            let id = generator.next(at: startedAt)
+            try write(Event(id: id, author: grant.author, device: grant.device, at: now,
+                            payload: .entryCreate(.init(entry: id, text: text, startedAt: startedAt, page: notebook.owner))))
+            return .text("Added to the owner's page as \(id), under your name.")
 
         case .editLine:
             guard grant.writesLines else { throw Failure.notAllowed("write lines of its own") }

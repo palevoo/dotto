@@ -121,13 +121,23 @@ final class NotebookModel {
         Task { await walks.turnOn { [weak self] walks in self?.add(walks) } }
     }
 
-    /// Each walk is a line at the moment it began, in your ink: it is your walk.
+    /// Health, as an originator of its own: its lines land on your page under its name, and
+    /// you drop one with a hold. It is called Health from the first line it writes.
+    static let health = Author(rawValue: "health")
+
+    /// Each walk is a line on your page at the moment it began, in Health's name.
     private func add(_ walks: [Walks.Walk]) {
-        let events = walks.map { walk in
+        guard !walks.isEmpty else { return }
+        var events: [Event] = []
+        if notebook.name(of: Self.health) == nil {
+            events.append(Event(id: generator.next(at: Date()), author: Self.health, device: device, at: Date(),
+                                payload: .nameSet(.init(name: "Health"))))
+        }
+        for walk in walks {
             let id = generator.next(at: walk.start)
-            return Event(id: id, author: store.manifest.owner, device: device, at: Date(),
-                         payload: .entryCreate(.init(entry: id, text: Walks.sentence(for: walk, locale: calendar.locale ?? .current),
-                                                     startedAt: walk.start)))
+            events.append(Event(id: id, author: Self.health, device: device, at: Date(),
+                                payload: .entryCreate(.init(entry: id, text: Walks.sentence(for: walk, locale: calendar.locale ?? .current),
+                                                            startedAt: walk.start, page: store.manifest.owner))))
         }
         record(events)
     }
