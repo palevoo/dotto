@@ -22,6 +22,8 @@ public struct ReaderStep: Codable, Sendable, Hashable {
 /// One run of the reader, as it unfolds. Built from the session's own stream, line by line.
 public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
     public var id: ULID
+    /// The loop this run was of. Absent on runs from before loops were things.
+    public var loop: ULID?
     public var startedAt: Date
     public var endedAt: Date?
     /// Nil while running.
@@ -32,8 +34,9 @@ public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
     public var model: String?
     public var steps: [ReaderStep]
 
-    public init(id: ULID = ULID(), startedAt: Date = Date()) {
+    public init(id: ULID = ULID(), loop: ULID? = nil, startedAt: Date = Date()) {
         self.id = id
+        self.loop = loop
         self.startedAt = startedAt
         self.summary = ""
         self.steps = []
@@ -158,6 +161,8 @@ public struct ReaderStatus: Codable, Sendable {
     public var build: String?
     public var state: State
     public var lastWake: Wake?
+    /// For a loop woken by the clock: when it next fires.
+    public var nextWake: Date?
     public var lastRun: ReaderRun?
     /// What stands in the way, if anything: no config, no claude command, a notebook that would not open.
     public var trouble: String?

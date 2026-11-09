@@ -71,6 +71,9 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case nameSet = "name.set"
     case grantCreate = "grant.create"
     case grantRevoke = "grant.revoke"
+    case loopSet = "loop.set"
+    case loopStop = "loop.stop"
+    case loopRan = "loop.ran"
 }
 
 /// What happened. One case per kind, each with a fixed shape.
@@ -94,6 +97,9 @@ public enum Payload: Hashable, Sendable {
     case nameSet(NameSet)
     case grantCreate(GrantCreate)
     case grantRevoke(GrantRevoke)
+    case loopSet(LoopSet)
+    case loopStop(LoopStop)
+    case loopRan(LoopRan)
 
     public var kind: Kind {
         switch self {
@@ -116,6 +122,68 @@ public enum Payload: Hashable, Sendable {
         case .nameSet: .nameSet
         case .grantCreate: .grantCreate
         case .grantRevoke: .grantRevoke
+        case .loopSet: .loopSet
+        case .loopStop: .loopStop
+        case .loopRan: .loopRan
+        }
+    }
+
+    /// A loop: a sentence said once, kept, run, with a receipt each time. The owner's event,
+    /// like a grant: a name, the grant it runs as, what wakes it, a line landing or the clock
+    /// at an hour each day, a brief in the owner's words added to the door's conduct, and a
+    /// cap on turns and on spend. The newest set for a loop id stands; stop ends it. Since
+    /// 9 November 2026.
+    public struct LoopSet: Hashable, Codable, Sendable {
+        public var loop: ULID
+        public var name: String
+        public var grant: ULID
+        /// "line" or "clock".
+        public var wake: String
+        /// For the clock: "HH:MM" in the home's local time.
+        public var at: String?
+        public var brief: String?
+        public var turns: Int
+        public var budget: Double
+
+        public init(loop: ULID, name: String, grant: ULID, wake: String, at: String? = nil, brief: String? = nil, turns: Int = 40, budget: Double = 2) {
+            self.loop = loop
+            self.name = name
+            self.grant = grant
+            self.wake = wake
+            self.at = at
+            self.brief = brief
+            self.turns = turns
+            self.budget = budget
+        }
+    }
+
+    public struct LoopStop: Hashable, Codable, Sendable {
+        public var loop: ULID
+
+        public init(loop: ULID) { self.loop = loop }
+    }
+
+    /// The receipt for one run of a loop, written by the loop's own originator: when, how it
+    /// went, what it cost, and what it said at the end. Logs show it.
+    public struct LoopRan: Hashable, Codable, Sendable {
+        public var loop: ULID
+        public var run: ULID
+        public var ok: Bool
+        public var turns: Int?
+        public var cost: Double?
+        public var summary: String
+        public var startedAt: Date
+        public var endedAt: Date
+
+        public init(loop: ULID, run: ULID, ok: Bool, turns: Int?, cost: Double?, summary: String, startedAt: Date, endedAt: Date) {
+            self.loop = loop
+            self.run = run
+            self.ok = ok
+            self.turns = turns
+            self.cost = cost
+            self.summary = summary
+            self.startedAt = startedAt.toMilliseconds
+            self.endedAt = endedAt.toMilliseconds
         }
     }
 
@@ -449,6 +517,9 @@ extension Event: Codable {
         case .nameSet: .nameSet(try container.decode(Payload.NameSet.self, forKey: .payload))
         case .grantCreate: .grantCreate(try container.decode(Payload.GrantCreate.self, forKey: .payload))
         case .grantRevoke: .grantRevoke(try container.decode(Payload.GrantRevoke.self, forKey: .payload))
+        case .loopSet: .loopSet(try container.decode(Payload.LoopSet.self, forKey: .payload))
+        case .loopStop: .loopStop(try container.decode(Payload.LoopStop.self, forKey: .payload))
+        case .loopRan: .loopRan(try container.decode(Payload.LoopRan.self, forKey: .payload))
         }
     }
 
@@ -479,6 +550,9 @@ extension Event: Codable {
         case .nameSet(let p): try container.encode(p, forKey: .payload)
         case .grantCreate(let p): try container.encode(p, forKey: .payload)
         case .grantRevoke(let p): try container.encode(p, forKey: .payload)
+        case .loopSet(let p): try container.encode(p, forKey: .payload)
+        case .loopStop(let p): try container.encode(p, forKey: .payload)
+        case .loopRan(let p): try container.encode(p, forKey: .payload)
         }
     }
 }

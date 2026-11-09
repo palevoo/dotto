@@ -190,110 +190,174 @@ struct GrantsView: View {
         }
     }
 
-    /// The reader: the author that wakes on its own, run by this app when something lands.
-    /// Runs as one of the grants' authors, so it is the same being as a session started by hand.
+    /// Loops: a sentence said once, kept in the notebook, run by this app. Each runs as one
+    /// of the grants' authors, so it is the same being as a session started by hand, and
+    /// each leaves a receipt in the notebook when it has run.
     private var readerSection: some View {
-        Section("Reader") {
-            if let status = model.readerStatus, let reader = model.reader {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(status.state == .running ? MacTheme.accent : MacTheme.muted)
-                            .frame(width: 6, height: 6)
-                        Text(status.state == .running ? "Running since \(Self.clock(status.lastRun?.startedAt ?? status.startedAt))" : "On, waiting for something to land")
-                            .foregroundStyle(MacTheme.muted)
-                        Text("· as")
-                            .foregroundStyle(MacTheme.faint)
-                        Text(model.name(of: reader.grant.author))
-                            .foregroundStyle(MacTheme.ink(for: reader.grant.author, owner: model.notebook?.owner))
-                        Text("· device reader")
-                            .foregroundStyle(MacTheme.faint)
-                    }
-                    .font(MacTheme.mono)
-                    if let trouble = status.trouble {
-                        Text(trouble)
-                            .font(MacTheme.mono)
-                            .foregroundStyle(MacTheme.recording)
-                    } else if let claude = reader.claude {
-                        Text("claude at \(claude)")
-                            .font(MacTheme.mono)
-                            .foregroundStyle(MacTheme.faint)
-                    }
-                    if let wake = status.lastWake {
-                        Text("Woke \(Self.stamp(wake.at)) · \(wake.new) new · \(wake.ran ? "ran" : "nothing to do")")
-                            .font(MacTheme.mono)
-                            .foregroundStyle(MacTheme.faint)
-                    }
-
-                    // Each run, step by step, newest first. A run under way is at the top, growing.
-                    if !model.readerRuns.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            ForEach(model.readerRuns.prefix(6)) { run in
-                                DisclosureGroup(isExpanded: binding(for: run.id)) {
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        ForEach(Array(run.steps.enumerated()), id: \.offset) { _, step in
-                                            HStack(alignment: .top, spacing: 8) {
-                                                Text(Self.clock(step.at))
-                                                    .foregroundStyle(MacTheme.faint)
-                                                    .frame(width: 60, alignment: .leading)
-                                                Text(step.what)
-                                                    .foregroundStyle(step.what == "got" || step.what == "said" ? MacTheme.faint : MacTheme.foreground)
-                                                    .frame(width: 84, alignment: .leading)
-                                                Text(step.detail)
-                                                    .foregroundStyle(MacTheme.muted)
-                                                    .lineLimit(2)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
-                                            .font(MacTheme.mono)
-                                        }
-                                    }
-                                    .padding(.vertical, 4)
-                                } label: {
-                                    Text(Self.runLine(run))
-                                        .font(MacTheme.mono)
-                                        .foregroundStyle(run.isRunning ? MacTheme.accent : (run.ok == false ? MacTheme.recording : MacTheme.muted))
-                                        .lineLimit(1)
-                                }
-                            }
-                        }
-                    }
-
-                    HStack(spacing: 8) {
-                        TextField("Model (default)", text: $model.readerModel)
-                            .textFieldStyle(.roundedBorder)
-                            .font(MacTheme.mono)
-                            .frame(maxWidth: 200)
-                        Button("Look Now") { model.lookNow() }.controlSize(.small)
-                        Button("Show Log") { NSWorkspace.shared.activateFileViewerSelecting([model.readerLogURL]) }.controlSize(.small)
-                        Button("Turn Off", role: .destructive) { model.turnReaderOff() }.controlSize(.small)
-                    }
-                }
-            } else {
-                Text("Wakes when something lands in the notebook and runs one Claude Code session through the door, with the door as its only tool, then stops. Runs inside this app while it is open, under one of the grants above, the same key and author as a session started by hand; Logs say which hand.")
+        Section("Loops") {
+            if model.loops.isEmpty {
+                Text("A loop wakes when a line lands, or at an hour every day, and runs one Claude Code session through the door, with the door as its only tool, then stops. It runs inside this app while it is open, under one of the grants above; Logs say which hand, and each run leaves a receipt.")
                     .font(MacTheme.body)
                     .foregroundStyle(MacTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
-                if model.grants.isEmpty {
-                    Text("Make a grant first.")
-                        .font(MacTheme.mono)
+            }
+            ForEach(model.loops) { loop in
+                loopRow(loop)
+            }
+            if model.grants.isEmpty {
+                Text("Make a grant first.")
+                    .font(MacTheme.mono)
+                    .foregroundStyle(MacTheme.faint)
+            } else {
+                newLoop
+            }
+            HStack(spacing: 8) {
+                TextField("Model (default)", text: $model.readerModel)
+                    .textFieldStyle(.roundedBorder)
+                    .font(MacTheme.mono)
+                    .frame(maxWidth: 200)
+                Button("Show Log") { NSWorkspace.shared.activateFileViewerSelecting([model.readerLogURL]) }.controlSize(.small)
+            }
+        }
+    }
+
+    @State private var newLoopName = ""
+    @State private var newLoopWake = "line"
+    @State private var newLoopHour = 9
+    @State private var newLoopMinute = 0
+    @State private var newLoopBrief = ""
+
+    /// Setting a loop: its name, the grant it runs as, what wakes it, and a brief in your words.
+    private var newLoop: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                TextField("Name", text: $newLoopName)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 160)
+                Picker("as", selection: $readerGrantID) {
+                    ForEach(model.grants) { grant in
+                        Text(grant.name).tag(Optional(grant.id))
+                    }
+                }
+                .frame(maxWidth: 200)
+                Picker("wakes", selection: $newLoopWake) {
+                    Text("when a line lands").tag("line")
+                    Text("every day at").tag("clock")
+                }
+                .frame(maxWidth: 220)
+                if newLoopWake == "clock" {
+                    Stepper(value: $newLoopHour, in: 0...23) { Text(String(format: "%02d", newLoopHour)).font(MacTheme.mono) }
+                    Text(":").font(MacTheme.mono)
+                    Stepper(value: $newLoopMinute, in: 0...59, step: 5) { Text(String(format: "%02d", newLoopMinute)).font(MacTheme.mono) }
+                }
+            }
+            HStack(spacing: 8) {
+                TextField("Brief, in your words (optional)", text: $newLoopBrief)
+                    .textFieldStyle(.roundedBorder)
+                Button("Set") {
+                    guard let grant = model.grants.first(where: { $0.id == readerGrantID }) ?? model.grants.first else { return }
+                    let wake: Loop.Wake = newLoopWake == "clock" ? .clock(hour: newLoopHour, minute: newLoopMinute) : .line
+                    let name = newLoopName.trimmingCharacters(in: .whitespaces)
+                    model.addLoop(name: name.isEmpty ? (wake == .line ? "The reader" : "At the hour") : name, grant: grant, wake: wake, brief: newLoopBrief)
+                    newLoopName = ""
+                    newLoopBrief = ""
+                }
+                .controlSize(.small)
+                .disabled(model.folderURL == nil)
+            }
+        }
+        .font(MacTheme.body)
+    }
+
+    @ViewBuilder
+    private func loopRow(_ loop: Loop) -> some View {
+        let status = model.status(of: loop)
+        let runs = model.runs(of: loop)
+        let grant = model.grants.first { $0.id == loop.grant }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(status?.state == .running ? MacTheme.accent : (status == nil ? MacTheme.faint : MacTheme.muted))
+                    .frame(width: 6, height: 6)
+                Text(loop.name)
+                    .foregroundStyle(MacTheme.foreground)
+                Text("· \(loop.wake.words)")
+                    .foregroundStyle(MacTheme.muted)
+                if let grant {
+                    Text("· as")
                         .foregroundStyle(MacTheme.faint)
-                } else {
-                    HStack(spacing: 8) {
-                        Picker("As", selection: $readerGrantID) {
-                            ForEach(model.grants) { grant in
-                                Text(grant.name).tag(Optional(grant.id))
+                    Text(model.name(of: grant.author))
+                        .foregroundStyle(MacTheme.ink(for: grant.author, owner: model.notebook?.owner))
+                }
+                Spacer()
+                Button("Look Now") { model.lookNow(loop) }.controlSize(.small).disabled(status == nil)
+                Button("Stop", role: .destructive) { model.stopLoop(loop) }.controlSize(.small)
+            }
+            .font(MacTheme.mono)
+            if let brief = loop.brief, !brief.isEmpty {
+                Text(brief)
+                    .font(MacTheme.body)
+                    .foregroundStyle(MacTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if status == nil {
+                Text(grant == nil ? "Its grant is gone; stop this loop." : "Its grant's key is not on this Mac. Issue a new key for \(grant!.name) and the loop runs.")
+                    .font(MacTheme.mono)
+                    .foregroundStyle(MacTheme.recording)
+            } else if let trouble = status?.trouble {
+                Text(trouble)
+                    .font(MacTheme.mono)
+                    .foregroundStyle(MacTheme.recording)
+            }
+            if let status {
+                HStack(spacing: 12) {
+                    if status.state == .running {
+                        Text("Running since \(Self.clock(status.lastRun?.startedAt ?? status.startedAt))")
+                    } else if let wake = status.lastWake {
+                        Text("Woke \(Self.stamp(wake.at)) · \(wake.new) new · \(wake.ran ? "ran" : "nothing to do")")
+                    } else {
+                        Text("On, waiting")
+                    }
+                    if let next = status.nextWake { Text("· next \(Self.stamp(next))") }
+                }
+                .font(MacTheme.mono)
+                .foregroundStyle(MacTheme.faint)
+            }
+
+            // Each run, step by step, newest first. A run under way is at the top, growing.
+            if !runs.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(runs.prefix(6)) { run in
+                        DisclosureGroup(isExpanded: binding(for: run.id)) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                ForEach(Array(run.steps.enumerated()), id: \.offset) { _, step in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Text(Self.clock(step.at))
+                                            .foregroundStyle(MacTheme.faint)
+                                            .frame(width: 60, alignment: .leading)
+                                        Text(step.what)
+                                            .foregroundStyle(step.what == "got" || step.what == "said" ? MacTheme.faint : MacTheme.foreground)
+                                            .frame(width: 84, alignment: .leading)
+                                        Text(step.detail)
+                                            .foregroundStyle(MacTheme.muted)
+                                            .lineLimit(2)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    .font(MacTheme.mono)
+                                }
                             }
+                            .padding(.vertical, 4)
+                        } label: {
+                            Text(Self.runLine(run))
+                                .font(MacTheme.mono)
+                                .foregroundStyle(run.isRunning ? MacTheme.accent : (run.ok == false ? MacTheme.recording : MacTheme.muted))
+                                .lineLimit(1)
                         }
-                        .frame(maxWidth: 220)
-                        Button("Turn On") {
-                            if let grant = model.grants.first(where: { $0.id == readerGrantID }) ?? model.grants.first { model.turnReaderOn(as: grant) }
-                        }
-                        .controlSize(.small)
-                        .disabled(model.folderURL == nil)
                     }
                 }
             }
         }
+        .padding(.vertical, 4)
     }
 
     private func binding(for id: ULID) -> Binding<Bool> {

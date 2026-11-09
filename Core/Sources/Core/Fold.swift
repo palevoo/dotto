@@ -51,6 +51,49 @@ public struct Link: Hashable, Sendable, Identifiable {
     public let toAt: Date
 }
 
+/// A loop as the notebook has it: a sentence said once, kept, run, with a receipt each time.
+public struct Loop: Hashable, Sendable, Identifiable {
+    public enum Wake: Hashable, Sendable {
+        /// When a line lands that the loop's grant has not seen.
+        case line
+        /// Every day at this hour and minute, in the home's local time.
+        case clock(hour: Int, minute: Int)
+
+        public var words: String {
+            switch self {
+            case .line: "when a line lands"
+            case .clock(let hour, let minute): String(format: "every day at %02d:%02d", hour, minute)
+            }
+        }
+    }
+
+    /// The loop's id, kept across sets; `setBy` is the event that last set it.
+    public let id: ULID
+    public let setBy: ULID
+    public let name: String
+    public let grant: ULID
+    public let wake: Wake
+    public let brief: String?
+    public let turns: Int
+    public let budget: Double
+    public let createdAt: Date
+    /// The last receipt, if the loop has run.
+    public var lastRun: LoopRun?
+}
+
+/// A receipt for one run of a loop, as folded.
+public struct LoopRun: Hashable, Sendable, Identifiable {
+    public let id: ULID
+    public let loop: ULID
+    public let author: Author
+    public let ok: Bool
+    public let turns: Int?
+    public let cost: Double?
+    public let summary: String
+    public let startedAt: Date
+    public let endedAt: Date
+}
+
 /// A line is finished. State on the line, not a connection: the first fact.
 public struct Done: Hashable, Sendable {
     /// The event that marked it.
@@ -225,6 +268,16 @@ public struct Notebook: Sendable {
     private var grantMarks: [ULID: GrantMark] = [:]
     /// Grants revoked before their opening was seen.
     private var revokedGrants: Set<ULID> = []
+    /// Every loop the owner has set, by id, with its latest set and whether it was stopped after.
+    private var loopMarks: [ULID: LoopMark] = [:]
+    /// The latest receipt per loop.
+    private var loopRuns: [ULID: LoopRun] = [:]
+
+    private struct LoopMark: Hashable, Sendable {
+        var loop: Loop
+        /// The id of the latest stop, if any; the loop is off when it is newer than the set.
+        var stoppedBy: ULID?
+    }
 
     private struct NameMark: Hashable, Sendable {
         let id: ULID
@@ -289,8 +342,8 @@ public struct Notebook: Sendable {
         guard !seen.contains(event.id) else { return }
         seen.insert(event.id)
         eventCount += 1
-        // Only the owner opens or closes the door. Anyone else's grant event is nothing.
-        if event.kind == .grantCreate || event.kind == .grantRevoke, event.author != owner { return }
+        // Only the owner opens or closes the door, and only the owner sets or stops a loop.
+        if [.grantCreate, .grantRevoke, .loopSet, .loopStop].contains(event.kind), event.author != owner { return }
         if event.author != owner, !others.contains(event.author) { others.append(event.author) }
 
         switch event.payload {
@@ -374,8 +427,47 @@ public struct Notebook: Sendable {
         case .grantRevoke(let p):
             revokedGrants.insert(p.grant)
             grantMarks[p.grant]?.revoked = true
+
+        case .loopSet(let p):
+            guard loopMarks[p.loop].map({ $0.loop.setBy < event.id }) ?? true else { return }
+            let wake: Loop.Wake
+            if p.wake == "clock", let at = p.at, let colon = at.firstIndex(of: ":"),
+               let hour = Int(at[..<colon]), let minute = Int(at[at.index(after: colon)...]), (0..<24).contains(hour), (0..<60).contains(minute) {
+                wake = .clock(hour: hour, minute: minute)
+            } else {
+                wake = .line
+            }
+            let loop = Loop(id: p.loop, setBy: event.id, name: p.name, grant: p.grant, wake: wake, brief: p.brief,
+                            turns: p.turns, budget: p.budget, createdAt: loopMarks[p.loop]?.loop.createdAt ?? event.at, lastRun: loopRuns[p.loop])
+            loopMarks[p.loop] = LoopMark(loop: loop, stoppedBy: loopMarks[p.loop]?.stoppedBy)
+
+        case .loopStop(let p):
+            if var mark = loopMarks[p.loop] {
+                if mark.stoppedBy.map({ $0 < event.id }) ?? true { mark.stoppedBy = event.id }
+                loopMarks[p.loop] = mark
+            } else {
+                // Stopped before its set was seen: remembered until it is.
+                loopMarks[p.loop] = nil
+                stoppedLoops[p.loop] = max(stoppedLoops[p.loop] ?? event.id, event.id)
+            }
+
+        case .loopRan(let p):
+            let run = LoopRun(id: event.id, loop: p.loop, author: event.author, ok: p.ok, turns: p.turns, cost: p.cost,
+                              summary: p.summary, startedAt: p.startedAt, endedAt: p.endedAt)
+            if loopRuns[p.loop].map({ $0.id < event.id }) ?? true {
+                loopRuns[p.loop] = run
+                loopMarks[p.loop]?.loop.lastRun = run
+            }
+            let name = loopMarks[p.loop]?.loop.name ?? "a loop"
+            var what = "ran \(name)"
+            if let turns = p.turns { what += ", \(turns) turn\(turns == 1 ? "" : "s")" }
+            if let cost = p.cost { what += String(format: ", $%.2f", cost) }
+            if !p.ok { what += ", and failed" }
+            trace(event, what, entry: nil)
         }
     }
+
+    private var stoppedLoops: [ULID: ULID] = [:]
 
     /// The grants that open the door today, oldest first. Keys are not in the notebook;
     /// whoever holds one fills it in.
@@ -386,6 +478,22 @@ public struct Notebook: Sendable {
     /// Every grant the owner ever opened, revoked ones included, oldest first.
     public var allGrants: [Grant] {
         grantMarks.values.map(\.grant).sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+    }
+
+    /// The loops that run today, oldest first: set, and not stopped since.
+    public var loops: [Loop] {
+        loopMarks.values
+            .filter { mark in
+                let stopped = mark.stoppedBy ?? stoppedLoops[mark.loop.id]
+                return stopped.map { $0 < mark.loop.setBy } ?? true
+            }
+            .map(\.loop)
+            .sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+    }
+
+    /// Every loop ever set, stopped ones included, oldest first.
+    public var allLoops: [Loop] {
+        loopMarks.values.map(\.loop).sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
     }
 
     /// The open grant a key belongs to, with the key filled in. Nil means the door stays shut.
@@ -637,7 +745,8 @@ public struct Notebook: Sendable {
                 note(&entry, event, "took #\(label) off")
             }
 
-        case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .link, .unlink, .done, .undone, .visit, .nameSet, .grantCreate, .grantRevoke:
+        case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .link, .unlink, .done, .undone, .visit, .nameSet, .grantCreate, .grantRevoke,
+             .loopSet, .loopStop, .loopRan:
             break
         }
     }

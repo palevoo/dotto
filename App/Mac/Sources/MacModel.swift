@@ -36,13 +36,13 @@ final class MacModel {
     private(set) var pushAddresses: [PushAddress] = []
     /// What happened to the last push, in a sentence.
     private(set) var pushReport: String?
-    /// The reader, while it is on: the author that wakes on its own, run by this app.
-    private(set) var reader: ReaderRunner?
+    /// The loops the notebook says run, each running here, by loop id.
+    private(set) var runners: [ULID: ReaderRunner] = [:]
     /// The model the reader runs, empty for Claude Code's default.
     var readerModel = UserDefaults.standard.string(forKey: "margin.reader.model") ?? "" {
         didSet {
             UserDefaults.standard.set(readerModel, forKey: "margin.reader.model")
-            reader?.model = readerModel
+            for runner in runners.values { runner.model = readerModel }
         }
     }
     /// Bumped whenever the reader's status or a run changes, so the window redraws.
@@ -64,7 +64,6 @@ final class MacModel {
     init() {
         carryOverFromSandbox()
         restoreFolder()
-        if UserDefaults.standard.bool(forKey: readerOnKey), readerGrant != nil { startReader() }
         Task {
             await pusher.use(pushKey)
             await openDoor()
@@ -210,9 +209,10 @@ final class MacModel {
             held.key = GrantKeys.key(for: grant.id) ?? ""
             return held
         }
-        // Something changed in the folder: the reader looks, a moment later.
-        reader?.remember(store)
-        reader?.wake(store)
+        // The loops as the notebook has them now; then something changed in the folder, so
+        // each one woken by lines looks, a moment later.
+        syncLoops(store, notebook)
+        for runner in runners.values { runner.wake(store) }
         pushAddresses = (try? store.pushAddresses()) ?? []
         let days = notebook.days(calendar: .current)
         var text = "\(notebook.entries.count) lines over \(days.count) days"
@@ -291,11 +291,26 @@ final class MacModel {
         notebook?.name(of: author) ?? author.rawValue
     }
 
-    /// The key stops opening the door. The author's events stay, under their id.
+    /// The key stops opening the door. The author's events stay, under their id. Loops that
+    /// ran under it stop with it.
     func revoke(_ grant: Grant) {
-        if readerGrant?.id == grant.id { turnReaderOff() }
+        moveLoops(from: grant.id, to: nil)
         write(.grantRevoke(.init(grant: grant.id)))
         GrantKeys.remove(for: grant.id)
+    }
+
+    /// Loops set to run under one grant follow it to another, or stop when it goes.
+    private func moveLoops(from old: ULID, to new: ULID?) {
+        for loop in loops where loop.grant == old {
+            if let new {
+                var at: String?
+                var kind = "line"
+                if case .clock(let hour, let minute) = loop.wake { kind = "clock"; at = String(format: "%02d:%02d", hour, minute) }
+                write(.loopSet(.init(loop: loop.id, name: loop.name, grant: new, wake: kind, at: at, brief: loop.brief, turns: loop.turns, budget: loop.budget)))
+            } else {
+                write(.loopStop(.init(loop: loop.id)))
+            }
+        }
     }
 
     /// The same key, another author: whoever holds it is that author from now on. The old
@@ -306,25 +321,21 @@ final class MacModel {
         var moved = Grant(name: grant.name, author: author, device: grant.device, key: grant.key,
                           writesNotes: grant.writesNotes, writesLabels: grant.writesLabels, writesLinks: grant.writesLinks, writesLines: grant.writesLines)
         moved.keyHash = grant.keyHash
-        let wasReader = readerGrant?.id == grant.id
-        if wasReader { turnReaderOff() }
         write(.grantRevoke(.init(grant: grant.id)))
         if !grant.key.isEmpty { try? GrantKeys.save(grant.key, for: moved.id) }
         GrantKeys.remove(for: grant.id)
         write(.grantCreate(moved.create))
-        if wasReader { turnReaderOn(as: moved) }
+        moveLoops(from: grant.id, to: moved.id)
     }
 
     /// A fresh key for the same author, for when this Mac no longer holds the old one.
     func reissue(_ grant: Grant) {
         let fresh = Grant(name: grant.name, author: grant.author, device: grant.device,
                           writesNotes: grant.writesNotes, writesLabels: grant.writesLabels, writesLinks: grant.writesLinks, writesLines: grant.writesLines)
-        let wasReader = readerGrant?.id == grant.id
-        if wasReader { turnReaderOff() }
         write(.grantRevoke(.init(grant: grant.id)))
         GrantKeys.remove(for: grant.id)
         open(fresh)
-        if wasReader { turnReaderOn(as: fresh) }
+        moveLoops(from: grant.id, to: fresh.id)
     }
 
     /// What the person pastes into a terminal so Claude Code knows the door and the key.
@@ -416,57 +427,91 @@ final class MacModel {
         }
     }
 
-    // MARK: - The reader
+    // MARK: - Loops
 
     private var readerRunsURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.runs, isDirectory: true) }
     var readerLogURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.log) }
 
-    /// The grant the reader acts under: one of the rows above, the same key and author as a
-    /// session at the keyboard. It is one being with two hands; Logs tell them apart by the
-    /// device stamp the reader sends.
-    var readerGrant: Grant? {
-        guard let raw = UserDefaults.standard.string(forKey: readerGrantKey) else { return nil }
-        return grants.first { $0.id.string == raw }
-    }
+    /// The loops the notebook says run today, oldest first.
+    var loops: [Loop] { notebook?.loops ?? [] }
 
-    var readerStatus: ReaderStatus? { _ = readerTick; return reader?.status }
-    var readerRuns: [ReaderRun] { _ = readerTick; return reader?.runs ?? [] }
+    func status(of loop: Loop) -> ReaderStatus? { _ = readerTick; return runners[loop.id]?.status }
+    func runs(of loop: Loop) -> [ReaderRun] { _ = readerTick; return runners[loop.id]?.runs ?? [] }
+    func runner(of loop: Loop) -> ReaderRunner? { _ = readerTick; return runners[loop.id] }
 
-    /// Switches the reader on under one of the grants: the runner inside this app, which
-    /// looks at once and whenever the folder changes from then on.
-    func turnReaderOn(as grant: Grant) {
-        UserDefaults.standard.set(grant.id.string, forKey: readerGrantKey)
-        UserDefaults.standard.set(true, forKey: readerOnKey)
-        startReader(grant)
-    }
-
-    func turnReaderOff() {
-        UserDefaults.standard.set(false, forKey: readerOnKey)
-        reader = nil
-        readerTick += 1
-    }
-
-    /// Looks now, without waiting for a line to land.
-    func lookNow() {
+    /// A loop is the owner's event in the notebook. Set once here; every device holding the
+    /// folder knows it, and this Mac, the home, runs it.
+    func addLoop(name: String, grant: Grant, wake: Loop.Wake, brief: String) {
         guard let store else { return }
-        reader?.wake(store)
+        let at: String?
+        let kind: String
+        switch wake {
+        case .line: kind = "line"; at = nil
+        case .clock(let hour, let minute): kind = "clock"; at = String(format: "%02d:%02d", hour, minute)
+        }
+        let words = brief.trimmingCharacters(in: .whitespacesAndNewlines)
+        let now = Date()
+        let id = generator.next(at: now)
+        try? store.append(Event(id: id, author: store.manifest.owner, device: device, at: now,
+                                payload: .loopSet(.init(loop: id, name: name.trimmingCharacters(in: .whitespaces), grant: grant.id,
+                                                        wake: kind, at: at, brief: words.isEmpty ? nil : words))))
+        refreshSummary()
     }
 
-    private func startReader(_ chosen: Grant? = nil) {
-        guard let grant = chosen ?? readerGrant else { return }
-        guard !grant.key.isEmpty else {
-            problem = "The reader's key is not on this Mac. Issue a new key for \(grant.name) and turn the reader on again."
-            return
+    /// The loop stops: an event of the owner's, and the runner goes.
+    func stopLoop(_ loop: Loop) {
+        guard let store else { return }
+        let now = Date()
+        try? store.append(Event(id: generator.next(at: now), author: store.manifest.owner, device: device, at: now,
+                                payload: .loopStop(.init(loop: loop.id))))
+        refreshSummary()
+    }
+
+    /// Looks now, whatever wakes the loop, and runs even with nothing new.
+    func lookNow(_ loop: Loop) {
+        runners[loop.id]?.lookNow()
+    }
+
+    /// Runners follow the notebook: one per loop that runs, made when the loop appears or is
+    /// set again, gone when it is stopped. A loop whose grant has no key on this Mac waits,
+    /// and the window says so.
+    private func syncLoops(_ store: FileStore, _ notebook: Notebook) {
+        carryOverReaderSettings(store, notebook)
+        let wanted = Dictionary(uniqueKeysWithValues: notebook.loops.map { ($0.id, $0) })
+        for id in runners.keys where wanted[id] == nil || wanted[id]?.setBy != runners[id]?.loop.setBy {
+            runners[id] = nil
         }
-        let runner = ReaderRunner(grant: grant, door: "http://127.0.0.1:\(Self.defaultPort)/mcp", model: readerModel,
-                                  runsDirectory: readerRunsURL, logURL: readerLogURL)
-        runner.onChange = { [weak self] in self?.readerTick += 1 }
-        reader = runner
-        readerTick += 1
-        if let store {
+        for loop in notebook.loops where runners[loop.id] == nil {
+            guard let grant = grants.first(where: { $0.id == loop.grant }), !grant.key.isEmpty else { continue }
+            let runner = ReaderRunner(loop: loop, grant: grant, door: "http://127.0.0.1:\(Self.defaultPort)/mcp", model: readerModel,
+                                      runsDirectory: readerRunsURL, logURL: readerLogURL)
+            runner.onChange = { [weak self] in self?.readerTick += 1 }
+            runner.onRan = { [weak self, weak runner] run in
+                guard let self, let runner, let endedAt = run.endedAt else { return }
+                // The receipt, in the notebook, under the loop's own originator and the reader's hand.
+                try? store.append(Event(id: self.generator.next(at: endedAt), author: runner.grant.author, device: "reader", at: endedAt,
+                                        payload: .loopRan(.init(loop: runner.loop.id, run: run.id, ok: run.ok ?? false, turns: run.turns,
+                                                                cost: run.costUSD, summary: run.summary, startedAt: run.startedAt, endedAt: endedAt))))
+            }
             runner.remember(store)
-            runner.wake(store)
+            runners[loop.id] = runner
         }
+        readerTick += 1
+    }
+
+    /// The reader used to be two settings of this app's own, on and which grant. It is a loop
+    /// in the notebook now: the first time a notebook with no loops is opened on a Mac that had
+    /// the reader on, that loop is written, once, and the settings are set aside.
+    private func carryOverReaderSettings(_ store: FileStore, _ notebook: Notebook) {
+        guard notebook.allLoops.isEmpty, UserDefaults.standard.bool(forKey: readerOnKey),
+              let raw = UserDefaults.standard.string(forKey: readerGrantKey), let grant = grants.first(where: { $0.id.string == raw }) else { return }
+        let now = Date()
+        let id = generator.next(at: now)
+        try? store.append(Event(id: id, author: store.manifest.owner, device: device, at: now,
+                                payload: .loopSet(.init(loop: id, name: "The reader", grant: grant.id, wake: "line"))))
+        UserDefaults.standard.removeObject(forKey: readerOnKey)
+        UserDefaults.standard.removeObject(forKey: readerGrantKey)
+        refreshSummarySoon()
     }
 
     // MARK: - The door
@@ -479,8 +524,8 @@ final class MacModel {
             let server = try DoorServer(port: Self.defaultPort) { router.respond($0) }
             self.server = server
             port = try await server.start()
-            // The door is open: the reader may look now.
-            if let store { reader?.wake(store) }
+            // The door is open: the loops may look now.
+            if let store { for runner in runners.values { runner.wake(store) } }
         } catch {
             problem = "The door could not open on port \(Self.defaultPort): \(error)"
         }

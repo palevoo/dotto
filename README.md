@@ -146,24 +146,31 @@ address into the folder as `devices/<device>.json` once notifications are allowe
 Setup; the Mac, holding the developer account's push key in its keychain, hands the note
 to Apple. Marks stay silent: labels and links are for the page, not the pocket.
 
-## The reader
+## Loops
 
-The author that wakes on its own, run by the Mac app itself (`App/Mac/Sources/Reader.swift`).
-Turn it on in the Mac window under one of the grants: it uses that grant's key and author, so
-it is the same being as a session started by hand, and it sends the header `Dotto-Device:
-reader` so Logs say which hand. The app is open anyway, since it is the door, and it
-already watches the folder; when something lands that the reader's grant has not seen, it
-runs one headless session of the `claude` command you already pay for: the door as its only
-server, every built-in tool off, no settings and no project in reach, the door's conduct as
-its whole brief, a cap on turns and on spend, nothing kept afterwards. Then it waits again.
-Nothing is registered with the system; if you want the reader after a reboot, set the app to
-open at login like any app, and keep the Mac awake.
+A loop is a sentence said once, kept, run, with a receipt each time. It is your event in the
+notebook, like a grant: `loop.set` names it, says which grant it runs as, what wakes it, a
+line landing or the clock at an hour every day, a brief in your words, and a cap on turns
+and on spend; `loop.stop` ends it. Every device holding the folder knows the same loops; the
+Mac, the home, runs them (`App/Mac/Sources/Reader.swift`). Set one in the Mac window under
+one of the grants: it uses that grant's key and author, so it is the same being as a session
+started by hand, and it sends the header `Dotto-Device: reader` so Logs say which hand. The
+reader is the first loop, woken by lines; a Mac that had the reader switched on writes that
+loop once and sets the switch aside.
 
-Everything it does is written down as it happens: `reader-runs/` beside `grants.json` holds
-each run step by step, every door tool it called with what it sent, what came back, what it
-said, and the cost, with the raw stream beside it; `reader.log` is the plain trail. The window
-shows the live state, what woke it, and the last runs with their steps, and Look Now makes it
-look without waiting for a line to land. What it did to the notebook is in Logs, stamped reader.
+When a loop wakes it runs one headless session of the `claude` command you already pay for:
+the door as its only server, every built-in tool off, no settings and no project in reach,
+the door's conduct and the loop's brief as its whole brief, the loop's caps, nothing kept
+afterwards. Then it waits again. When the run ends, a receipt, `loop.ran`, goes into the
+notebook under the loop's own originator: when, how it went, turns, cost, what it said at
+the end. Logs show it on every device. Nothing is registered with the system; if you want
+loops after a reboot, set the app to open at login like any app, and keep the Mac awake.
+
+Each run is also written down step by step as it happens: `reader-runs/` holds a record per
+run, every door tool it called with what it sent, what came back, what it said, and the
+cost, with the raw stream beside it; `reader.log` is the plain trail. The window shows each
+loop's live state, what woke it, when a clock loop fires next, and its last runs with their
+steps; Look Now runs a loop without waiting.
 
 ## Building dotto with dotto
 

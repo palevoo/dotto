@@ -394,6 +394,48 @@ final class FoldTests: XCTestCase {
         XCTAssertEqual(notebook.entries, [])
     }
 
+    /// A loop is the owner's event: set, stopped, run with a receipt. Only the owner sets or
+    /// stops one; the newest set stands; a receipt shows in the log.
+    func testLoopsAreTheOwnersEvents() {
+        var notebook = Notebook(owner: me)
+        let grant = Grant(name: "Claude Code", author: .weeju, device: "claude-code")
+        notebook.apply(event(.grantCreate(grant.create), device: mac))
+        let loop = ULID(timestamp: clock)
+
+        // A stranger's loop is nothing.
+        notebook.apply(event(.loopSet(.init(loop: loop, name: "Spy", grant: grant.id, wake: "line")), author: "stranger"))
+        XCTAssertEqual(notebook.loops, [])
+
+        notebook.apply(event(.loopSet(.init(loop: loop, name: "The reader", grant: grant.id, wake: "line")), device: mac))
+        XCTAssertEqual(notebook.loops.map(\.name), ["The reader"])
+        XCTAssertEqual(notebook.loops.first?.wake, .line)
+        XCTAssertEqual(notebook.loops.first?.turns, 40)
+
+        // Set again: the same loop, a clock now, in the owner's words.
+        notebook.apply(event(.loopSet(.init(loop: loop, name: "The week", grant: grant.id, wake: "clock", at: "09:00", brief: "Read the week as one period.")), device: mac))
+        XCTAssertEqual(notebook.loops.map(\.name), ["The week"])
+        XCTAssertEqual(notebook.loops.first?.wake, .clock(hour: 9, minute: 0))
+        XCTAssertEqual(notebook.loops.first?.wake.words, "every day at 09:00")
+        XCTAssertEqual(notebook.loops.first?.brief, "Read the week as one period.")
+
+        // A receipt, under the loop's own originator, shows in the log and on the loop.
+        let ran = event(.loopRan(.init(loop: loop, run: ULID(), ok: true, turns: 3, cost: 0.12, summary: "answered two lines",
+                                        startedAt: clock, endedAt: clock.addingTimeInterval(40))), author: .weeju, device: "reader")
+        notebook.apply(ran)
+        XCTAssertEqual(notebook.loops.first?.lastRun?.id, ran.id)
+        XCTAssertEqual(notebook.trail.last?.what, "ran The week, 3 turns, $0.12")
+        XCTAssertEqual(notebook.trail.last?.author, .weeju)
+
+        // Stopped by the owner: off, and still in the record.
+        notebook.apply(event(.loopStop(.init(loop: loop)), device: mac))
+        XCTAssertEqual(notebook.loops, [])
+        XCTAssertEqual(notebook.allLoops.map(\.name), ["The week"])
+
+        // Set again after the stop: on again.
+        notebook.apply(event(.loopSet(.init(loop: loop, name: "The week", grant: grant.id, wake: "clock", at: "09:00")), device: mac))
+        XCTAssertEqual(notebook.loops.map(\.name), ["The week"])
+    }
+
     func testDuplicateEventsAreIgnored() {
         let id = ULID()
         let create = event(.entryCreate(.init(entry: id, text: "line", startedAt: clock)))

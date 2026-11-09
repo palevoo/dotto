@@ -180,7 +180,7 @@ public enum Inbox {
                         asks: false, answered: false, unread: fresh))
 
                 case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .unlink, .undone,
-                     .visit, .grantCreate, .grantRevoke:
+                     .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan:
                     continue
                 }
             }
@@ -290,7 +290,7 @@ public enum Inbox {
                 marks.append("\(who(event.author)) marked \(p.entry) done\(p.by.map { " by \($0)" } ?? "")")
             case .nameSet(let p):
                 names.append("\(event.author) is called \(p.name) now")
-            case .visit, .grantCreate, .grantRevoke:
+            case .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan:
                 continue
             }
         }

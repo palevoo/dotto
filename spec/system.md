@@ -51,9 +51,10 @@ of its own, and a file of its own. Every read leaves a receipt. The owner takes 
 anything an originator left with one hold. A loop runs as an originator.
 
 Today: grants as the owner's events, keys on the Mac, names, colours, devices, pages,
-receipts, Logs and History, takeback for notes and links. Missing: takeback for labels on
-the phone; a line by another originator landing on the owner's page under its own name,
-decided on 6 November, so that a walk stops wearing the owner's name.
+receipts, Logs and History, takeback for notes, links and done. A line by another
+originator lands on the owner's page under its own name and goes with one hold, built 9
+November; Health is the first such originator, each walk a line in its name. Missing:
+takeback for labels on the phone; Mail and the reader bringing lines the same way.
 
 ### Shapes
 
@@ -78,19 +79,23 @@ and drop it, is the first thing shapes need.
 ### Links
 
 A link joins one thing to another by their ids, and that is all it is. See the design
-below.
+below. Built 9 November as designed: threads, citations, done as the first fact, the older
+shape folded in; a shape as an end waits for shapes.
 
 ### Loops
 
 What runs: a trigger, a capture landing or the clock; an originator it runs as; a budget;
 a receipt per run the owner can read. Said once, kept, run, and stopped by the owner.
 
-Today: four loops written in Swift with no shared form: the reader waking on a line,
-Health importing walks, pushes on words, the projector rewriting the day files. The
-reader's run records are what a loop's receipt looks like. Missing: the loop as a thing
-the person can see, read and stop; a clock trigger; isolation. These are one gap seen from
-three sides, and until it is filled, "say it once and it keeps happening" is a promise the
-system cannot keep.
+Today, since 9 November: a loop is the owner's event in the notebook, like a grant: a name,
+the grant it runs as, what wakes it, a line landing or the clock at an hour each day, a
+brief in the owner's words, a cap on turns and on spend. The Mac, the home, runs each one
+and writes a receipt per run into the notebook under the loop's originator, so Logs say it
+ran, what it cost and what it said; the owner sets and stops loops in the Mac window, and
+the reader is the first loop, carried over from the old switch. Still in Swift with no loop
+record: Health's import, pushes on words, the projector. Missing: a loop set from the phone
+or through the door in a sentence; isolation; loops that run programs other than a Claude
+session.
 
 ### Pages
 

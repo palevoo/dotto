@@ -118,7 +118,7 @@ public enum Projector {
 
     // MARK: - Internals
 
-    static func time(_ date: Date, calendar: Calendar) -> String {
+    public static func time(_ date: Date, calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.hour, .minute], from: date)
         return String(format: "%02d:%02d", parts.hour!, parts.minute!)
     }

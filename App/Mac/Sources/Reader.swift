@@ -1,17 +1,19 @@
 import Core
 import Foundation
 
-/// The reader: the author that wakes on its own, run by the Mac app itself.
+/// One loop, running: a sentence said once, kept in the notebook, run by the Mac app itself.
 ///
-/// The app is already open, since it is the door, and it already watches the folder. When
-/// something lands that the reader's grant has not seen, this runs one headless session of
-/// the claude command the person already pays for: the door as its only server, every
-/// built-in tool off, no settings and no project in reach, the door's conduct as its brief,
-/// a cap on turns and on spend, nothing kept afterwards. Then it waits again. Every step of
-/// a run is written down as it happens, a record per run with the raw stream beside it, and
-/// every read and write it makes is in Logs through the door, stamped with its device.
+/// The app is already open, since it is the door, and it already watches the folder. A loop
+/// woken by lines looks when something lands that its grant has not seen; a loop woken by
+/// the clock looks at its hour every day. Either way it runs one headless session of the
+/// claude command the person already pays for: the door as its only server, every built-in
+/// tool off, no settings and no project in reach, the door's conduct and the loop's brief as
+/// its whole brief, the loop's cap on turns and on spend, nothing kept afterwards. Every step
+/// of a run is written down as it happens, a record per run with the raw stream beside it; a
+/// receipt for the run goes into the notebook under the loop's originator, so Logs say it ran.
 @MainActor
 final class ReaderRunner {
+    let loop: Loop
     let grant: Grant
     let door: String
     let runsDirectory: URL
@@ -23,17 +25,19 @@ final class ReaderRunner {
     private(set) var runs: [ReaderRun] = []
     /// Told whenever the status or a run changes, so the window follows.
     var onChange: () -> Void = {}
+    /// Told when a run has ended, with its record, so the receipt can be written.
+    var onRan: (ReaderRun) -> Void = { _ in }
 
     private var pendingWake: DispatchWorkItem?
+    private var clock: Timer?
     private var running = false
     private var runAgain = false
     private let calendar = Calendar.current
     /// A line and its photo land a moment apart; one run takes both.
     private let grace: TimeInterval = 5
-    static let maxTurns = 40
-    static let maxBudgetUSD = 2.0
 
-    init(grant: Grant, door: String, model: String, runsDirectory: URL, logURL: URL) {
+    init(loop: Loop, grant: Grant, door: String, model: String, runsDirectory: URL, logURL: URL) {
+        self.loop = loop
         self.grant = grant
         self.door = door
         self.model = model
@@ -43,8 +47,13 @@ final class ReaderRunner {
         status = ReaderStatus(pid: ProcessInfo.processInfo.processIdentifier, startedAt: Date(), build: Build.commit)
         if claude == nil { status.trouble = "the claude command was not found on this Mac" }
         try? FileManager.default.createDirectory(at: runsDirectory, withIntermediateDirectories: true)
-        runs = ReaderFiles.runs(in: runsDirectory)
-        log("reader on as \(grant.name), claude at \(claude ?? "nowhere")")
+        runs = ReaderFiles.runs(in: runsDirectory, limit: 200).filter { $0.loop == loop.id || ($0.loop == nil && loop.wake == .line) }.prefix(8).map { $0 }
+        log("\(loop.name) on as \(grant.name), \(loop.wake.words), claude at \(claude ?? "nowhere")")
+        if case .clock = loop.wake { scheduleClock() }
+    }
+
+    deinit {
+        clock?.invalidate()
     }
 
     /// The command, wherever the person's shell keeps it.
@@ -69,7 +78,7 @@ final class ReaderRunner {
     }
 
     private func log(_ text: String) {
-        let entry = "\(ISO8601DateFormatter().string(from: Date())) \(text)\n"
+        let entry = "\(ISO8601DateFormatter().string(from: Date())) [\(loop.name)] \(text)\n"
         if let handle = try? FileHandle(forWritingTo: logURL) {
             defer { try? handle.close() }
             try? handle.seekToEnd()
@@ -79,40 +88,81 @@ final class ReaderRunner {
         }
     }
 
-    /// Something changed in the folder. A moment later, see whether the grant has anything new.
+    private var lastStore: FileStore?
+
+    func remember(_ store: FileStore) {
+        lastStore = store
+    }
+
+    /// Something changed in the folder. A loop woken by lines looks a moment later; one woken
+    /// by the clock only remembers the store for its hour.
     func wake(_ store: FileStore) {
+        lastStore = store
+        guard loop.wake == .line else { return }
         pendingWake?.cancel()
-        let item = DispatchWorkItem { [weak self] in self?.look(store) }
+        let item = DispatchWorkItem { [weak self] in self?.look(store, always: false) }
         pendingWake = item
         DispatchQueue.main.asyncAfter(deadline: .now() + grace, execute: item)
     }
 
-    private func look(_ store: FileStore) {
+    /// Looks now, whatever woke it, and runs even with nothing new.
+    func lookNow() {
+        guard let store = lastStore else { return }
+        look(store, always: true)
+    }
+
+    /// The clock: the next time the loop's hour comes round, then every day after.
+    private func scheduleClock() {
+        guard case .clock(let hour, let minute) = loop.wake else { return }
+        clock?.invalidate()
+        var next = calendar.nextDate(after: Date(), matching: DateComponents(hour: hour, minute: minute), matchingPolicy: .nextTime) ?? Date().addingTimeInterval(86_400)
+        if next.timeIntervalSinceNow < 1 { next = next.addingTimeInterval(86_400) }
+        status.nextWake = next
+        let timer = Timer(fire: next, interval: 0, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                if let store = self.lastStore { self.look(store, always: true) }
+                self.scheduleClock()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        clock = timer
+        onChange()
+    }
+
+    private func look(_ store: FileStore, always: Bool) {
         if running { runAgain = true; return }
         let now = Date()
         do {
             let files = try store.loadEventsByFile()
             let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
             let pending = Core.Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
-            let willRun = pending.count > 0 && claude != nil
+            let willRun = (always || pending.count > 0) && claude != nil
             status.lastWake = ReaderStatus.Wake(at: now, new: pending.count, ran: willRun)
             log(willRun ? "woke: \(pending.count) new, running" : "woke: \(pending.count) new")
             guard willRun, let claude else { onChange(); return }
 
-            let brief = Door.conduct(for: grant, name: notebook.name(of: grant.author), owner: notebook.name(of: store.manifest.owner)) + """
+            var brief = Door.conduct(for: grant, name: notebook.name(of: grant.author), owner: notebook.name(of: store.manifest.owner)) + """
 
 
-            You are running on your own, woken because something landed in the notebook. Nobody \
+            You are running on your own, as the loop called \(loop.name), \(loop.wake.words). Nobody \
             is at the keyboard and nobody reads your final answer: everything you have to say goes \
             through the door, or stays unsaid. Do what this moment asks, and stop.
             """
+            if let words = loop.brief?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty {
+                brief += "\n\nThe owner's brief for this loop, in their words: \(words)"
+            }
             running = true
             status.state = .running
-            let run = ReaderRun(startedAt: now)
+            let run = ReaderRun(loop: loop.id, startedAt: now)
             status.lastRun = run
             runs.insert(run, at: 0)
             onChange()
-            let session = Session(claude: claude, door: door, grant: grant, model: model, runsDirectory: runsDirectory, brief: brief)
+            let session = Session(claude: claude, door: door, grant: grant, model: model, runsDirectory: runsDirectory, brief: brief,
+                                  prompt: loop.wake == .line
+                                      ? "Look at what is new through the door and do what the lines want. Then stop."
+                                      : "It is \(Projector.time(now, calendar: calendar)). Do what this loop is for, reading through the door as needed. Then stop.",
+                                  maxTurns: loop.turns, maxBudgetUSD: loop.budget)
             Task.detached(priority: .utility) {
                 let finished = session.run(run) { snapshot in
                     Task { @MainActor in self.progress(snapshot) }
@@ -138,17 +188,12 @@ final class ReaderRunner {
         status.state = .waiting
         progress(run)
         log("\(run.ok == true ? "done" : "failed"): \(run.summary) · \(run.turns ?? 0) turns · $\(String(format: "%.2f", run.costUSD ?? 0))")
+        onRan(run)
         if runAgain {
             runAgain = false
             // Whatever came in during the run; the store is re-read in look.
             if let store = lastStore { wake(store) }
         }
-    }
-
-    private var lastStore: FileStore?
-
-    func remember(_ store: FileStore) {
-        lastStore = store
     }
 }
 
@@ -161,6 +206,9 @@ struct Session: Sendable {
     let model: String
     let runsDirectory: URL
     let brief: String
+    let prompt: String
+    let maxTurns: Int
+    let maxBudgetUSD: Double
 
     func run(_ start: ReaderRun, progress: @escaping @Sendable (ReaderRun) -> Void) -> ReaderRun {
         var run = start
@@ -190,7 +238,7 @@ struct Session: Sendable {
         }
 
         var arguments = [
-            "-p", "Look at what is new through the door and do what the lines want. Then stop.",
+            "-p", prompt,
             "--output-format", "stream-json", "--verbose",
             "--mcp-config", mcpConfig.path,
             "--strict-mcp-config",
@@ -200,8 +248,8 @@ struct Session: Sendable {
             "--setting-sources", "",
             "--disable-slash-commands",
             "--no-session-persistence",
-            "--max-turns", String(ReaderRunner.maxTurns),
-            "--max-budget-usd", String(ReaderRunner.maxBudgetUSD),
+            "--max-turns", String(maxTurns),
+            "--max-budget-usd", String(maxBudgetUSD),
         ]
         if !model.isEmpty { arguments += ["--model", model] }
 
