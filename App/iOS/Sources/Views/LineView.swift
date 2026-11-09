@@ -11,8 +11,8 @@ struct LineView: View {
     /// A tag on the line was tapped: whoever holds the page filters it by that tag.
     var onFilter: ((String) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
-    @State private var editing = false
-    @State private var text = ""
+    /// The words while they are being changed; nil when they are not.
+    @State private var draft: String?
     @State private var viewing: PhotoOpening?
     @State private var picking = false
     @Namespace private var zoom
@@ -72,18 +72,18 @@ struct LineView: View {
                     AuthorLabel(author: entry.author, model: model)
                 }
 
-                if editing {
+                if draft != nil {
                     // The words stay where they are, at their size and spacing; the paper
                     // under them says they are being changed.
-                    WordsField(placeholder: "Words for this", text: $text, size: 20, lineSpacing: 5, focused: $focused) {
+                    WordsField(placeholder: "Words for this", text: $draft.orEmpty, size: 20, lineSpacing: 5, identifier: "line-words", focused: $focused) {
                         focused = false
                     }
                     .editingSurface()
                     .id("words")
                     .onChange(of: focused) { _, isFocused in
-                        if !isFocused {
-                            editing = false
-                            model.edit(entry.id, text: text)
+                        if !isFocused, let words = draft {
+                            draft = nil
+                            model.edit(entry.id, text: words)
                         }
                     }
                 } else if !entry.text.isEmpty {
@@ -96,8 +96,7 @@ struct LineView: View {
                 } else if entry.author == owner {
                     // A photo or voice without words: the place for them is visible, not hidden behind Edit.
                     Button {
-                        text = ""
-                        editing = true
+                        draft = ""
                         focused = true
                     } label: {
                         Text("Words for this")
@@ -184,7 +183,7 @@ struct LineView: View {
                     Button("Copy") { UIPasteboard.general.string = entry.text }
                     // Only the line's own author changes it or takes it away.
                     if entry.author == owner {
-                        Button("Edit") { text = entry.text; editing = true; focused = true }
+                        Button("Edit") { draft = entry.text; focused = true }
                         Button("Delete", role: .destructive) {
                             model.delete(entry.id)
                             dismiss()

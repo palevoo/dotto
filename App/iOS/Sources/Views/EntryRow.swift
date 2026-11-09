@@ -16,8 +16,8 @@ struct EntryRow: View {
     let onOpenPhoto: (PhotoOpening) -> Void
     /// The namespace the viewer's zoom transition finds the photo in.
     let zoom: Namespace.ID
-    @State private var editing = false
-    @State private var text = ""
+    /// The words while they are being changed here; nil when they are not.
+    @State private var draft: String?
     @State private var focused = false
 
     private var photos: [Media] { entry.media.filter { $0.mime.hasPrefix("image") } }
@@ -58,10 +58,10 @@ struct EntryRow: View {
                 ForEach(voices) { voice in
                     VoiceChip(hash: voice.hash, duration: voice.duration ?? 0, url: model.mediaURL(voice))
                 }
-                if editing {
+                if draft != nil {
                     // The words stay where they are, at their size and spacing, on paper.
                     // Return stores; so does a tap anywhere else, through the page.
-                    WordsField(placeholder: "Words for this", text: $text, focused: $focused) {
+                    WordsField(placeholder: "Words for this", text: $draft.orEmpty, identifier: "line-words", focused: $focused) {
                         finishEditing()
                     }
                     .editingSurface()
@@ -110,8 +110,7 @@ struct EntryRow: View {
         .contextMenu {
             if entry.author == model.store.manifest.owner {
                 Button("Edit", systemImage: "pencil") {
-                    text = entry.text
-                    editing = true
+                    draft = entry.text
                     editingRow = entry.id
                 }
                 Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
@@ -135,11 +134,11 @@ struct EntryRow: View {
 
     /// Stores the words and leaves the edit, whichever way it ended. Safe to call twice.
     private func finishEditing() {
-        guard editing else { return }
-        editing = false
+        guard let words = draft else { return }
+        draft = nil
         focused = false
         if editingRow == entry.id { editingRow = nil }
-        model.edit(entry.id, text: text)
+        model.edit(entry.id, text: words)
     }
 }
 

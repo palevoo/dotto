@@ -24,15 +24,31 @@ struct PageView: View {
     @Namespace private var zoom
     @State private var filter: String?
     @State private var revealed: ULID?
-    /// The line whose words are being changed on the page, if any.
-    @State private var editingRow: ULID?
+    /// Who has the keyboard on the page: nobody, the live line, or a line whose words are
+    /// being changed where they stand. One at a time; a tap anywhere else takes it back.
+    enum Keyboard: Equatable {
+        case none
+        case liveLine
+        case row(ULID)
+    }
+    @State private var keyboard: Keyboard = .none
     @State private var launch = Launch.shared
     /// A line a push named that the fold does not hold yet: Apple carries the push faster
     /// than iCloud carries the line it is about. Opened the moment the line arrives.
     @State private var awaitedLine: ULID?
     @State private var recorder = VoiceRecorder()
-    /// Whether the live line has the keyboard. Mirrors the field's first-responder status.
-    @State private var liveFocused = false
+
+    /// The live line's view of the keyboard: a field that mirrors its first-responder status.
+    private var liveFocused: Binding<Bool> {
+        Binding(get: { keyboard == .liveLine },
+                set: { has in if has { keyboard = .liveLine } else if keyboard == .liveLine { keyboard = .none } })
+    }
+
+    /// The rows' view of the keyboard: the line being edited, if any.
+    private var editingRow: Binding<ULID?> {
+        Binding(get: { if case .row(let id) = keyboard { return id }; return nil },
+                set: { id in if let id { keyboard = .row(id) } else if case .row = keyboard { keyboard = .none } })
+    }
 
     private var visibleDay: DayKey { position.viewID(type: DayKey.self) ?? model.today }
     private var awaitedArrived: Bool { awaitedLine.map { model.notebook.entry($0) != nil } ?? false }
@@ -55,7 +71,7 @@ struct PageView: View {
                                 model: model,
                                 isToday: filter == nil && day.key == model.today,
                                 revealed: revealed,
-                                editingRow: $editingRow,
+                                editingRow: editingRow,
                                 onOpen: { id in open { path.append(id) } },
                                 onOpenPhoto: { opening in open { viewing = opening } },
                                 zoom: zoom
@@ -101,7 +117,7 @@ struct PageView: View {
                 // keyboard lifts it and a push and pop can never lose it.
                 LiveLine(
                     model: model,
-                    focused: $liveFocused,
+                    focused: liveFocused,
                     recorder: recorder,
                     onReturn: { storeDraft() },
                     onCamera: { showCamera = true },
@@ -165,7 +181,7 @@ struct PageView: View {
                         await model.addPhoto(shot.data)
                         if let quote = shot.quote { model.addQuote(quote) }
                         Haptic.touch()
-                        liveFocused = true
+                        keyboard = .liveLine
                     }
                 }
             }
@@ -186,14 +202,14 @@ struct PageView: View {
                     }
                     picked = []
                     Haptic.touch()
-                    liveFocused = true
+                    keyboard = .liveLine
                 }
             }
             // Words wait in the line until Return, keyboard or not. Nothing else stores them.
             // Back on the page from a line or the inbox: a keyboard raised there has no field
             // here to belong to, so it goes.
             .onChange(of: path.count) { _, count in
-                guard count == 0, !liveFocused, editingRow == nil else { return }
+                guard count == 0, keyboard == .none else { return }
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
             // A press from outside: the Action button, a control, Siri. Back to the
@@ -205,7 +221,7 @@ struct PageView: View {
                 viewing = nil
                 showCalendar = false
                 switch request {
-                case .write: liveFocused = true
+                case .write: keyboard = .liveLine
                 case .photo: showCamera = true
                 case .speak: speak()
                 case .line(let raw):
@@ -245,17 +261,16 @@ struct PageView: View {
     /// With the keyboard up, the first tap anywhere on the page puts it away. Nothing opens
     /// until the next tap.
     private func open(_ action: () -> Void) {
-        if liveFocused || editingRow != nil {
+        if keyboard != .none {
             putKeyboardAway()
         } else {
             action()
         }
     }
 
-    /// Whichever field has the keyboard, the live line or a line being edited, lets it go.
+    /// Whoever has the keyboard, the live line or a line being edited, lets it go.
     private func putKeyboardAway() {
-        liveFocused = false
-        editingRow = nil
+        keyboard = .none
     }
 
     /// Stores the live line and settles the page on it, one short motion. A line stored on an
@@ -293,7 +308,7 @@ struct PageView: View {
 
     private func speak() {
         guard !recorder.isRecording else { return }
-        liveFocused = false
+        if keyboard == .liveLine { keyboard = .none }
         Haptic.touch()
         Task { await recorder.start() }
     }
@@ -305,7 +320,7 @@ struct PageView: View {
         Task {
             let transcript = await Voice.transcribe(take.fileURL)
             model.addVoice(fileURL: take.fileURL, duration: take.duration, transcript: transcript, startedAt: take.startedAt)
-            liveFocused = true
+            keyboard = .liveLine
         }
     }
 
@@ -531,7 +546,7 @@ struct LiveLine: View {
                     DraftMediaRow(model: model)
                 }
                 // Return stores; a pasted passage waits in the line like typed words.
-                WordsField(placeholder: "", text: $model.draftText, focused: $focused) { onReturn() }
+                WordsField(placeholder: "", text: $model.draftText, identifier: "live-line", focused: $focused) { onReturn() }
             }
             if recorder.isRecording, let started = recorder.startedAt {
                 Button(action: onStopSpeaking) {

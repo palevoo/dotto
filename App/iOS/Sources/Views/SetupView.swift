@@ -9,8 +9,8 @@ struct SetupView: View {
     @Bindable var model: NotebookModel
     let onRelocate: (URL) -> Void
     @State private var showMove = false
-    @State private var naming = false
-    @State private var newName = ""
+    /// The name while it is being chosen; nil when it is not.
+    @State private var newName: String?
     @State private var nameFocused = false
     @Environment(\.openURL) private var openURL
 
@@ -52,22 +52,22 @@ struct SetupView: View {
     private var you: some View {
         let name = model.notebook.name(of: model.store.manifest.owner)
         return Step("Name", done: name != nil) {
-            if naming {
-                WordsField(placeholder: "What you are called", text: $newName, focused: $nameFocused) {
+            if newName != nil {
+                WordsField(placeholder: "What you are called", text: $newName.orEmpty, focused: $nameFocused) {
                     nameFocused = false
                 }
                 .editingSurface()
                 .onChange(of: nameFocused) { _, isFocused in
-                    guard !isFocused else { return }
-                    naming = false
-                    model.chooseName(newName)
+                    guard !isFocused, let chosen = newName else { return }
+                    newName = nil
+                    model.chooseName(chosen)
                 }
             } else if let name {
                 Status("Called \(name) by anyone else who reads")
-                Action("Change it") { newName = name; naming = true; nameFocused = true }
+                Action("Change it") { newName = name; nameFocused = true }
             } else {
                 Status("No name yet. Anyone else who reads sees only your id")
-                Action("Choose a name") { newName = ""; naming = true; nameFocused = true }
+                Action("Choose a name") { newName = ""; nameFocused = true }
             }
         }
     }

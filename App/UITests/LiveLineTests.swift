@@ -14,7 +14,7 @@ final class LiveLineTests: XCTestCase {
         if keep.waitForExistence(timeout: 2) { keep.tap() }
     }
 
-    private var liveLine: XCUIElement { app.textViews.firstMatch }
+    private var liveLine: XCUIElement { app.textViews["live-line"] }
 
     /// The live line keeps its words between launches now, so a test that needs it empty
     /// first stores whatever an earlier run left in it.

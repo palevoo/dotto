@@ -20,11 +20,14 @@ struct WordsField: View {
     var size: CGFloat = 18
     var lineSpacing: CGFloat = 4
     var color: Color = Theme.foreground
+    /// What this field is, for assistive technology and the UI tests: "live-line", "line-words".
+    var identifier: String? = nil
     @Binding var focused: Bool
     let onCommit: () -> Void
 
     var body: some View {
-        WordsTextView(text: $text, size: size, lineSpacing: lineSpacing, color: color, focused: $focused, onCommit: onCommit)
+        WordsTextView(text: $text, size: size, lineSpacing: lineSpacing, color: color, identifier: identifier,
+                      focused: $focused, onCommit: onCommit)
             .background(alignment: .topLeading) {
                 if text.isEmpty, !placeholder.isEmpty {
                     Text(placeholder)
@@ -34,6 +37,13 @@ struct WordsField: View {
                         .allowsHitTesting(false)
                 }
             }
+    }
+}
+
+extension Binding where Value == String? {
+    /// Words while they are being changed: nil, no edit, reads as empty; writing sets them.
+    var orEmpty: Binding<String> {
+        Binding<String>(get: { wrappedValue ?? "" }, set: { wrappedValue = $0 })
     }
 }
 
@@ -53,6 +63,7 @@ private struct WordsTextView: UIViewRepresentable {
     let size: CGFloat
     let lineSpacing: CGFloat
     let color: Color
+    let identifier: String?
     @Binding var focused: Bool
     let onCommit: () -> Void
 
@@ -61,6 +72,7 @@ private struct WordsTextView: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextView {
         let view = UITextView()
         view.delegate = context.coordinator
+        view.accessibilityIdentifier = identifier
         view.backgroundColor = .clear
         view.textContainerInset = .zero
         view.textContainer.lineFragmentPadding = 0

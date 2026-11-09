@@ -43,8 +43,8 @@ struct Conversation: View {
 struct ReplyBlock: View {
     let note: Note
     @Bindable var model: NotebookModel
-    @State private var editing = false
-    @State private var text = ""
+    /// The words while they are being changed; nil when they are not.
+    @State private var draft: String?
     @State private var focused = false
 
     private var mine: Bool { note.author == model.store.manifest.owner }
@@ -62,11 +62,11 @@ struct ReplyBlock: View {
                         .foregroundStyle(Theme.faint)
                 }
             }
-            if editing {
-                WordsField(placeholder: "Reply", text: $text, size: 15, lineSpacing: 3, focused: $focused) { finish() }
+            if draft != nil {
+                WordsField(placeholder: "Reply", text: $draft.orEmpty, size: 15, lineSpacing: 3, focused: $focused) { finish() }
                     .editingSurface()
                     .onAppear { focused = true }
-                    .onChange(of: focused) { _, isFocused in if !isFocused, editing { finish() } }
+                    .onChange(of: focused) { _, isFocused in if !isFocused { finish() } }
             } else {
                 Text(note.text)
                     .font(Theme.serifSmall)
@@ -102,10 +102,7 @@ struct ReplyBlock: View {
         .contentShape(Rectangle())
         .contextMenu {
             if mine {
-                Button("Edit", systemImage: "pencil") {
-                    text = note.text
-                    editing = true
-                }
+                Button("Edit", systemImage: "pencil") { draft = note.text }
             }
             Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = note.text }
             Button(mine ? "Delete" : "Take it back", systemImage: "trash", role: .destructive) {
@@ -115,10 +112,10 @@ struct ReplyBlock: View {
     }
 
     private func finish() {
-        guard editing else { return }
-        editing = false
+        guard let words = draft else { return }
+        draft = nil
         focused = false
-        model.editNote(note, text: text)
+        model.editNote(note, text: words)
     }
 
     private func words(of line: ULID) -> String {
@@ -136,7 +133,7 @@ struct ReplyBar: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            WordsField(placeholder: "Reply", text: $text, size: 15, lineSpacing: 3, focused: $focused) {
+            WordsField(placeholder: "Reply", text: $text, size: 15, lineSpacing: 3, identifier: "reply", focused: $focused) {
                 let words = text
                 text = ""
                 withAnimation(Motion.settle) { model.reply(to: entry, text: words) }
