@@ -203,9 +203,9 @@ struct SetupView: View {
     private var presses: some View {
         Step("One press", done: false) {
             Status("Write, take a photo or speak without opening the app first")
-            Way("Action button", "Settings · Action Button · Controls · Margin")
-            Way("Lock screen and Control Center", "Hold, Add a Control, Margin")
-            Way("Siri", "“Write in Margin”, “Photo in Margin”, “Speak in Margin”")
+            Way("Action button", "Settings · Action Button · Controls · dotto")
+            Way("Lock screen and Control Center", "Hold, Add a Control, dotto")
+            Way("Siri", "“Write in dotto”, “Photo in dotto”, “Speak in dotto”")
         }
     }
 

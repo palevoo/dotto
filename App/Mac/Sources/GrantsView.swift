@@ -70,7 +70,7 @@ struct GrantsView: View {
                 Button("Change Folder…") { model.chooseFolder() }
                     .controlSize(.small)
             } else {
-                Text("Pick the folder that holds your notebook. Margin can see that folder and nothing else.")
+                Text("Pick the folder that holds your notebook. dotto can see that folder and nothing else.")
                     .font(MacTheme.body)
                     .foregroundStyle(MacTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)

@@ -62,7 +62,9 @@ public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
             for item in Self.content(of: object) {
                 switch item["type"] as? String {
                 case "tool_use":
-                    let name = (item["name"] as? String ?? "?").replacingOccurrences(of: "mcp__margin__", with: "")
+                    let name = (item["name"] as? String ?? "?")
+                        .replacingOccurrences(of: "mcp__dotto__", with: "")
+                        .replacingOccurrences(of: "mcp__margin__", with: "")
                     steps.append(ReaderStep(at: now, what: name, detail: Self.compact(item["input"])))
                 case "text":
                     let text = (item["text"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)

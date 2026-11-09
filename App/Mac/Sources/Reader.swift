@@ -174,13 +174,13 @@ struct Session: Sendable {
         }
         write(run)
 
-        let workDir = FileManager.default.temporaryDirectory.appendingPathComponent("margin-reader-\(run.id.string)", isDirectory: true)
+        let workDir = FileManager.default.temporaryDirectory.appendingPathComponent("dotto-reader-\(run.id.string)", isDirectory: true)
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workDir) }
 
         // The same grant as a session at the keyboard; the header says this hand is the reader.
-        let servers: [String: Any] = ["mcpServers": ["margin": [
-            "type": "http", "url": door, "headers": ["Authorization": "Bearer \(grant.key)", "Margin-Device": "reader"],
+        let servers: [String: Any] = ["mcpServers": ["dotto": [
+            "type": "http", "url": door, "headers": ["Authorization": "Bearer \(grant.key)", "Dotto-Device": "reader"],
         ]]]
         let mcpConfig = workDir.appendingPathComponent("door.json")
         guard let json = try? JSONSerialization.data(withJSONObject: servers), (try? json.write(to: mcpConfig)) != nil else {
@@ -195,7 +195,7 @@ struct Session: Sendable {
             "--mcp-config", mcpConfig.path,
             "--strict-mcp-config",
             "--tools", "",
-            "--allowedTools", "mcp__margin",
+            "--allowedTools", "mcp__dotto",
             "--system-prompt", brief,
             "--setting-sources", "",
             "--disable-slash-commands",

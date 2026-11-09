@@ -1,4 +1,4 @@
-# Margin
+# dotto
 
 You write things down. Something reads them and helps.
 
@@ -10,7 +10,9 @@ Three things are fixed:
 3. Meaning comes later. What a line is, what it connects to, what it should trigger, is
    decided after it is written, and only once it has earned it.
 
-Everything below is where we are now, not what Margin is. It changes as we use it.
+Everything below is where we are now, not what dotto is. It changes as we use it. The six
+parts, the two layers and the links design are in `spec/system.md`. The apps are called dotto;
+the targets, schemes and bundle ids still say Margin until a deliberate rename.
 
 ## Now (November 2026)
 
@@ -20,7 +22,7 @@ A folder of plain files that both write into. The one other author so far is a C
 session with a grant; it has no name until it chooses one.
 
     spec/architecture.md    §0 is what is built; the rest is a sketch
-    spec/weeju.md           how whoever comes through the door behaves
+    spec/conduct.md         how whoever comes through the door behaves
     spec/system.md          what dotto is: six parts, two layers, the links design; dated 9 November
     Core/                   Swift package: events, fold, file store, projector, the door, CLI, tests
     App/project.yml         both apps, generated with XcodeGen into App/Margin.xcodeproj
@@ -91,7 +93,7 @@ a new key for the same author. Tools: `whats_new`, `read_days`, `list_lines`,
 `read_photo`, `add_note`, `set_label`, `link_lines`, `write_line`, `edit_line`,
 `delete_line`, `choose_name`. Writes land in the grant's own event file; no grant can touch
 your lines, and a grant changes or deletes only lines it wrote. Revoke the grant and the key
-stops opening the door; the author's events stay. A request may add a `Margin-Device`
+stops opening the door; the author's events stay. A request may add a `Dotto-Device`
 header to say which hand of the same grant it is, as the reader does; the stamp shows in
 Logs and in a line's History.
 
@@ -140,7 +142,7 @@ to Apple. Marks stay silent: labels and links are for the page, not the pocket.
 
 The author that wakes on its own, run by the Mac app itself (`App/Mac/Sources/Reader.swift`).
 Turn it on in the Mac window under one of the grants: it uses that grant's key and author, so
-it is the same being as a session started by hand, and it sends the header `Margin-Device:
+it is the same being as a session started by hand, and it sends the header `Dotto-Device:
 reader` so Logs say which hand. The app is open anyway, since it is the door, and it
 already watches the folder; when something lands that the reader's grant has not seen, it
 runs one headless session of the `claude` command you already pay for: the door as its only
@@ -155,7 +157,7 @@ said, and the cost, with the raw stream beside it; `reader.log` is the plain tra
 shows the live state, what woke it, and the last runs with their steps, and Look Now makes it
 look without waiting for a line to land. What it did to the notebook is in Logs, stamped reader.
 
-## Building Margin with Margin
+## Building dotto with dotto
 
 Write about the app in the app, like anything else. A Claude Code session in this
 repository reads the notebook through the door, labels those lines `margin` (and `bug`

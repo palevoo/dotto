@@ -21,7 +21,7 @@ struct SpeakControl: ControlWidget {
             }
         }
         .displayName("Speak")
-        .description("Margin, listening.")
+        .description("dotto, listening.")
     }
 }
 
@@ -33,7 +33,7 @@ struct WriteControl: ControlWidget {
             }
         }
         .displayName("Write")
-        .description("Margin, with the line ready.")
+        .description("dotto, with the line ready.")
     }
 }
 
@@ -45,6 +45,6 @@ struct PhotoControl: ControlWidget {
             }
         }
         .displayName("Photo")
-        .description("Margin's camera.")
+        .description("dotto's camera.")
     }
 }

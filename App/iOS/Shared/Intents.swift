@@ -23,7 +23,7 @@ final class Launch {
 /// One press: the page, with the line ready and the keyboard up.
 struct WriteIntent: AppIntent {
     static let title: LocalizedStringResource = "Write"
-    static let description = IntentDescription("Opens Margin with the line ready.")
+    static let description = IntentDescription("Opens dotto with the line ready.")
     static let openAppWhenRun = true
 
     @MainActor
@@ -36,7 +36,7 @@ struct WriteIntent: AppIntent {
 /// One press: recording starts; the words land in the line when you stop.
 struct SpeakIntent: AppIntent {
     static let title: LocalizedStringResource = "Speak"
-    static let description = IntentDescription("Opens Margin and starts listening.")
+    static let description = IntentDescription("Opens dotto and starts listening.")
     static let openAppWhenRun = true
 
     @MainActor
@@ -49,7 +49,7 @@ struct SpeakIntent: AppIntent {
 /// One press: straight into the camera; the photo lands in the line.
 struct PhotoIntent: AppIntent {
     static let title: LocalizedStringResource = "Photo"
-    static let description = IntentDescription("Opens Margin's camera.")
+    static let description = IntentDescription("Opens dotto's camera.")
     static let openAppWhenRun = true
 
     @MainActor

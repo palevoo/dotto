@@ -93,10 +93,10 @@ struct CameraView: View {
                     }
                     if camera.denied {
                         VStack(spacing: 10) {
-                            Text("Margin has no camera permission.")
+                            Text("dotto has no camera permission.")
                                 .font(Theme.serifSmall)
                                 .foregroundStyle(Color.white.opacity(0.85))
-                            Text("Settings · Margin · Camera")
+                            Text("Settings · dotto · Camera")
                                 .font(Theme.mono)
                                 .foregroundStyle(Color.white.opacity(0.6))
                         }

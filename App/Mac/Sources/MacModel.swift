@@ -331,7 +331,7 @@ final class MacModel {
     /// Nil when this Mac does not hold the key.
     func connectCommand(for grant: Grant) -> String? {
         guard !grant.key.isEmpty else { return nil }
-        return "claude mcp add --transport http margin http://127.0.0.1:\(port ?? Self.defaultPort)/mcp --header \"Authorization: Bearer \(grant.key)\""
+        return "claude mcp add --transport http dotto http://127.0.0.1:\(port ?? Self.defaultPort)/mcp --header \"Authorization: Bearer \(grant.key)\""
     }
 
     // MARK: - Pushes
@@ -376,7 +376,7 @@ final class MacModel {
 
     /// One push to every phone, to see it arrive.
     func sendTestPush() {
-        push(APNS.Message(title: "Margin", body: "Pushes reach this phone."))
+        push(APNS.Message(title: "dotto", body: "Pushes reach this phone."))
     }
 
     /// Words written through the door go to the phone as a push: a note under a line, a line
@@ -384,14 +384,14 @@ final class MacModel {
     /// the page, not the pocket. The push is titled with the writer's name once it has one.
     nonisolated private func pushIfWords(_ event: Event) {
         Task { @MainActor in
-            let title = self.notebook?.name(of: event.author) ?? "Margin"
+            let title = self.notebook?.name(of: event.author) ?? "dotto"
             switch event.payload {
             case .noteAdd(let note):
                 self.push(APNS.Message(title: title, body: note.text, entry: note.entry))
             case .entryCreate(let line):
                 self.push(APNS.Message(title: title, body: line.text, entry: line.entry))
             case .nameSet(let chosen):
-                self.push(APNS.Message(title: "Margin", body: "Chose the name \(chosen.name)."))
+                self.push(APNS.Message(title: "dotto", body: "Chose the name \(chosen.name)."))
             default:
                 break
             }

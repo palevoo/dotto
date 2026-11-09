@@ -119,7 +119,7 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
 /// Every call reads the folder fresh and every write lands in the grant's own author file.
 public struct Door: Sendable {
     public static let protocolVersions = ["2025-06-18", "2025-03-26", "2024-11-05"]
-    public static let serverName = "Margin"
+    public static let serverName = "dotto"
     /// The commit the app serving the door was built from, when stamped.
     public static var serverVersion: String { Build.commit ?? "dev" }
 
@@ -560,7 +560,8 @@ public struct DoorRouter: Sendable {
         // One grant, several hands: the same author may come through from a session at the
         // keyboard or from the reader, and says which with a header, so Logs can tell them apart.
         var hand = grant
-        if let device = request.headers["margin-device"].map(Self.deviceName), !device.isEmpty {
+        // Dotto-Device is the header; Margin-Device is what builds before 9 November sent.
+        if let device = (request.headers["dotto-device"] ?? request.headers["margin-device"]).map(Self.deviceName), !device.isEmpty {
             hand.device = DeviceID(rawValue: device)
         }
         let door = Door(store: store, grant: hand, calendar: calendar, written: written)

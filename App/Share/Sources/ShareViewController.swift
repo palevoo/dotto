@@ -222,7 +222,7 @@ struct ShareView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { focused = true }
             } else {
-                Text("Open Margin once on this phone, then share.")
+                Text("Open dotto once on this phone, then share.")
                     .font(Theme.serifSmall)
                     .foregroundStyle(Theme.muted)
                     .padding(20)

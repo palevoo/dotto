@@ -43,7 +43,7 @@ targets:
     info:
       path: iOS/Sources/Info.plist
       properties:
-        CFBundleDisplayName: Margin
+        CFBundleDisplayName: dotto
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -64,8 +64,10 @@ targets:
     settings:
       groups: [signing]
       base:
-        # Kept from the first install so the notebook stored on the phone stays reachable.
-        # Changes to social.interface.margin once the notebook lives in iCloud Drive.
+        # The app is called dotto. The bundle id is kept from the first install so the notebook
+        # stored on the phone, the folder choice and the permissions stay; it changes only with a
+        # deliberate migration once the registers are checked.
+        PRODUCT_NAME: dotto
         PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook
         TARGETED_DEVICE_FAMILY: "1"
         ENABLE_USER_SCRIPT_SANDBOXING: false
@@ -83,7 +85,7 @@ targets:
     info:
       path: Controls/Info.plist
       properties:
-        CFBundleDisplayName: Margin
+        CFBundleDisplayName: dotto
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
@@ -107,7 +109,7 @@ targets:
     info:
       path: Share/Info.plist
       properties:
-        CFBundleDisplayName: Margin
+        CFBundleDisplayName: dotto
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
@@ -157,7 +159,7 @@ targets:
     info:
       path: Mac/Info.plist
       properties:
-        CFBundleDisplayName: Margin
+        CFBundleDisplayName: dotto
         LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: ""
         # The team the push key belongs to, for the claim Apple checks.
@@ -171,7 +173,9 @@ targets:
     settings:
       groups: [signing]
       base:
-        PRODUCT_NAME: Margin
+        # The app is called dotto; the bundle id stays until the registers are checked and a
+        # migration of the keychain and the folder choice is written, since a new id is a new app.
+        PRODUCT_NAME: dotto
         PRODUCT_BUNDLE_IDENTIFIER: social.interface.margin.mac
         ENABLE_HARDENED_RUNTIME: false
         ENABLE_USER_SCRIPT_SANDBOXING: false

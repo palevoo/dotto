@@ -178,7 +178,7 @@ the slice during the call and keeps nothing. Small things (labels, spotting a to
 use the on-device model; anything that thinks hard goes to a cloud model, and the person
 is told that in one sentence. The agent can be turned off per slice and writing continues.
 
-How it behaves is in `weeju.md`; what it does beyond that is decided from real lines.
+How it behaves is in `conduct.md`; what it does beyond that is decided from real lines.
 
 ## 6. Privacy, said plainly
 

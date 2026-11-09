@@ -53,7 +53,7 @@ final class DoorTests: XCTestCase {
         let initialized = try rpc("initialize", ["protocolVersion": "2025-03-26", "capabilities": [:], "clientInfo": ["name": "test"]])
         let result = initialized?["result"] as? [String: Any]
         XCTAssertEqual(result?["protocolVersion"] as? String, "2025-03-26")
-        XCTAssertEqual((result?["serverInfo"] as? [String: Any])?["name"] as? String, "Margin")
+        XCTAssertEqual((result?["serverInfo"] as? [String: Any])?["name"] as? String, "dotto")
 
         let tools = (try rpc("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
         XCTAssertEqual(tools?.map { $0["name"] as? String },
