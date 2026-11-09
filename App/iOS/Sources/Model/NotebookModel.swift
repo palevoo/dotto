@@ -3,23 +3,6 @@ import CoreLocation
 import Foundation
 import Observation
 
-/// Something that landed in the live line before it was stored.
-struct DraftMedia: Identifiable, Hashable, Codable {
-    let hash: String
-    let mime: String
-    let width: Int?
-    let height: Int?
-    let duration: Double?
-    /// When it happened: the shutter, or the start of the recording.
-    let at: Date
-    /// Where, if the photo knows.
-    var location: Location?
-    /// True for a photo brought in from the library rather than made here.
-    var fromBefore = false
-
-    var id: String { hash }
-}
-
 /// The app's one piece of state: the folder, its fold, and the line being written.
 @MainActor
 @Observable
@@ -31,25 +14,14 @@ final class NotebookModel {
     private(set) var notebook: Notebook
     private(set) var days: [Day] = []
 
-    /// The live line. Its time is fixed the moment the first character or the first photo lands.
-    /// Nothing stores it but Return; it is kept as it is typed, so a switch away, a tap
-    /// elsewhere or a relaunch finds the words still waiting.
-    var draftText = "" {
-        didSet { touchDraft() }
-    }
-    private(set) var draftMedia: [DraftMedia] = []
-    private(set) var draftStartedAt: Date?
-    /// Photos from before bring their own moment. The line can take it or keep now.
-    var draftKeepsPhotoMoment = false {
-        didSet { persistDraft() }
-    }
-
-    /// The live line as kept between launches.
-    private struct Draft: Codable {
-        var text: String
-        var media: [DraftMedia]
-        var startedAt: Date?
-        var keepsPhotoMoment: Bool
+    /// The live line, as Core keeps its rules. Nothing stores it but Return; it is written
+    /// down as it changes, so a switch away, a tap elsewhere or a relaunch finds the words
+    /// still waiting. The phone's place is asked for the moment the line begins.
+    private(set) var draft = Draft() {
+        didSet {
+            persistDraft()
+            if oldValue.begun == nil, draft.begun != nil { location.ask() }
+        }
     }
     private static let draftKey = "notebook.draft"
 
@@ -157,24 +129,23 @@ final class NotebookModel {
 
     var today: DayKey { DayKey(Date(), calendar: calendar) }
 
-    var draftIsEmpty: Bool { draftText.isEmpty && draftMedia.isEmpty }
+    // MARK: - The live line, as the page sees it
 
-    /// The moment the photos in the live line were taken, when they all come from one earlier
-    /// day. The earliest of them. Nil when nothing in the line is from before, or when the photos
-    /// are from different days.
-    var draftPhotoMoment: Date? {
-        let earlier = draftMedia.filter(\.fromBefore).map(\.at)
-        guard !earlier.isEmpty, let first = earlier.min() else { return nil }
-        let day = DayKey(first, calendar: calendar)
-        guard day != today, earlier.allSatisfy({ DayKey($0, calendar: calendar) == day }) else { return nil }
-        return first
+    /// The words in the live line. The field writes them; the draft fixes its moment.
+    var draftText: String {
+        get { draft.text }
+        set { draft.write(newValue, now: Date()) }
     }
+    var draftMedia: [DraftMedia] { draft.media }
+    var draftIsEmpty: Bool { draft.isEmpty }
+    /// Whether the line is stored at its photos' moment. Tapping the time toggles it.
+    var draftKeepsPhotoMoment: Bool { draft.keepsPhotoMoment }
+    /// The moment the photos in the line offer, when they all come from one earlier day.
+    var draftPhotoMoment: Date? { draft.photoMoment(now: Date(), calendar: calendar) }
+    /// The moment the line will be stored at: the photos' own, if kept, else when it began.
+    var draftMoment: Date? { draft.moment(now: Date(), calendar: calendar) }
 
-    /// The moment the line will be stored at: the photos' own, if chosen, else when writing began.
-    var draftMoment: Date? {
-        if draftKeepsPhotoMoment, let moment = draftPhotoMoment { return moment }
-        return draftStartedAt
-    }
+    func toggleDraftMoment() { draft.toggleMoment(now: Date(), calendar: calendar) }
 
     // MARK: - Reading
 
@@ -222,36 +193,21 @@ final class NotebookModel {
 
     // MARK: - The live line
 
-    private func touchDraft(at date: Date = Date()) {
-        if draftStartedAt == nil, !draftIsEmpty {
-            draftStartedAt = date
-            location.ask()
-        }
-        if draftIsEmpty {
-            draftStartedAt = nil
-        }
-        persistDraft()
-    }
-
     /// The live line, written down as it is: cheap, and the words survive anything short of Return.
     private func persistDraft() {
         let defaults = UserDefaults.standard
-        if draftIsEmpty {
+        if draft.isEmpty {
             defaults.removeObject(forKey: Self.draftKey)
             return
         }
-        let draft = Draft(text: draftText, media: draftMedia, startedAt: draftStartedAt, keepsPhotoMoment: draftKeepsPhotoMoment)
         if let data = try? JSONEncoder().encode(draft) { defaults.set(data, forKey: Self.draftKey) }
     }
 
     /// Whatever was in the live line when the app last went away.
     private func restoreDraft() {
         guard let data = UserDefaults.standard.data(forKey: Self.draftKey),
-              let draft = try? JSONDecoder().decode(Draft.self, from: data) else { return }
-        draftStartedAt = draft.startedAt
-        draftMedia = draft.media
-        draftKeepsPhotoMoment = draft.keepsPhotoMoment
-        draftText = draft.text
+              let kept = try? JSONDecoder().decode(Draft.self, from: data) else { return }
+        draft = kept
     }
 
     /// A photo lands in the live line. From the camera it is of this moment; from the library it
@@ -266,12 +222,10 @@ final class NotebookModel {
         do {
             let hash = try store.storeMedia(photo.jpeg, fileExtension: "jpg")
             Thumbs.save(photo.thumbnail, hash: hash)
-            let hadMoment = draftPhotoMoment != nil
-            draftMedia.append(DraftMedia(hash: hash, mime: "image/jpeg", width: photo.width, height: photo.height,
-                                         duration: nil, at: at, location: location, fromBefore: fromBefore))
-            touchDraft()
-            // The first photo from before offers its moment; the line takes it until told otherwise.
-            if !hadMoment, draftPhotoMoment != nil { draftKeepsPhotoMoment = true }
+            let now = Date()
+            draft.add(DraftMedia(hash: hash, mime: "image/jpeg", width: photo.width, height: photo.height,
+                                 at: at, location: location, fromBefore: fromBefore),
+                      beginning: now, now: now, calendar: calendar)
         } catch {
             NSLog("photo failed: \(error)")
         }
@@ -293,17 +247,11 @@ final class NotebookModel {
     /// A passage read off a page lands in the live line as its words, in quotation marks,
     /// after whatever is there already.
     func addQuote(_ passage: String) {
-        let words = passage.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ")
-        guard !words.isEmpty else { return }
-        let quoted = "\u{201C}\(words)\u{201D}"
-        draftText = draftText.isEmpty ? quoted : draftText + " " + quoted
-        touchDraft()
+        draft.append(passage, quoted: true, now: Date())
     }
 
     func removeDraftMedia(_ item: DraftMedia) {
-        draftMedia.removeAll { $0.id == item.id }
-        touchDraft()
-        if draftPhotoMoment == nil { draftKeepsPhotoMoment = false }
+        draft.remove(item.id, now: Date(), calendar: calendar)
     }
 
     /// Your reply under a line, yours or anyone's.
@@ -322,12 +270,10 @@ final class NotebookModel {
             let data = try Data(contentsOf: fileURL)
             let hash = try store.storeMedia(data, fileExtension: "m4a")
             try? FileManager.default.removeItem(at: fileURL)
-            draftMedia.append(DraftMedia(hash: hash, mime: "audio/mp4", width: nil, height: nil, duration: duration, at: startedAt))
-            touchDraft(at: startedAt)
-            let words = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !words.isEmpty {
-                draftText = draftText.isEmpty ? words : draftText + " " + words
-            }
+            let now = Date()
+            draft.add(DraftMedia(hash: hash, mime: "audio/mp4", duration: duration, at: startedAt),
+                      beginning: startedAt, now: now, calendar: calendar)
+            draft.append(transcript, now: now)
         } catch {
             NSLog("voice failed: \(error)")
         }
@@ -336,34 +282,11 @@ final class NotebookModel {
     /// Stores the live line as one entry. Returns its id, or nil if there was nothing to store.
     @discardableResult
     func commitDraft() -> ULID? {
-        let text = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let media = draftMedia
-        guard let startedAt = draftMoment, !text.isEmpty || !media.isEmpty else {
-            draftText = ""
-            draftMedia = []
-            draftKeepsPhotoMoment = false
-            return nil
-        }
-        let fromBefore = draftKeepsPhotoMoment && draftPhotoMoment != nil
-        let place = fromBefore ? media.first(where: { $0.fromBefore && $0.location != nil })?.location : location.last
-        let id = generator.next(at: startedAt)
-        let now = Date()
-        var events = [
-            Event(id: id, author: store.manifest.owner, device: device, at: now,
-                  payload: .entryCreate(.init(entry: id, text: text, startedAt: startedAt, location: place))),
-        ]
-        for item in media {
-            events.append(Event(
-                id: generator.next(at: now), author: store.manifest.owner, device: device, at: now,
-                payload: .mediaAttach(.init(entry: id, hash: item.hash, mime: item.mime, width: item.width, height: item.height, duration: item.duration))
-            ))
-        }
-        record(events)
-        draftText = ""
-        draftMedia = []
-        draftStartedAt = nil
-        draftKeepsPhotoMoment = false
-        return id
+        defer { draft = Draft() }
+        guard let stored = draft.stored(by: store.manifest.owner, on: device, here: location.last, ids: generator,
+                                        now: Date(), calendar: calendar) else { return nil }
+        record(stored.events)
+        return stored.id
     }
 
     // MARK: - Stored lines

@@ -538,7 +538,7 @@ struct LiveLine: View {
                 .onTapGesture {
                     guard offersMoment else { return }
                     Haptic.touch()
-                    withAnimation(Motion.settle) { model.draftKeepsPhotoMoment.toggle() }
+                    withAnimation(Motion.settle) { model.toggleDraftMoment() }
                 }
             }
             VStack(alignment: .leading, spacing: 10) {
