@@ -225,6 +225,7 @@ final class MacModel {
         syncLoops(store, notebook)
         for runner in runners.values { runner.wake(store) }
         pushAddresses = (try? store.pushAddresses()) ?? []
+        scheduleDuePushes(notebook)
         let days = notebook.days(calendar: .current)
         var text = "\(notebook.entries.count) lines over \(days.count) days"
         if let last = days.last?.key { text += " · last \(last)" }
@@ -436,6 +437,49 @@ final class MacModel {
                 outcome.ok ? "Sent to \(outcome.device.rawValue)." : "\(outcome.device.rawValue): \(outcome.reason ?? "refused")."
             }.joined(separator: " ")
         }
+    }
+
+    // MARK: - Due moments
+
+    private var dueTimers: [String: DispatchWorkItem] = [:]
+    private let dueSentKey = "margin.due.sent"
+
+    /// A fact is silent when it lands; a due moment speaks once, when it comes. For every
+    /// line of the owner's with a due moment still ahead and not done, a push at that moment
+    /// with the line's words. Rescheduled from the fold each time the folder changes, so a
+    /// moment moved or taken off never fires; what was sent is remembered across launches so
+    /// nothing fires twice. A moment already past when the Mac wakes is not sent late.
+    private func scheduleDuePushes(_ notebook: Notebook) {
+        for item in dueTimers.values { item.cancel() }
+        dueTimers = [:]
+        let now = Date()
+        var sent = Set(UserDefaults.standard.stringArray(forKey: dueSentKey) ?? [])
+        for entry in notebook.due(after: now) {
+            guard let due = entry.due else { continue }
+            let key = "\(entry.id)|\(Int(due.timeIntervalSince1970))"
+            guard !sent.contains(key) else { continue }
+            let item = DispatchWorkItem { [weak self] in
+                Task { @MainActor in
+                    guard let self else { return }
+                    var sent = Set(UserDefaults.standard.stringArray(forKey: self.dueSentKey) ?? [])
+                    guard sent.insert(key).inserted else { return }
+                    UserDefaults.standard.set(Array(sent), forKey: self.dueSentKey)
+                    self.dueTimers[key] = nil
+                    self.push(APNS.Message(title: "Due now", body: entry.text.isEmpty ? "a photo" : entry.text, entry: entry.id))
+                }
+            }
+            dueTimers[key] = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + due.timeIntervalSince(now), execute: item)
+        }
+        // What was sent is kept only while its moment is still in the notebook.
+        let alive = Set(notebook.entries.flatMap { entry in
+            entry.facts("due").compactMap { fact -> String? in
+                guard case .moment(let at) = fact.value else { return nil }
+                return "\(entry.id)|\(Int(at.timeIntervalSince1970))"
+            }
+        })
+        sent.formIntersection(alive)
+        UserDefaults.standard.set(Array(sent), forKey: dueSentKey)
     }
 
     // MARK: - Loops
