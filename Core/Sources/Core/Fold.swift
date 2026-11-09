@@ -145,11 +145,10 @@ public struct Entry: Hashable, Sendable, Identifiable {
     /// The id of the event that last set `text`, so an older edit arriving late cannot win.
     var lastTextEvent: ULID
 
-    /// Per label, the latest attach or detach seen, so order of arrival does not matter.
-    var labelMarks: [String: LabelMark] = [:]
+    /// Per label, the newest attach or detach seen, so order of arrival does not matter.
+    var labelMarks: [String: Newest<LabelMark>] = [:]
 
     struct LabelMark: Hashable, Sendable {
-        var id: ULID
         var on: Bool
         var author: Author
         var at: Date
@@ -260,8 +259,8 @@ public struct Notebook: Sendable {
     public let owner: Author
 
     private var table: [ULID: Entry] = [:]
-    /// Per author, the latest name chosen.
-    private var names: [Author: NameMark] = [:]
+    /// Per author, the newest name chosen.
+    private var names: [Author: Newest<String>] = [:]
     /// Everyone other than the owner who has left anything, in order of first appearance.
     public private(set) var others: [Author] = []
     /// Every grant the owner has opened, by id, revoked or not.
@@ -270,18 +269,13 @@ public struct Notebook: Sendable {
     private var revokedGrants: Set<ULID> = []
     /// Every loop the owner has set, by id, with its latest set and whether it was stopped after.
     private var loopMarks: [ULID: LoopMark] = [:]
-    /// The latest receipt per loop.
-    private var loopRuns: [ULID: LoopRun] = [:]
+    /// The newest receipt per loop.
+    private var loopRuns: [ULID: Newest<LoopRun>] = [:]
 
     private struct LoopMark: Hashable, Sendable {
         var loop: Loop
         /// The id of the latest stop, if any; the loop is off when it is newer than the set.
         var stoppedBy: ULID?
-    }
-
-    private struct NameMark: Hashable, Sendable {
-        let id: ULID
-        let name: String
     }
 
     private struct GrantMark: Hashable, Sendable {
@@ -292,10 +286,10 @@ public struct Notebook: Sendable {
     private var removedNotes: Set<ULID> = []
     /// Edits to notes not seen yet.
     private var pendingNoteEdits: [ULID: [Event]] = [:]
-    /// Per pair of ends, the latest link or unlink seen, so order of arrival does not matter.
-    private var linkMarks: [LinkPair: LinkMark] = [:]
-    /// Per line, the latest done or undone seen.
-    private var doneMarks: [ULID: DoneMark] = [:]
+    /// Per pair of ends, the newest link or unlink seen, so order of arrival does not matter.
+    private var linkMarks: [LinkPair: Newest<LinkMark>] = [:]
+    /// Per line, the newest done or undone seen.
+    private var doneMarks: [ULID: Newest<DoneMark>] = [:]
     /// Events about a thing not seen yet, by that thing's id: a line or a note.
     private var waiting: [ULID: [Event]] = [:]
     private var seen: Set<ULID> = []
@@ -306,14 +300,12 @@ public struct Notebook: Sendable {
     }
 
     private struct LinkMark: Hashable, Sendable {
-        let id: ULID
         let on: Bool
         let author: Author
         let at: Date
     }
 
     private struct DoneMark: Hashable, Sendable {
-        let id: ULID
         let on: Bool
         let by: ULID?
         let author: Author
@@ -415,9 +407,7 @@ public struct Notebook: Sendable {
         case .nameSet(let p):
             let name = p.name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !name.isEmpty else { return }
-            if names[event.author].map({ $0.id < event.id }) ?? true {
-                names[event.author] = NameMark(id: event.id, name: name)
-            }
+            names.mark(event.author, name, by: event.id)
             if event.author != owner { trace(event, "chose the name \(name)", entry: nil) }
 
         case .grantCreate(let p):
@@ -438,7 +428,7 @@ public struct Notebook: Sendable {
                 wake = .line
             }
             let loop = Loop(id: p.loop, setBy: event.id, name: p.name, grant: p.grant, wake: wake, brief: p.brief,
-                            turns: p.turns, budget: p.budget, createdAt: loopMarks[p.loop]?.loop.createdAt ?? event.at, lastRun: loopRuns[p.loop])
+                            turns: p.turns, budget: p.budget, createdAt: loopMarks[p.loop]?.loop.createdAt ?? event.at, lastRun: loopRuns[p.loop]?.value)
             loopMarks[p.loop] = LoopMark(loop: loop, stoppedBy: loopMarks[p.loop]?.stoppedBy)
 
         case .loopStop(let p):
@@ -454,8 +444,7 @@ public struct Notebook: Sendable {
         case .loopRan(let p):
             let run = LoopRun(id: event.id, loop: p.loop, author: event.author, ok: p.ok, turns: p.turns, cost: p.cost,
                               summary: p.summary, startedAt: p.startedAt, endedAt: p.endedAt)
-            if loopRuns[p.loop].map({ $0.id < event.id }) ?? true {
-                loopRuns[p.loop] = run
+            if loopRuns.mark(p.loop, run, by: event.id) {
                 loopMarks[p.loop]?.loop.lastRun = run
             }
             let name = loopMarks[p.loop]?.loop.name ?? "a loop"
@@ -506,12 +495,12 @@ public struct Notebook: Sendable {
 
     /// What an author is called, if they have chosen. Nobody is called anything until then.
     public func name(of author: Author) -> String? {
-        names[author]?.name
+        names[author]?.value
     }
 
     /// Every chosen name, by author id.
     public var chosenNames: [Author: String] {
-        names.mapValues(\.name)
+        names.mapValues(\.value)
     }
 
     /// Something done to one line: on the line's own trail and on the notebook's.
@@ -569,9 +558,7 @@ public struct Notebook: Sendable {
     private mutating func place(_ event: Event, from: ULID, to: ULID, on: Bool, saying: (String, String)? = nil) {
         guard from != to else { return }
         let pair = LinkPair(from: from, to: to)
-        if linkMarks[pair].map({ $0.id < event.id }) ?? true {
-            linkMarks[pair] = LinkMark(id: event.id, on: on, author: event.author, at: event.at)
-        }
+        linkMarks.mark(pair, LinkMark(on: on, author: event.author, at: event.at), by: event.id)
         guard let fromEnd = end(from) else { return waiting[from, default: []].append(event) }
         guard let toEnd = end(to) else { return waiting[to, default: []].append(event) }
         guard !fromEnd.entry.isDeleted, !toEnd.entry.isDeleted, toEnd.kind == .line, let mark = linkMarks[pair] else { return }
@@ -624,9 +611,7 @@ public struct Notebook: Sendable {
     /// for a line not seen yet. `quietly` leaves no record of its own, for the older shape
     /// where the link already recorded it.
     private mutating func finish(_ event: Event, entry id: ULID, by: ULID?, on: Bool, quietly: Bool = false) {
-        if doneMarks[id].map({ $0.id < event.id }) ?? true {
-            doneMarks[id] = DoneMark(id: event.id, on: on, by: by, author: event.author, at: event.at)
-        }
+        doneMarks.mark(id, DoneMark(on: on, by: by, author: event.author, at: event.at), by: event.id)
         guard var entry = table[id] else { return waiting[id, default: []].append(event) }
         guard !entry.isDeleted, let mark = doneMarks[id] else { return }
         if mark.on {
@@ -755,8 +740,7 @@ public struct Notebook: Sendable {
     private func mark(_ entry: inout Entry, label raw: String, on: Bool, by event: Event) -> String? {
         let label = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !label.isEmpty else { return nil }
-        if let existing = entry.labelMarks[label], existing.id > event.id { return label }
-        entry.labelMarks[label] = Entry.LabelMark(id: event.id, on: on, author: event.author, at: event.at)
+        entry.labelMarks.mark(label, Entry.LabelMark(on: on, author: event.author, at: event.at), by: event.id)
         return label
     }
 
