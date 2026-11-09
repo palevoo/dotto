@@ -63,6 +63,10 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case labelDetach = "label.detach"
     case linkAdd = "link.add"
     case linkRemove = "link.remove"
+    case link = "link"
+    case unlink = "unlink"
+    case done = "done"
+    case undone = "undone"
     case visit = "visit"
     case nameSet = "name.set"
     case grantCreate = "grant.create"
@@ -82,6 +86,10 @@ public enum Payload: Hashable, Sendable {
     case labelDetach(LabelDetach)
     case linkAdd(LinkAdd)
     case linkRemove(LinkRemove)
+    case link(Join)
+    case unlink(Unjoin)
+    case done(Done)
+    case undone(Undone)
     case visit(Visit)
     case nameSet(NameSet)
     case grantCreate(GrantCreate)
@@ -100,6 +108,10 @@ public enum Payload: Hashable, Sendable {
         case .labelDetach: .labelDetach
         case .linkAdd: .linkAdd
         case .linkRemove: .linkRemove
+        case .link: .link
+        case .unlink: .unlink
+        case .done: .done
+        case .undone: .undone
         case .visit: .visit
         case .nameSet: .nameSet
         case .grantCreate: .grantCreate
@@ -153,9 +165,52 @@ public enum Payload: Hashable, Sendable {
         public init(name: String) { self.name = name }
     }
 
-    /// An author joins a later line to an earlier one: the later continues the earlier and,
-    /// when `closes` is set, finishes what the earlier line opened. One link per pair of
-    /// lines; a newer add or remove for the same pair replaces an older one.
+    /// A link joins one thing to another by their ids, and that is all it is. What it means
+    /// comes from what its ends are: a line to an earlier line is a thread, a note to a line
+    /// is a citation, a line to a shape is belonging. One link per pair, from the thing that
+    /// points to the thing pointed at; a newer link or unlink for the same pair replaces an
+    /// older one. Since 9 November 2026; `link.add` and `link.remove` are the older shape.
+    public struct Join: Hashable, Codable, Sendable {
+        public var from: ULID
+        public var to: ULID
+
+        public init(from: ULID, to: ULID) {
+            self.from = from
+            self.to = to
+        }
+    }
+
+    public struct Unjoin: Hashable, Codable, Sendable {
+        public var from: ULID
+        public var to: ULID
+
+        public init(from: ULID, to: ULID) {
+            self.from = from
+            self.to = to
+        }
+    }
+
+    /// A line is finished. The first fact: state on the line, not a connection. `by` is the
+    /// line that finished it, when one did, as the evidence. The newest word on a line wins.
+    public struct Done: Hashable, Codable, Sendable {
+        public var entry: ULID
+        public var by: ULID?
+
+        public init(entry: ULID, by: ULID? = nil) {
+            self.entry = entry
+            self.by = by
+        }
+    }
+
+    public struct Undone: Hashable, Codable, Sendable {
+        public var entry: ULID
+
+        public init(entry: ULID) { self.entry = entry }
+    }
+
+    /// The older shape, 4 to 9 November: a later line joined to an earlier one, with `closes`
+    /// meaning the later finished the earlier. Folded as a link from later to earlier, and,
+    /// when closes is set, as done on the earlier line by the later.
     public struct LinkAdd: Hashable, Codable, Sendable {
         public var later: ULID
         public var earlier: ULID
@@ -381,6 +436,10 @@ extension Event: Codable {
         case .labelDetach: .labelDetach(try container.decode(Payload.LabelDetach.self, forKey: .payload))
         case .linkAdd: .linkAdd(try container.decode(Payload.LinkAdd.self, forKey: .payload))
         case .linkRemove: .linkRemove(try container.decode(Payload.LinkRemove.self, forKey: .payload))
+        case .link: .link(try container.decode(Payload.Join.self, forKey: .payload))
+        case .unlink: .unlink(try container.decode(Payload.Unjoin.self, forKey: .payload))
+        case .done: .done(try container.decode(Payload.Done.self, forKey: .payload))
+        case .undone: .undone(try container.decode(Payload.Undone.self, forKey: .payload))
         case .visit: .visit(try container.decode(Payload.Visit.self, forKey: .payload))
         case .nameSet: .nameSet(try container.decode(Payload.NameSet.self, forKey: .payload))
         case .grantCreate: .grantCreate(try container.decode(Payload.GrantCreate.self, forKey: .payload))
@@ -407,6 +466,10 @@ extension Event: Codable {
         case .labelDetach(let p): try container.encode(p, forKey: .payload)
         case .linkAdd(let p): try container.encode(p, forKey: .payload)
         case .linkRemove(let p): try container.encode(p, forKey: .payload)
+        case .link(let p): try container.encode(p, forKey: .payload)
+        case .unlink(let p): try container.encode(p, forKey: .payload)
+        case .done(let p): try container.encode(p, forKey: .payload)
+        case .undone(let p): try container.encode(p, forKey: .payload)
         case .visit(let p): try container.encode(p, forKey: .payload)
         case .nameSet(let p): try container.encode(p, forKey: .payload)
         case .grantCreate(let p): try container.encode(p, forKey: .payload)

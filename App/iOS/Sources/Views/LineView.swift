@@ -90,7 +90,7 @@ struct LineView: View {
                     Text(entry.text)
                         .font(.system(size: 20, design: .serif))
                         .foregroundStyle(Theme.foreground)
-                        .strikethrough(entry.closedBy != nil, color: Theme.muted)
+                        .strikethrough(entry.done != nil, color: Theme.muted)
                         .lineSpacing(5)
                         .textSelection(.enabled)
                 } else if entry.author == owner {
@@ -109,9 +109,10 @@ struct LineView: View {
 
                 // The thread: the lines this one is joined to, and, for your own lines, the way
                 // to join it to an earlier one yourself.
-                if !entry.earlier.isEmpty || !entry.later.isEmpty || entry.author == owner {
+                let threaded = !entry.carriesOn.isEmpty || !entry.carriedOnBy.isEmpty || !entry.citedBy.isEmpty || entry.done != nil
+                if threaded || entry.author == owner {
                     VStack(alignment: .leading, spacing: 10) {
-                        if !entry.earlier.isEmpty || !entry.later.isEmpty {
+                        if threaded {
                             ThreadList(entry: entry, model: model)
                         }
                         if entry.author == owner {

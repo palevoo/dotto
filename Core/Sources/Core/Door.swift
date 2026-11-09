@@ -162,9 +162,10 @@ public struct Door: Sendable {
 
         A note answers what a line asks, or says the one thing worth saying, in one line. Most \
         lines want nothing, and silence is never wrong. Never restate, never praise, never touch \
-        the owner's words. Labels are lower-case words for finding things later. A link says a \
-        later line carries on from an earlier one; closes says it finished what the earlier one \
-        opened, and the earlier line is struck through on the page. Your own page is for what you \
+        the owner's words. Labels are lower-case words for finding things later. A link joins a \
+        later line to an earlier one it carries on from; a note that speaks of a line cites it, \
+        and the page makes the citation a jump. mark_done says a line is finished, with the line \
+        that finished it when there is one, and the line is struck through. Your own page is for what you \
         noticed and chose not to say under a line, a structure forming, a question for the owner. \
         It is also simply yours: what you got wrong, what you don't follow, what you think, about \
         the notebook or not. Under your own lines it is a conversation; say what it takes.
@@ -181,7 +182,8 @@ public struct Door: Sendable {
         case readPhoto = "read_photo"
         case addNote = "add_note"
         case setLabel = "set_label"
-        case linkLines = "link_lines"
+        case link = "link"
+        case markDone = "mark_done"
         case writeLine = "write_line"
         case editLine = "edit_line"
         case deleteLine = "delete_line"
@@ -210,12 +212,16 @@ public struct Door: Sendable {
                         "inputSchema": ["type": "object", "properties": ["since": since, "label": label, "mine": mine]]]
             case .listLines:
                 return ["name": rawValue,
-                        "description": "One line per entry with its id, day, time, text, and labels. Use the id with add_note, set_label and link_lines. With mine=true, your own page.",
+                        "description": "One line per entry with its id, day, time, text, and labels. Use the id with add_note, set_label, link and mark_done. With mine=true, your own page.",
                         "inputSchema": ["type": "object", "properties": ["since": since, "label": label, "mine": mine]]]
             case .addNote:
                 return ["name": rawValue,
-                        "description": "A short note under a line, under your name: an answer to what it asks, or the one thing worth saying.",
-                        "inputSchema": ["type": "object", "properties": ["entry": entry, "text": ["type": "string"]], "required": ["entry", "text"]]]
+                        "description": "A short note under a line, under your name: an answer to what it asks, or the one thing worth saying. When the note speaks of other lines, cite them by id and the page makes each a jump.",
+                        "inputSchema": ["type": "object",
+                                        "properties": ["entry": entry, "text": ["type": "string"],
+                                                       "cites": ["type": "array", "items": ["type": "string"],
+                                                                 "description": "Ids of lines the note speaks of."]],
+                                        "required": ["entry", "text"]]]
             case .writeLine:
                 return ["name": rawValue,
                         "description": "A line of your own, on your own page: something noticed, a structure forming, a question for the owner. The owner reads it there and may reply under it.",
@@ -238,15 +244,22 @@ public struct Door: Sendable {
                         "inputSchema": ["type": "object",
                                         "properties": ["entry": entry, "label": ["type": "string"], "on": ["type": "boolean", "default": true]],
                                         "required": ["entry", "label"]]]
-            case .linkLines:
+            case .link:
                 return ["name": rawValue,
-                        "description": "Join a line to an earlier line it carries on from. With closes=true the later line finishes what the earlier one opened, and the earlier line is struck through. on=false takes the link back.",
+                        "description": "Join one thing to another: a later line to the earlier line it carries on from, or a note of yours to a line it speaks of. on=false takes the link back.",
                         "inputSchema": ["type": "object",
-                                        "properties": ["entry": ["type": "string", "description": "The later line's id."],
-                                                       "earlier": ["type": "string", "description": "The earlier line's id."],
-                                                       "closes": ["type": "boolean", "default": false],
+                                        "properties": ["from": ["type": "string", "description": "The id of the thing that points: the later line, or your note."],
+                                                       "to": ["type": "string", "description": "The id of the line pointed at."],
                                                        "on": ["type": "boolean", "default": true]],
-                                        "required": ["entry", "earlier"]]]
+                                        "required": ["from", "to"]]]
+            case .markDone:
+                return ["name": rawValue,
+                        "description": "Say a line is finished, and by which later line when there is one; the line is struck through on the page. on=false takes it back.",
+                        "inputSchema": ["type": "object",
+                                        "properties": ["entry": entry,
+                                                       "by": ["type": "string", "description": "The id of the line that finished it, if one did."],
+                                                       "on": ["type": "boolean", "default": true]],
+                                        "required": ["entry"]]]
             }
         }
     }
@@ -254,6 +267,7 @@ public struct Door: Sendable {
     public enum Failure: Error, CustomStringConvertible {
         case notAllowed(String)
         case noSuchLine(String)
+        case noSuchThing(String)
         case noSuchPhoto(String)
         case missing(String)
         case unknownTool(String)
@@ -264,6 +278,7 @@ public struct Door: Sendable {
             switch self {
             case .notAllowed(let what): "This grant may not \(what)."
             case .noSuchLine(let id): "No line with id \(id)."
+            case .noSuchThing(let id): "No line or note of yours with id \(id)."
             case .noSuchPhoto(let id): "No photo on line \(id), or its file is not on this Mac yet."
             case .missing(let field): "Missing \(field)."
             case .unknownTool(let name): "No tool named \(name)."
@@ -378,8 +393,8 @@ public struct Door: Sendable {
                     var tail: [String] = []
                     if !entry.media.isEmpty { tail.append("[\(entry.media.count) media]") }
                     if !entry.notes.isEmpty { tail.append("[\(entry.notes.count) notes]") }
-                    if !entry.earlier.isEmpty { tail.append("[continues \(entry.earlier.map(\.earlier.string).joined(separator: " "))]") }
-                    if let closed = entry.closedBy { tail.append("[done by \(closed.later)]") }
+                    if !entry.carriesOn.isEmpty { tail.append("[continues \(entry.carriesOn.map(\.to.string).joined(separator: " "))]") }
+                    if let done = entry.done { tail.append(done.by.map { "[done by \($0)]" } ?? "[done]") }
                     tail.append(contentsOf: entry.labels.map { "#\($0)" })
                     lines.append("\(entry.id)  \(day.key) \(Projector.time(entry.startedAt, calendar: calendar))  \(text)\(tail.isEmpty ? "" : "  " + tail.joined(separator: " "))")
                 }
@@ -392,11 +407,20 @@ public struct Door: Sendable {
             guard let text = (arguments["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
                 throw Failure.missing("text")
             }
+            // The lines the note speaks of, checked before anything is written.
+            let cited = try ((arguments["cites"] as? [Any]) ?? []).map { raw -> ULID in
+                guard let text = raw as? String, let id = ULID(text), notebook.entry(id) != nil else { throw Failure.noSuchLine("\(raw)") }
+                return id
+            }
             let now = Date()
             let id = generator.next(at: now)
             try write(Event(id: id, author: grant.author, device: grant.device, at: now,
                             payload: .noteAdd(.init(entry: entry, note: id, text: text))))
-            return .text("Noted under \(entry).")
+            for line in cited where line != entry {
+                try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
+                                payload: .link(.init(from: id, to: line))))
+            }
+            return .text(cited.isEmpty ? "Noted under \(entry)." : "Noted under \(entry), citing \(cited.count) line\(cited.count == 1 ? "" : "s").")
 
         case .setLabel:
             guard grant.writesLabels else { throw Failure.notAllowed("write labels") }
@@ -412,20 +436,36 @@ public struct Door: Sendable {
             try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
             return .text("\(on ? "Filed" : "Unfiled") \(entry) \(on ? "under" : "from") #\(label).")
 
-        case .linkLines:
+        case .link:
             guard grant.writesLinks else { throw Failure.notAllowed("write links") }
-            let later = try line(arguments, in: notebook)
-            let earlier = try line(arguments, key: "earlier", in: notebook)
-            let (a, b) = (notebook.entry(earlier)!, notebook.entry(later)!)
-            guard (a.startedAt, a.id) < (b.startedAt, b.id) else { throw Failure.notEarlier(earlier.string) }
-            let closes = arguments["closes"] as? Bool ?? false
+            let to = try line(arguments, key: "to", in: notebook)
+            guard let raw = arguments["from"] as? String else { throw Failure.missing("from") }
+            guard let from = ULID(raw) else { throw Failure.noSuchThing(raw) }
+            let target = notebook.entry(to)!
+            if let later = notebook.entry(from) {
+                // A line carries on only from one that started before it.
+                guard (target.startedAt, target.id) < (later.startedAt, later.id) else { throw Failure.notEarlier(to.string) }
+            } else if let (note, _) = notebook.note(from) {
+                // A note cites a line; only the note's own author speaks through it.
+                guard note.author == grant.author else { throw Failure.notAllowed("link from a note that is not its own") }
+            } else {
+                throw Failure.noSuchThing(raw)
+            }
             let on = arguments["on"] as? Bool ?? true
             let now = Date()
-            let payload: Payload = on
-                ? .linkAdd(.init(later: later, earlier: earlier, closes: closes))
-                : .linkRemove(.init(later: later, earlier: earlier))
+            let payload: Payload = on ? .link(.init(from: from, to: to)) : .unlink(.init(from: from, to: to))
             try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
-            return .text(on ? "Linked \(later) back to \(earlier)\(closes ? ", closing it" : "")." : "Unlinked \(later) from \(earlier).")
+            return .text(on ? "Linked \(from) to \(to)." : "Unlinked \(from) from \(to).")
+
+        case .markDone:
+            guard grant.writesLinks else { throw Failure.notAllowed("write links") }
+            let entry = try line(arguments, in: notebook)
+            let by = try (arguments["by"] as? String).map { _ in try line(arguments, key: "by", in: notebook) }
+            let on = arguments["on"] as? Bool ?? true
+            let now = Date()
+            let payload: Payload = on ? .done(.init(entry: entry, by: by)) : .undone(.init(entry: entry))
+            try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
+            return .text(on ? "Marked \(entry) done\(by.map { " by \($0)" } ?? "")." : "Took done back from \(entry).")
 
         case .writeLine:
             guard grant.writesLines else { throw Failure.notAllowed("write lines of its own") }

@@ -74,6 +74,29 @@ struct ReplyBlock: View {
                     .lineSpacing(3)
                     .textSelection(.enabled)
             }
+            if !note.cites.isEmpty {
+                // The lines the note speaks of, each a jump: its day and first words.
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(note.cites) { link in
+                        NavigationLink(value: link.to) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text(Format.shortDay(link.toAt, calendar: model.calendar))
+                                    .font(Theme.mono)
+                                    .foregroundStyle(Theme.muted)
+                                Text(words(of: link.to))
+                                    .font(Theme.sansSmall)
+                                    .foregroundStyle(Theme.ink(for: note.author, owner: model.store.manifest.owner))
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("cite-\(link.to.string)")
+                    }
+                }
+                .padding(.top, 2)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
@@ -96,6 +119,11 @@ struct ReplyBlock: View {
         editing = false
         focused = false
         model.editNote(note, text: text)
+    }
+
+    private func words(of line: ULID) -> String {
+        let text = model.notebook.entry(line)?.text.replacingOccurrences(of: "\n", with: " ") ?? ""
+        return text.isEmpty ? "a photo" : text
     }
 }
 
@@ -126,25 +154,32 @@ struct ReplyBar: View {
     }
 }
 
-/// The lines this one is joined to, as a plain list: each by its day and first words, and
-/// "done" where the link says so. Tap one to go there; hold one to take the link back.
+/// What this line is joined to, as a plain list, grouped: the thread back and forward, done,
+/// and the notes that cite it, each by its day and first words. Tap one to go there; hold
+/// one to take it back.
 struct ThreadList: View {
     let entry: Entry
     @Bindable var model: NotebookModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(entry.earlier) { link in
-                row(link, other: link.earlier, label: "from", mark: link.closes ? "done by this line" : nil)
+            ForEach(entry.carriesOn) { link in
+                row(link, other: link.toEntry, label: "from")
             }
-            ForEach(entry.later) { link in
-                row(link, other: link.later, label: "on to", mark: link.closes ? "done" : nil)
+            ForEach(entry.carriedOnBy) { link in
+                row(link, other: link.fromEntry, label: "on to")
+            }
+            if let done = entry.done {
+                doneRow(done)
+            }
+            ForEach(entry.citedBy) { link in
+                row(link, other: link.fromEntry, label: "cited")
             }
         }
     }
 
     @ViewBuilder
-    private func row(_ link: Core.Link, other id: ULID, label: String, mark: String?) -> some View {
+    private func row(_ link: Core.Link, other id: ULID, label: String) -> some View {
         if let other = model.notebook.entry(id) {
             NavigationLink(value: other.id) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -160,12 +195,6 @@ struct ThreadList: View {
                         .foregroundStyle(Theme.foreground)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    if let mark {
-                        Text(mark)
-                            .font(Theme.mono)
-                            .foregroundStyle(Theme.accent)
-                            .fixedSize()
-                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -175,6 +204,44 @@ struct ThreadList: View {
                 Button("Take the link back", systemImage: "minus.circle", role: .destructive) {
                     withAnimation(Motion.settle) { model.unlink(link) }
                 }
+            }
+        }
+    }
+
+    /// Finished, and by which line when one did. Hold to open the line again.
+    @ViewBuilder
+    private func doneRow(_ done: Done) -> some View {
+        let by = done.by.flatMap { model.notebook.entry($0) }
+        let content = HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("done")
+                .font(Theme.mono)
+                .foregroundStyle(Theme.accent)
+                .frame(width: 44, alignment: .leading)
+            if let by {
+                Text(Format.shortDay(by.startedAt, calendar: model.calendar))
+                    .font(Theme.mono)
+                    .foregroundStyle(Theme.muted)
+                Text(by.text.isEmpty ? "a photo" : by.text)
+                    .font(Theme.sansSmall)
+                    .foregroundStyle(Theme.foreground)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            } else {
+                Who(author: done.author, model: model)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        Group {
+            if let by {
+                NavigationLink(value: by.id) { content }.buttonStyle(.plain)
+            } else {
+                content
+            }
+        }
+        .contextMenu {
+            Button("Open it again", systemImage: "arrow.uturn.backward", role: .destructive) {
+                withAnimation(Motion.settle) { model.undone(entry.id) }
             }
         }
     }
@@ -189,7 +256,7 @@ struct EarlierPicker: View {
     @State private var search = ""
 
     private var candidates: [Entry] {
-        let joined = Set(entry.earlier.map(\.earlier))
+        let joined = Set(entry.carriesOn.map(\.to))
         let before = model.notebook.entries
             .filter { line in (line.startedAt, line.id) < (entry.startedAt, entry.id) && !joined.contains(line.id) }
             .reversed()

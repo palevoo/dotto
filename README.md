@@ -69,8 +69,9 @@ command in the Core package does that from a terminal:
     .build/debug/notebook add <folder> "words" --author <id>  a line on that author's page
     .build/debug/notebook label <folder> <entry-id> margin --author <id>
     .build/debug/notebook note <folder> <entry-id> "shipped" --author <id>
-    .build/debug/notebook link <folder> <later-id> <earlier-id> [--closes] --author <id>
-                                                              the later line carries on from the earlier
+    .build/debug/notebook link <folder> <from-id> <to-id> --author <id>
+                                                              a later line to the earlier one it carries on from, or a note to a line
+    .build/debug/notebook done <folder> <entry-id> [--by <id>] --author <id>   the line is finished
     .build/debug/notebook name <folder> Moss --author <id>    what that author is called from now on
     .build/debug/notebook show <folder>                       the fold, as day pages
 
@@ -90,7 +91,7 @@ and stays the same being; a key can also be handed to another author after the f
 grants are in the folder, every device knows the same ones and any could serve the door.
 The keys themselves stay in the Mac's keychain, for the Copy button; lose them and you issue
 a new key for the same author. Tools: `whats_new`, `read_days`, `list_lines`,
-`read_photo`, `add_note`, `set_label`, `link_lines`, `write_line`, `edit_line`,
+`read_photo`, `add_note`, `set_label`, `link`, `mark_done`, `write_line`, `edit_line`,
 `delete_line`, `choose_name`. Writes land in the grant's own event file; no grant can touch
 your lines, and a grant changes or deletes only lines it wrote. Revoke the grant and the key
 stops opening the door; the author's events stay. A request may add a `Dotto-Device`
@@ -118,11 +119,13 @@ up its page, reached from the calendar sheet; you reply under them as under your
 reads your replies with `mine=true`. It chooses what it is called when it wants to, and the
 name stands beside everything it does from then on. Until then it is only a mark.
 
-A link joins a later line to an earlier one it carries on from: the same plant, book or
-errand, written days apart. When the later line finishes what the earlier one asked for,
-the link says so and the earlier line is struck through on the page. A line's own page
-lists its thread; hold a row there to take the link back, or join the line to an earlier
-one of yours with "Carries on from…".
+A link joins one thing to another by their ids, and that is all it is. A later line to an
+earlier one it carries on from is a thread: the same plant, book or errand, written days
+apart. A note to a line it speaks of is a citation, and the page makes it a jump. Finishing
+is not a link but a state: `mark_done` says a line is finished, by which later line when one
+did, and the line is struck through. On the page a linked line gets one quiet row, like
+replies; a line's own page lists its thread, done, and the notes that cite it. Hold a row
+there to take it back, or join the line to an earlier one of yours with "Carries on from…".
 
 Replies under a line show on the page as one quiet line, the latest reply's words with a
 count before it. The line's page holds the conversation, with the place to reply pinned at

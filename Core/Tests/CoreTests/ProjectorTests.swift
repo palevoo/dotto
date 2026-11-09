@@ -76,7 +76,7 @@ final class ProjectorTests: XCTestCase {
         ])
         let days = notebook.days(calendar: lisbon)
         XCTAssertTrue(Projector.markdown(for: days[0], calendar: lisbon).contains("\n_done by 2026-11-04 09:15_\n"))
-        XCTAssertTrue(Projector.markdown(for: days[1], calendar: lisbon).hasSuffix("Rendered the wall.\n\n_closes 2026-11-02 09:14_\n"))
+        XCTAssertTrue(Projector.markdown(for: days[1], calendar: lisbon).hasSuffix("Rendered the wall.\n\n_continues 2026-11-02 09:14_\n"))
     }
 
     func testWriteCreatesAndPrunesDayFiles() throws {

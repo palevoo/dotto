@@ -222,56 +222,126 @@ final class FoldTests: XCTestCase {
         XCTAssertEqual(notebook.entry(id)?.labels, [])
     }
 
-    /// Two lines about one plant, three days apart. The reader joins them afterwards.
+    /// Two lines about one plant, three days apart. The reader joins them afterwards, and
+    /// says the later one finished the earlier.
     func testLinksRunFromALaterLineToAnEarlierOne() {
         let pot = ULID(timestamp: clock), potted = ULID(timestamp: clock.addingTimeInterval(86_400 * 2))
         var notebook = Notebook(owner: me)
         notebook.apply(event(.entryCreate(.init(entry: pot, text: "Need to plant this baby into a pot", startedAt: clock))))
         notebook.apply(event(.entryCreate(.init(entry: potted, text: "Potted the baby", startedAt: clock.addingTimeInterval(86_400 * 2)))))
-        notebook.apply(event(.linkAdd(.init(later: potted, earlier: pot, closes: true)), author: .weeju, device: mac))
+        notebook.apply(event(.link(.init(from: potted, to: pot)), author: .weeju, device: mac))
+        notebook.apply(event(.done(.init(entry: pot, by: potted)), author: .weeju, device: mac))
 
-        XCTAssertEqual(notebook.entry(potted)?.earlier.map(\.earlier), [pot])
-        XCTAssertEqual(notebook.entry(pot)?.later.map(\.later), [potted])
-        XCTAssertEqual(notebook.entry(pot)?.closedBy?.later, potted)
-        XCTAssertNil(notebook.entry(potted)?.closedBy)
-        XCTAssertEqual(notebook.entry(potted)?.activity.map(\.what), ["closed an earlier line with this"])
-        XCTAssertEqual(notebook.entry(pot)?.activity.map(\.what), ["marked this done by a later line"])
-        XCTAssertEqual(notebook.trail.map(\.what), ["closed an earlier line with this"])
+        XCTAssertEqual(notebook.entry(potted)?.carriesOn.map(\.to), [pot])
+        XCTAssertEqual(notebook.entry(pot)?.carriedOnBy.map(\.from), [potted])
+        XCTAssertEqual(notebook.entry(pot)?.carriedOnBy.first?.fromKind, .line)
+        XCTAssertEqual(notebook.entry(pot)?.done?.by, potted)
+        XCTAssertEqual(notebook.entry(pot)?.done?.byAt, notebook.entry(potted)?.startedAt)
+        XCTAssertEqual(notebook.entry(pot)?.done?.author, .weeju)
+        XCTAssertNil(notebook.entry(potted)?.done)
+        XCTAssertEqual(notebook.entry(potted)?.activity.map(\.what), ["linked this to an earlier line"])
+        XCTAssertEqual(notebook.entry(pot)?.activity.map(\.what), ["linked a later line to this", "marked this done by a later line"])
+        XCTAssertEqual(notebook.trail.map(\.what), ["linked this to an earlier line", "marked this done by a later line"])
         XCTAssertEqual(notebook.trail.first?.entry, potted)
 
         // The wrong way round, and to itself: nothing.
-        notebook.apply(event(.linkAdd(.init(later: pot, earlier: potted)), author: .weeju))
-        notebook.apply(event(.linkAdd(.init(later: pot, earlier: pot)), author: .weeju))
-        XCTAssertEqual(notebook.entry(pot)?.earlier, [])
-        XCTAssertEqual(notebook.entry(potted)?.later, [])
+        notebook.apply(event(.link(.init(from: pot, to: potted)), author: .weeju))
+        notebook.apply(event(.link(.init(from: pot, to: pot)), author: .weeju))
+        XCTAssertEqual(notebook.entry(pot)?.carriesOn, [])
+        XCTAssertEqual(notebook.entry(potted)?.carriedOnBy, [])
+    }
+
+    /// The older shape, link.add with closes, says two things in one event: a link, and the
+    /// earlier line finished. It folds into both and is recorded once, in its own words.
+    func testTheOlderLinkShapeStillFolds() {
+        let pot = ULID(timestamp: clock), potted = ULID(timestamp: clock.addingTimeInterval(86_400 * 2))
+        var notebook = Notebook(owner: me)
+        notebook.apply(event(.entryCreate(.init(entry: pot, text: "pot", startedAt: clock))))
+        notebook.apply(event(.entryCreate(.init(entry: potted, text: "potted", startedAt: clock.addingTimeInterval(86_400 * 2)))))
+        notebook.apply(event(.linkAdd(.init(later: potted, earlier: pot, closes: true)), author: .weeju, device: mac))
+        XCTAssertEqual(notebook.entry(potted)?.carriesOn.map(\.to), [pot])
+        XCTAssertEqual(notebook.entry(pot)?.done?.by, potted)
+        XCTAssertEqual(notebook.entry(potted)?.activity.map(\.what), ["closed an earlier line with this"])
+        XCTAssertEqual(notebook.entry(pot)?.activity.map(\.what), ["marked this done by a later line"])
+        XCTAssertEqual(notebook.trail.map(\.what), ["closed an earlier line with this"])
+
+        // Taking the old link back takes the finishing back with it.
+        notebook.apply(event(.linkRemove(.init(later: potted, earlier: pot)), author: "me"))
+        XCTAssertEqual(notebook.entry(potted)?.carriesOn, [])
+        XCTAssertNil(notebook.entry(pot)?.done)
     }
 
     func testLinksAreOrderIndependentAndWaitForTheirLines() {
         let pot = ULID(timestamp: clock), potted = ULID(timestamp: clock.addingTimeInterval(3600))
         let createPot = event(.entryCreate(.init(entry: pot, text: "pot", startedAt: clock)))
         let createPotted = event(.entryCreate(.init(entry: potted, text: "potted", startedAt: clock.addingTimeInterval(3600))))
-        let add = event(.linkAdd(.init(later: potted, earlier: pot)), author: .weeju)
-        let close = event(.linkAdd(.init(later: potted, earlier: pot, closes: true)), author: .weeju)
-        let remove = event(.linkRemove(.init(later: potted, earlier: pot)), author: "me")
+        let add = event(.link(.init(from: potted, to: pot)), author: .weeju)
+        let again = event(.link(.init(from: potted, to: pot)), author: .weeju)
+        let remove = event(.unlink(.init(from: potted, to: pot)), author: "me")
 
         // The link arrives before either line exists; the newest word on the pair wins whatever the order.
         var notebook = Notebook(owner: me)
-        notebook.apply(close)
+        notebook.apply(again)
         notebook.apply(add)
         notebook.apply(createPotted)
         notebook.apply(createPot)
-        XCTAssertEqual(notebook.entry(pot)?.later.map(\.closes), [true])
-        XCTAssertEqual(notebook.entry(potted)?.earlier.map(\.id), [close.id])
+        XCTAssertEqual(notebook.entry(pot)?.carriedOnBy.map(\.id), [again.id])
+        XCTAssertEqual(notebook.entry(potted)?.carriesOn.map(\.id), [again.id])
 
-        let forward = Notebook(owner: me, events: [createPot, createPotted, add, close])
+        let forward = Notebook(owner: me, events: [createPot, createPotted, add, again])
         XCTAssertEqual(forward.entries, notebook.entries)
 
-        // The owner takes it back: the remove is newest, so an older add arriving late cannot bring it back.
+        // The owner takes it back: the remove is newest, so an older link arriving late cannot bring it back.
         var taken = Notebook(owner: me, events: [createPot, createPotted, remove])
-        taken.apply(close)
-        XCTAssertEqual(taken.entry(pot)?.later, [])
-        XCTAssertEqual(taken.entry(potted)?.earlier, [])
-        XCTAssertEqual(taken.entry(potted)?.activity.map(\.what), ["closed an earlier line with this", "took a link back"])
+        taken.apply(again)
+        XCTAssertEqual(taken.entry(pot)?.carriedOnBy, [])
+        XCTAssertEqual(taken.entry(potted)?.carriesOn, [])
+        XCTAssertEqual(taken.entry(potted)?.activity.map(\.what), ["linked this to an earlier line", "took a link back"])
+    }
+
+    /// Done is state on the line: the newest word wins, it waits for a line not seen yet, and
+    /// it does not need a line that finished it.
+    func testDoneIsStateOnTheLine() {
+        let tv = ULID(timestamp: clock)
+        let create = event(.entryCreate(.init(entry: tv, text: "Sell the office TV", startedAt: clock)))
+        let done = event(.done(.init(entry: tv)), author: .weeju)
+        let undone = event(.undone(.init(entry: tv)), author: "me")
+
+        var notebook = Notebook(owner: me, events: [create])
+        notebook.apply(undone)
+        notebook.apply(done)
+        XCTAssertNil(notebook.entry(tv)?.done)
+        XCTAssertEqual(notebook.entry(tv)?.activity.map(\.what), ["marked this done", "took done back"])
+
+        var late = Notebook(owner: me)
+        late.apply(done)
+        late.apply(create)
+        XCTAssertEqual(late.entry(tv)?.done?.id, done.id)
+        XCTAssertNil(late.entry(tv)?.done?.by)
+    }
+
+    /// A note under one line speaks of another: a citation, a link from the note to the line.
+    func testANoteCitesALine() {
+        let quote = ULID(timestamp: clock), hamming = ULID(timestamp: clock.addingTimeInterval(86_400 * 4))
+        var notebook = Notebook(owner: me)
+        notebook.apply(event(.entryCreate(.init(entry: quote, text: "Empiricists stigmatised bold conjecture", startedAt: clock))))
+        notebook.apply(event(.entryCreate(.init(entry: hamming, text: "I ain't scared of nothing, Shannon", startedAt: clock.addingTimeInterval(86_400 * 4)))))
+        let noteID = ULID(timestamp: clock.addingTimeInterval(86_400 * 4 + 60))
+        // The citation may reach a device before the note it belongs to.
+        notebook.apply(event(.link(.init(from: noteID, to: quote)), author: .weeju))
+        notebook.apply(event(.noteAdd(.init(entry: hamming, note: noteID, text: "Your quote of the 5th says the same.")), author: .weeju))
+
+        XCTAssertEqual(notebook.entry(hamming)?.notes.first?.cites.map(\.to), [quote])
+        XCTAssertEqual(notebook.entry(quote)?.citedBy.map(\.from), [noteID])
+        XCTAssertEqual(notebook.entry(quote)?.citedBy.first?.fromEntry, hamming)
+        XCTAssertEqual(notebook.entry(quote)?.citedBy.first?.fromKind, .note)
+        XCTAssertEqual(notebook.entry(quote)?.carriedOnBy, [])
+        XCTAssertEqual(notebook.entry(quote)?.activity.map(\.what), ["cited this in a note"])
+        XCTAssertEqual(notebook.note(noteID)?.entry.id, hamming)
+
+        // The note taken back takes its citation with it.
+        notebook.apply(event(.noteRemove(.init(note: noteID)), author: "me"))
+        XCTAssertEqual(notebook.entry(quote)?.citedBy, [])
     }
 
     func testAGoneLineHoldsNoThread() {
@@ -279,12 +349,14 @@ final class FoldTests: XCTestCase {
         var notebook = Notebook(owner: me, events: [
             event(.entryCreate(.init(entry: pot, text: "pot", startedAt: clock))),
             event(.entryCreate(.init(entry: potted, text: "potted", startedAt: clock.addingTimeInterval(3600)))),
-            event(.linkAdd(.init(later: potted, earlier: pot, closes: true)), author: .weeju),
+            event(.link(.init(from: potted, to: pot)), author: .weeju),
+            event(.done(.init(entry: pot, by: potted)), author: .weeju),
         ])
-        XCTAssertNotNil(notebook.entry(pot)?.closedBy)
+        XCTAssertEqual(notebook.entry(pot)?.carriedOnBy.count, 1)
         notebook.apply(event(.entryDelete(.init(entry: potted))))
-        XCTAssertNil(notebook.entry(pot)?.closedBy)
-        XCTAssertEqual(notebook.entry(pot)?.later, [])
+        XCTAssertEqual(notebook.entry(pot)?.carriedOnBy, [])
+        // Done is the line's own state; losing the line that finished it does not unfinish it.
+        XCTAssertNotNil(notebook.entry(pot)?.done)
 
         // Deleted first, linked after: the same end state.
         var deletedFirst = Notebook(owner: me, events: [
@@ -292,8 +364,8 @@ final class FoldTests: XCTestCase {
             event(.entryCreate(.init(entry: potted, text: "potted", startedAt: clock.addingTimeInterval(3600)))),
             event(.entryDelete(.init(entry: potted))),
         ])
-        deletedFirst.apply(event(.linkAdd(.init(later: potted, earlier: pot, closes: true)), author: .weeju))
-        XCTAssertEqual(deletedFirst.entry(pot)?.later, [])
+        deletedFirst.apply(event(.link(.init(from: potted, to: pot)), author: .weeju))
+        XCTAssertEqual(deletedFirst.entry(pot)?.carriedOnBy, [])
     }
 
     func testDuplicateEventsAreIgnored() {

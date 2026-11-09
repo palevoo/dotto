@@ -20,23 +20,46 @@ public struct Note: Hashable, Sendable, Identifiable {
     public var text: String
     public var at: Date
     public var editedAt: Date?
+    /// The lines this note speaks of: links from the note to each, oldest first.
+    public var cites: [Link] = []
     /// The id of the event that last set `text`, so an older edit arriving late cannot win.
     var lastTextEvent: ULID
 }
 
-/// A thread between two lines: the later continues the earlier
-/// and, when `closes` is set, finishes what the earlier line opened.
+/// A link joins one thing to another by their ids, and that is all it is. What it means
+/// comes from what its ends are: a line to an earlier line is a thread, the later carrying
+/// on from the earlier; a note to a line is a citation, the note pointing at the line it
+/// speaks of. One link per pair, from the thing that points to the thing pointed at.
 public struct Link: Hashable, Sendable, Identifiable {
+    public enum End: Hashable, Sendable {
+        case line, note
+    }
+
     /// The event that placed it.
     public let id: ULID
-    public let later: ULID
-    public let earlier: ULID
-    public let closes: Bool
+    public let from: ULID
+    public let to: ULID
+    public let fromKind: End
+    public let toKind: End
+    /// The line each end is on: the line itself, or the line a note sits under. For going there.
+    public let fromEntry: ULID
+    public let toEntry: ULID
     public let author: Author
     public let at: Date
-    /// When each line started, so either side can be named without a lookup.
-    public let laterAt: Date
-    public let earlierAt: Date
+    /// When each end was written, so either side can be named without a lookup.
+    public let fromAt: Date
+    public let toAt: Date
+}
+
+/// A line is finished. State on the line, not a connection: the first fact.
+public struct Done: Hashable, Sendable {
+    /// The event that marked it.
+    public let id: ULID
+    /// The line that finished it, when one did, and when that line started if it is known.
+    public let by: ULID?
+    public let byAt: Date?
+    public let author: Author
+    public let at: Date
 }
 
 /// What the page shows: the fold of every event about one line.
@@ -51,15 +74,19 @@ public struct Entry: Hashable, Sendable, Identifiable {
     public var editedAt: Date?
     public var isDeleted = false
 
-    /// Links from this line back to earlier ones, oldest link first.
-    public var earlier: [Link] = []
-    /// Links from later lines to this one, oldest link first.
-    public var later: [Link] = []
+    /// Links from this line to other things, oldest first.
+    public var outgoing: [Link] = []
+    /// Links from other things to this line, oldest first.
+    public var incoming: [Link] = []
+    /// Finished, when it is.
+    public var done: Done?
 
-    /// The link by which a later line finished this one, when one did.
-    public var closedBy: Link? {
-        later.first { $0.closes }
-    }
+    /// The thread back: earlier lines this one carries on from.
+    public var carriesOn: [Link] { outgoing.filter { $0.toKind == .line } }
+    /// The thread forward: later lines that carry on from this one.
+    public var carriedOnBy: [Link] { incoming.filter { $0.fromKind == .line } }
+    /// Notes, under this or other lines, that speak of this line.
+    public var citedBy: [Link] { incoming.filter { $0.fromKind == .note } }
 
     /// Words this line is filed under, sorted.
     public var labels: [String] {
@@ -210,20 +237,30 @@ public struct Notebook: Sendable {
     private var removedNotes: Set<ULID> = []
     /// Edits to notes not seen yet.
     private var pendingNoteEdits: [ULID: [Event]] = [:]
-    /// Per pair of lines, the latest add or remove seen, so order of arrival does not matter.
+    /// Per pair of ends, the latest link or unlink seen, so order of arrival does not matter.
     private var linkMarks: [LinkPair: LinkMark] = [:]
+    /// Per line, the latest done or undone seen.
+    private var doneMarks: [ULID: DoneMark] = [:]
+    /// Events about a thing not seen yet, by that thing's id: a line or a note.
     private var waiting: [ULID: [Event]] = [:]
     private var seen: Set<ULID> = []
 
     private struct LinkPair: Hashable, Sendable {
-        let later: ULID
-        let earlier: ULID
+        let from: ULID
+        let to: ULID
     }
 
     private struct LinkMark: Hashable, Sendable {
         let id: ULID
         let on: Bool
-        let closes: Bool
+        let author: Author
+        let at: Date
+    }
+
+    private struct DoneMark: Hashable, Sendable {
+        let id: ULID
+        let on: Bool
+        let by: ULID?
         let author: Author
         let at: Date
     }
@@ -289,15 +326,16 @@ public struct Notebook: Sendable {
         case .labelDetach(let p):
             applyOrWait(event, entry: p.entry)
 
-        case .linkAdd(let p):
-            place(event, LinkPair(later: p.later, earlier: p.earlier), on: true, closes: p.closes)
-
-        case .linkRemove(let p):
-            place(event, LinkPair(later: p.later, earlier: p.earlier), on: false, closes: false)
+        case .linkAdd, .linkRemove, .link, .unlink, .done, .undone:
+            join(event)
 
         case .noteRemove(let p):
             removedNotes.insert(p.note)
             if let entryID = noteToEntry[p.note], var entry = table[entryID] {
+                if let gone = entry.notes.first(where: { $0.id == p.note }) {
+                    // A gone note cites nothing: the lines it spoke of forget it.
+                    for link in gone.cites { table[link.to]?.incoming.removeAll { $0.id == link.id } }
+                }
                 entry.notes.removeAll { $0.id == p.note }
                 note(&entry, event, "took a note back")
                 table[entryID] = entry
@@ -376,36 +414,122 @@ public struct Notebook: Sendable {
         entry.activity.sort { $0.id < $1.id }
     }
 
-    /// A link between two lines. The mark for the pair takes the newest event; the two lines'
-    /// link lists follow the mark once both lines exist, and the event waits for whichever is
-    /// missing. A line can only continue one that started before it.
-    private mutating func place(_ event: Event, _ pair: LinkPair, on: Bool, closes: Bool) {
-        guard pair.later != pair.earlier else { return }
+    /// Links and done, in both their shapes. The older shape, link.add with closes, is one
+    /// event saying two things, a link and a finishing, so it is recorded once in the older
+    /// words and folded into both.
+    private mutating func join(_ event: Event) {
+        switch event.payload {
+        case .link(let p):
+            place(event, from: p.from, to: p.to, on: true)
+        case .unlink(let p):
+            place(event, from: p.from, to: p.to, on: false)
+        case .done(let p):
+            finish(event, entry: p.entry, by: p.by, on: true)
+        case .undone(let p):
+            finish(event, entry: p.entry, by: nil, on: false)
+        case .linkAdd(let p):
+            if p.closes {
+                place(event, from: p.later, to: p.earlier, on: true,
+                      saying: ("closed an earlier line with this", "marked this done by a later line"))
+                finish(event, entry: p.earlier, by: p.later, on: true, quietly: true)
+            } else {
+                place(event, from: p.later, to: p.earlier, on: true)
+            }
+        case .linkRemove(let p):
+            place(event, from: p.later, to: p.earlier, on: false)
+            finish(event, entry: p.earlier, by: p.later, on: false, quietly: true)
+        default:
+            break
+        }
+    }
+
+    /// What a thing is, when it is known: a line, or a note under a line.
+    private func end(_ id: ULID) -> (kind: Link.End, entry: Entry, at: Date)? {
+        if let entry = table[id] { return (.line, entry, entry.startedAt) }
+        if let host = noteToEntry[id], let entry = table[host], let note = entry.notes.first(where: { $0.id == id }) {
+            return (.note, entry, note.at)
+        }
+        return nil
+    }
+
+    /// A link from one thing to another. The mark for the pair takes the newest event; the
+    /// two ends follow the mark once both exist, and the event waits for whichever is missing.
+    /// A line carries on only from one that started before it; a note cites any line.
+    private mutating func place(_ event: Event, from: ULID, to: ULID, on: Bool, saying: (String, String)? = nil) {
+        guard from != to else { return }
+        let pair = LinkPair(from: from, to: to)
         if linkMarks[pair].map({ $0.id < event.id }) ?? true {
-            linkMarks[pair] = LinkMark(id: event.id, on: on, closes: closes, author: event.author, at: event.at)
+            linkMarks[pair] = LinkMark(id: event.id, on: on, author: event.author, at: event.at)
         }
-        guard var later = table[pair.later] else { return waiting[pair.later, default: []].append(event) }
-        guard var earlier = table[pair.earlier] else { return waiting[pair.earlier, default: []].append(event) }
-        guard !later.isDeleted, !earlier.isDeleted,
-              (earlier.startedAt, earlier.id) < (later.startedAt, later.id), let mark = linkMarks[pair] else { return }
+        guard let fromEnd = end(from) else { return waiting[from, default: []].append(event) }
+        guard let toEnd = end(to) else { return waiting[to, default: []].append(event) }
+        guard !fromEnd.entry.isDeleted, !toEnd.entry.isDeleted, toEnd.kind == .line, let mark = linkMarks[pair] else { return }
+        if fromEnd.kind == .line, !((toEnd.at, to) < (fromEnd.at, from)) { return }
 
-        later.earlier.removeAll { $0.earlier == pair.earlier }
-        earlier.later.removeAll { $0.later == pair.later }
+        var fromEntry = fromEnd.entry
+        var toEntry = fromEnd.entry.id == toEnd.entry.id ? fromEntry : toEnd.entry
+        func forget() {
+            fromEntry.outgoing.removeAll { $0.from == from && $0.to == to }
+            if let index = fromEntry.notes.firstIndex(where: { $0.id == from }) { fromEntry.notes[index].cites.removeAll { $0.to == to } }
+            toEntry.incoming.removeAll { $0.from == from && $0.to == to }
+        }
+        forget()
         if mark.on {
-            let link = Link(id: mark.id, later: pair.later, earlier: pair.earlier, closes: mark.closes, author: mark.author, at: mark.at,
-                            laterAt: later.startedAt, earlierAt: earlier.startedAt)
-            later.earlier.append(link)
-            later.earlier.sort { $0.id < $1.id }
-            earlier.later.append(link)
-            earlier.later.sort { $0.id < $1.id }
+            let link = Link(id: mark.id, from: from, to: to, fromKind: fromEnd.kind, toKind: .line,
+                            fromEntry: fromEnd.entry.id, toEntry: toEnd.entry.id, author: mark.author, at: mark.at,
+                            fromAt: fromEnd.at, toAt: toEnd.at)
+            switch fromEnd.kind {
+            case .line:
+                fromEntry.outgoing.append(link)
+                fromEntry.outgoing.sort { $0.id < $1.id }
+            case .note:
+                if let index = fromEntry.notes.firstIndex(where: { $0.id == from }) {
+                    fromEntry.notes[index].cites.append(link)
+                    fromEntry.notes[index].cites.sort { $0.id < $1.id }
+                }
+            }
+            if fromEntry.id == toEntry.id { toEntry = fromEntry }
+            toEntry.incoming.append(link)
+            toEntry.incoming.sort { $0.id < $1.id }
+            if fromEntry.id == toEntry.id { fromEntry = toEntry }
         }
 
-        let what = on ? (closes ? "closed an earlier line with this" : "linked this to an earlier line") : "took a link back"
-        record(&later, event, what)
-        record(&earlier, event, on ? (closes ? "marked this done by a later line" : "linked a later line to this") : "took a link back")
-        trace(event, what, entry: pair.later)
-        table[pair.later] = later
-        table[pair.earlier] = earlier
+        let citation = fromEnd.kind == .note
+        let what = saying?.0 ?? (on ? (citation ? "cited a line in a note" : "linked this to an earlier line") : "took a link back")
+        let other = saying?.1 ?? (on ? (citation ? "cited this in a note" : "linked a later line to this") : "took a link back")
+        if fromEntry.id == toEntry.id {
+            record(&fromEntry, event, other)
+            table[fromEntry.id] = fromEntry
+        } else {
+            record(&fromEntry, event, what)
+            record(&toEntry, event, other)
+            table[fromEntry.id] = fromEntry
+            table[toEntry.id] = toEntry
+        }
+        trace(event, what, entry: fromEnd.entry.id)
+    }
+
+    /// A line finished, or not after all. The newest word on the line wins; the event waits
+    /// for a line not seen yet. `quietly` leaves no record of its own, for the older shape
+    /// where the link already recorded it.
+    private mutating func finish(_ event: Event, entry id: ULID, by: ULID?, on: Bool, quietly: Bool = false) {
+        if doneMarks[id].map({ $0.id < event.id }) ?? true {
+            doneMarks[id] = DoneMark(id: event.id, on: on, by: by, author: event.author, at: event.at)
+        }
+        guard var entry = table[id] else { return waiting[id, default: []].append(event) }
+        guard !entry.isDeleted, let mark = doneMarks[id] else { return }
+        if mark.on {
+            let evidence = mark.by.flatMap { table[$0] }.flatMap { $0.isDeleted ? nil : $0 }
+            entry.done = Done(id: mark.id, by: mark.by, byAt: evidence?.startedAt, author: mark.author, at: mark.at)
+        } else {
+            entry.done = nil
+        }
+        if !quietly {
+            let what = on ? (by != nil ? "marked this done by a later line" : "marked this done") : "took done back"
+            record(&entry, event, what)
+            trace(event, what, entry: id)
+        }
+        table[id] = entry
     }
 
     private mutating func trace(_ event: Event, _ what: String, entry: ULID?) {
@@ -422,10 +546,9 @@ public struct Notebook: Sendable {
     }
 
     private mutating func apply(_ event: Event, toExisting entryID: ULID) {
-        // A link touches two lines, so it is placed on its own rather than through the one below.
+        // A link touches two things, so it is placed on its own rather than through the one below.
         switch event.payload {
-        case .linkAdd(let p): return place(event, LinkPair(later: p.later, earlier: p.earlier), on: true, closes: p.closes)
-        case .linkRemove(let p): return place(event, LinkPair(later: p.later, earlier: p.earlier), on: false, closes: false)
+        case .linkAdd, .linkRemove, .link, .unlink, .done, .undone: return join(event)
         default: break
         }
 
@@ -451,11 +574,16 @@ public struct Notebook: Sendable {
 
         case .entryDelete:
             entry.isDeleted = true
-            // A gone line holds no thread: the lines it was linked to forget it.
-            for link in entry.earlier { table[link.earlier]?.later.removeAll { $0.later == entryID } }
-            for link in entry.later { table[link.later]?.earlier.removeAll { $0.earlier == entryID } }
-            entry.earlier = []
-            entry.later = []
+            // A gone line holds no thread: whatever it was linked to forgets it.
+            for link in entry.outgoing { table[link.toEntry]?.incoming.removeAll { $0.id == link.id } }
+            for link in entry.incoming where link.fromEntry != entryID {
+                guard var other = table[link.fromEntry] else { continue }
+                other.outgoing.removeAll { $0.id == link.id }
+                for index in other.notes.indices { other.notes[index].cites.removeAll { $0.id == link.id } }
+                table[link.fromEntry] = other
+            }
+            entry.outgoing = []
+            entry.incoming = []
 
         case .mediaAttach(let p):
             guard !entry.media.contains(where: { $0.hash == p.hash }) else { return }
@@ -474,6 +602,12 @@ public struct Notebook: Sendable {
             if let edits = pendingNoteEdits.removeValue(forKey: p.note) {
                 table[entryID] = entry
                 for edit in edits.sorted(by: { $0.id < $1.id }) { apply(edit, toExisting: entryID) }
+                entry = table[entryID]!
+            }
+            // Links that cite this note arrived before it: placed now that the note is here.
+            if let queued = waiting.removeValue(forKey: p.note) {
+                table[entryID] = entry
+                for later in queued.sorted(by: { $0.id < $1.id }) { join(later) }
                 entry = table[entryID]!
             }
 
@@ -497,7 +631,7 @@ public struct Notebook: Sendable {
                 note(&entry, event, "took #\(label) off")
             }
 
-        case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .visit, .nameSet, .grantCreate, .grantRevoke:
+        case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .link, .unlink, .done, .undone, .visit, .nameSet, .grantCreate, .grantRevoke:
             break
         }
     }
@@ -516,6 +650,12 @@ public struct Notebook: Sendable {
     public func entry(_ id: ULID) -> Entry? {
         guard let entry = table[id], !entry.isDeleted else { return nil }
         return entry
+    }
+
+    /// A note by its id, with the line it sits under.
+    public func note(_ id: ULID) -> (note: Note, entry: Entry)? {
+        guard let host = noteToEntry[id], let entry = entry(host), let note = entry.notes.first(where: { $0.id == id }) else { return nil }
+        return (note, entry)
     }
 
     /// The owner's live entries, oldest first.

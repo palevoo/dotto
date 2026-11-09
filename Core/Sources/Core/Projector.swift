@@ -36,10 +36,17 @@ public enum Projector {
                 for noteLine in note.text.split(separator: "\n", omittingEmptySubsequences: false) {
                     lines.append("> \(noteLine)")
                 }
+                // The lines the note speaks of, each named by its day and time.
+                if !note.cites.isEmpty {
+                    lines.append("> _cites \(note.cites.map { moment($0.toAt, calendar: calendar) }.joined(separator: ", "))_")
+                }
             }
-            // The thread, as someone placed it. The other line is named by its day and time.
-            let threads = entry.earlier.map { "\($0.closes ? "closes" : "continues") \(moment($0.earlierAt, calendar: calendar))" }
-                + entry.later.map { "\($0.closes ? "done by" : "continued by") \(moment($0.laterAt, calendar: calendar))" }
+            // The thread, as someone placed it, and done. The other line is named by its day and time.
+            var threads = entry.carriesOn.map { "continues \(moment($0.toAt, calendar: calendar))" }
+                + entry.carriedOnBy.map { "continued by \(moment($0.fromAt, calendar: calendar))" }
+            if let done = entry.done {
+                threads.append(done.byAt.map { "done by \(moment($0, calendar: calendar))" } ?? "done")
+            }
             if !threads.isEmpty {
                 lines.append("")
                 lines.append(contentsOf: threads.map { "_\($0)_" })

@@ -69,8 +69,8 @@ struct EntryRow: View {
                         if row != entry.id { finishEditing() }
                     }
                 } else if !entry.text.isEmpty {
-                    // A line a later line finished is struck through, and that is all the page says.
-                    let done = entry.closedBy != nil
+                    // A finished line is struck through, and that is all the page says of it.
+                    let done = entry.done != nil
                     Text(entry.text)
                         .font(Theme.serif)
                         .foregroundStyle(done ? Theme.muted : Theme.foreground)
@@ -79,6 +79,15 @@ struct EntryRow: View {
                 }
                 if !entry.notes.isEmpty {
                     ReplyPreview(notes: entry.notes)
+                        .padding(.top, 2)
+                }
+                if let hint = threadHint {
+                    // The thread, as one quiet line: a count and the nearest linked line's first words.
+                    Text(hint)
+                        .font(Theme.sansSmall)
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                         .padding(.top, 2)
                 }
             }
@@ -102,6 +111,15 @@ struct EntryRow: View {
             Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
             Button("Delete", systemImage: "trash", role: .destructive) { model.delete(entry.id) }
         }
+    }
+
+    private var threadHint: String? {
+        let links = entry.carriesOn + entry.carriedOnBy
+        guard let last = links.max(by: { $0.id < $1.id }) else { return nil }
+        let other = last.from == entry.id ? last.toEntry : last.fromEntry
+        let words = model.notebook.entry(other)?.text.replacingOccurrences(of: "\n", with: " ") ?? ""
+        let count = links.count > 1 ? "\(links.count) · " : ""
+        return "\(count)\(last.from == entry.id ? "from" : "on to") \(words.isEmpty ? "a photo" : words)"
     }
 
     /// Stores the words and leaves the edit, whichever way it ended. Safe to call twice.

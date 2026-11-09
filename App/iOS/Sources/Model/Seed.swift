@@ -26,13 +26,33 @@ enum Seed {
             guard let made = model.commitDraft() else { return }
             line = made
         }
+        let seed = Author(rawValue: "seed")
         // A tag on the line, placed by another originator, as the owner never files.
-        guard model.notebook.entry(line)?.labels.contains("book") != true else { return }
-        let label = Event(id: ULID(), author: Author(rawValue: "seed"), device: model.device, at: Date(),
-                          payload: .labelAttach(.init(entry: line, label: "book")))
-        try? model.store.append(label)
+        if model.notebook.entry(line)?.labels.contains("book") != true {
+            try? model.store.append(Event(id: ULID(), author: seed, device: model.device, at: Date(),
+                                          payload: .labelAttach(.init(entry: line, label: "book"))))
+        }
+        // A second line, and a note under the first that cites it.
+        let second: ULID
+        if let existing = model.notebook.entries.first(where: { $0.text == cited }) {
+            second = existing.id
+        } else {
+            model.draftText = cited
+            guard let made = model.commitDraft() else { return }
+            second = made
+        }
+        if model.notebook.entry(line)?.notes.contains(where: { !$0.cites.isEmpty }) != true {
+            let note = ULID()
+            try? model.store.append(Event(id: note, author: seed, device: model.device, at: Date(),
+                                          payload: .noteAdd(.init(entry: line, note: note, text: citing))))
+            try? model.store.append(Event(id: ULID(), author: seed, device: model.device, at: Date(),
+                                          payload: .link(.init(from: note, to: second))))
+        }
         model.reload()
     }
+
+    static let cited = "Meaning comes later, says the second page"
+    static let citing = "Both pages say the same; see the second."
 
     /// A page of a book: black serif on white, large enough for Live Text.
     static func render(_ text: String) -> Data {

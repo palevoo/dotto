@@ -57,7 +57,7 @@ final class DoorTests: XCTestCase {
 
         let tools = (try rpc("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
         XCTAssertEqual(tools?.map { $0["name"] as? String },
-                       ["whats_new", "read_days", "list_lines", "read_photo", "add_note", "set_label", "link_lines", "write_line", "edit_line", "delete_line", "choose_name"])
+                       ["whats_new", "read_days", "list_lines", "read_photo", "add_note", "set_label", "link", "mark_done", "write_line", "edit_line", "delete_line", "choose_name"])
         let conduct = result?["instructions"] as? String ?? ""
         XCTAssertTrue(conduct.contains("You have no name yet"))
     }
@@ -170,34 +170,60 @@ final class DoorTests: XCTestCase {
         XCTAssertEqual(notebook.entries.count, 2)
     }
 
-    func testLinkLinesJoinsALineToAnEarlierOne() throws {
+    func testLinkJoinsALaterLineToAnEarlierOneAndDoneFinishesIt() throws {
         let olives = try store.load().entries.first { $0.text == "Olives in" }!
-        let reply = text(try rpc("tools/call", ["name": "link_lines", "arguments": ["entry": wall.string, "earlier": olives.id.string, "closes": true]]))
-        XCTAssertEqual(reply, "Linked \(wall!) back to \(olives.id), closing it.")
+        XCTAssertEqual(text(try rpc("tools/call", ["name": "link", "arguments": ["from": wall.string, "to": olives.id.string]])),
+                       "Linked \(wall!) to \(olives.id).")
+        XCTAssertEqual(text(try rpc("tools/call", ["name": "mark_done", "arguments": ["entry": olives.id.string, "by": wall.string]])),
+                       "Marked \(olives.id) done by \(wall!).")
 
         var notebook = try store.load()
-        XCTAssertEqual(notebook.entry(olives.id)?.closedBy?.later, wall)
-        XCTAssertEqual(notebook.entry(olives.id)?.closedBy?.author, .weeju)
+        XCTAssertEqual(notebook.entry(olives.id)?.done?.by, wall)
+        XCTAssertEqual(notebook.entry(olives.id)?.done?.author, .weeju)
+        XCTAssertEqual(notebook.entry(wall)?.carriesOn.map(\.to), [olives.id])
         let listed = text(try rpc("tools/call", ["name": "list_lines", "arguments": [:]]))
         XCTAssertTrue(listed.contains("[done by \(wall!)]"))
         XCTAssertTrue(listed.contains("[continues \(olives.id)]"))
         let days = text(try rpc("tools/call", ["name": "read_days", "arguments": [:]]))
-        XCTAssertTrue(days.contains("_closes 2026-10-30 09:14_"))
+        XCTAssertTrue(days.contains("_continues 2026-10-30 09:14_"))
         XCTAssertTrue(days.contains("_done by 2026-11-02 09:14_"))
 
         // The wrong way round is refused before anything is written.
-        let backwards = try rpc("tools/call", ["name": "link_lines", "arguments": ["entry": olives.id.string, "earlier": wall.string]])
+        let backwards = try rpc("tools/call", ["name": "link", "arguments": ["from": olives.id.string, "to": wall.string]])
         XCTAssertTrue(text(backwards).contains("is not earlier"))
 
-        _ = try rpc("tools/call", ["name": "link_lines", "arguments": ["entry": wall.string, "earlier": olives.id.string, "on": false]])
+        _ = try rpc("tools/call", ["name": "link", "arguments": ["from": wall.string, "to": olives.id.string, "on": false]])
+        _ = try rpc("tools/call", ["name": "mark_done", "arguments": ["entry": olives.id.string, "on": false]])
         notebook = try store.load()
-        XCTAssertNil(notebook.entry(olives.id)?.closedBy)
-        XCTAssertEqual(notebook.entry(wall)?.earlier, [])
+        XCTAssertNil(notebook.entry(olives.id)?.done)
+        XCTAssertEqual(notebook.entry(wall)?.carriesOn, [])
 
         let noLinks = Grant(name: "Reader", author: "friend", device: "x", writesLinks: false)
         door = Door(store: store, grant: noLinks, calendar: utc)
-        let refused = try rpc("tools/call", ["name": "link_lines", "arguments": ["entry": wall.string, "earlier": olives.id.string]])
+        let refused = try rpc("tools/call", ["name": "link", "arguments": ["from": wall.string, "to": olives.id.string]])
         XCTAssertTrue(text(refused).contains("may not write links"))
+    }
+
+    func testANoteCitesTheLinesItSpeaksOf() throws {
+        let olives = try store.load().entries.first { $0.text == "Olives in" }!
+        let reply = text(try rpc("tools/call", ["name": "add_note", "arguments": ["entry": wall.string, "text": "Same as the olives.", "cites": [olives.id.string]]]))
+        XCTAssertEqual(reply, "Noted under \(wall!), citing 1 line.")
+        let notebook = try store.load()
+        let note = notebook.entry(wall)!.notes.first!
+        XCTAssertEqual(note.cites.map(\.to), [olives.id])
+        XCTAssertEqual(notebook.entry(olives.id)?.citedBy.map(\.from), [note.id])
+        let days = text(try rpc("tools/call", ["name": "read_days", "arguments": [:]]))
+        XCTAssertTrue(days.contains("> _cites 2026-10-30 09:14_"))
+
+        // A cited id that is no line is refused before anything is written.
+        let bad = text(try rpc("tools/call", ["name": "add_note", "arguments": ["entry": wall.string, "text": "x", "cites": ["nope"]]]))
+        XCTAssertTrue(bad.contains("No line with id"))
+        XCTAssertEqual(try store.load().entry(wall)?.notes.count, 1)
+
+        // Nobody links from a note that is not their own.
+        door = Door(store: store, grant: Grant(name: "Other", author: "friend", device: "x"), calendar: utc)
+        let refused = text(try rpc("tools/call", ["name": "link", "arguments": ["from": note.id.string, "to": olives.id.string]]))
+        XCTAssertTrue(refused.contains("not its own"))
     }
 
     func testAGrantSavedBeforeLinksMayWriteThem() throws {

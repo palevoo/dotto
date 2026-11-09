@@ -7,7 +7,8 @@ import Foundation
 //   notebook add <folder> "<text>" [--author <id>] [--device <id>] [--at <iso8601>]
 //   notebook note <folder> <entry-id> "<text>" --author <id> [--device <id>]
 //   notebook label <folder> <entry-id> <label> --author <id> [--remove]
-//   notebook link <folder> <later-id> <earlier-id> [--closes] --author <id> [--remove]
+//   notebook link <folder> <from-id> <to-id> --author <id> [--remove]
+//   notebook done <folder> <entry-id> [--by <id>] --author <id> [--remove]
 //   notebook name <folder> "<name>" --author <id>                  what that author is called from now on
 //   notebook list <folder> [--label <label>] [--since YYYY-MM-DD]   one line per entry, with ids
 //   notebook show <folder> [--label <label>]                        the fold, as day pages
@@ -76,7 +77,7 @@ func parseDay(_ text: String) -> DayKey {
 
 let arguments = Arguments(Array(CommandLine.arguments.dropFirst()))
 guard let command = arguments.positional.first else {
-    fail("usage: notebook init|add|note|label|link|name|list|show|labels|project|log <folder> ...")
+    fail("usage: notebook init|add|note|label|link|done|name|list|show|labels|project|log <folder> ...")
 }
 
 let generator = ULIDGenerator()
@@ -140,20 +141,38 @@ do {
 
     case "link":
         let store = try FileStore.open(folder(arguments, at: 1))
-        guard arguments.positional.count > 3, let later = ULID(arguments.positional[2]), let earlier = ULID(arguments.positional[3]) else {
-            fail("usage: link <folder> <later-id> <earlier-id> [--closes] [--remove]")
+        guard arguments.positional.count > 3, let from = ULID(arguments.positional[2]), let to = ULID(arguments.positional[3]) else {
+            fail("usage: link <folder> <from-id> <to-id> [--remove]    a later line to an earlier one, or a note to a line")
         }
         let notebook = try store.load()
-        guard let a = notebook.entry(later), let b = notebook.entry(earlier) else { fail("no such entry") }
-        guard (b.startedAt, b.id) < (a.startedAt, a.id) else { fail("\(earlier) is not earlier than \(later)") }
+        guard let target = notebook.entry(to) else { fail("no such line: \(to)") }
+        if let later = notebook.entry(from) {
+            guard (target.startedAt, target.id) < (later.startedAt, later.id) else { fail("\(to) is not earlier than \(from)") }
+        } else if notebook.note(from) == nil {
+            fail("no such line or note: \(from)")
+        }
         let at = parseDate(arguments.options["at"])
         let author = author(arguments)
         let remove = arguments.flags.contains("remove")
-        let payload: Payload = remove
-            ? .linkRemove(.init(later: later, earlier: earlier))
-            : .linkAdd(.init(later: later, earlier: earlier, closes: arguments.flags.contains("closes")))
+        let payload: Payload = remove ? .unlink(.init(from: from, to: to)) : .link(.init(from: from, to: to))
         try store.append(Event(id: generator.next(at: at), author: author, device: host, at: at, payload: payload))
-        print("\(remove ? "-" : "+")\(later) → \(earlier)\(arguments.flags.contains("closes") && !remove ? " closes" : "")")
+        print("\(remove ? "-" : "+")\(from) → \(to)")
+
+    case "done":
+        let store = try FileStore.open(folder(arguments, at: 1))
+        guard arguments.positional.count > 2, let entry = ULID(arguments.positional[2]) else {
+            fail("usage: done <folder> <entry-id> [--by <entry-id>] [--remove]")
+        }
+        let notebook = try store.load()
+        guard notebook.entry(entry) != nil else { fail("no such line: \(entry)") }
+        let by = arguments.options["by"].flatMap(ULID.init)
+        if let by, notebook.entry(by) == nil { fail("no such line: \(by)") }
+        let at = parseDate(arguments.options["at"])
+        let author = author(arguments)
+        let remove = arguments.flags.contains("remove")
+        let payload: Payload = remove ? .undone(.init(entry: entry)) : .done(.init(entry: entry, by: by))
+        try store.append(Event(id: generator.next(at: at), author: author, device: host, at: at, payload: payload))
+        print("\(remove ? "-" : "+")done \(entry)\(by.map { " by \($0)" } ?? "")")
 
     case "name":
         let store = try FileStore.open(folder(arguments, at: 1))
@@ -176,8 +195,8 @@ do {
                 var tail: [String] = []
                 if !entry.media.isEmpty { tail.append("[\(entry.media.count) media]") }
                 if !entry.notes.isEmpty { tail.append("[\(entry.notes.count) notes]") }
-                if !entry.earlier.isEmpty { tail.append("[continues \(entry.earlier.map(\.earlier.string).joined(separator: " "))]") }
-                if let closed = entry.closedBy { tail.append("[done by \(closed.later)]") }
+                if !entry.carriesOn.isEmpty { tail.append("[continues \(entry.carriesOn.map(\.to.string).joined(separator: " "))]") }
+                if let done = entry.done { tail.append(done.by.map { "[done by \($0)]" } ?? "[done]") }
                 tail.append(contentsOf: entry.labels.map { "#\($0)" })
                 print("\(entry.id)  \(day.key) \(time(entry.startedAt))  \(text)\(tail.isEmpty ? "" : "  " + tail.joined(separator: " "))")
             }

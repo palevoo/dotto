@@ -382,14 +382,19 @@ final class NotebookModel {
 
     /// A link taken back. Your words on either line are untouched.
     func unlink(_ link: Core.Link) {
-        record(.linkRemove(.init(later: link.later, earlier: link.earlier)))
+        record(.unlink(.init(from: link.from, to: link.to)))
+    }
+
+    /// Done taken back: the line is open again.
+    func undone(_ entry: ULID) {
+        record(.undone(.init(entry: entry)))
     }
 
     /// Your own link: this line carries on from an earlier one of yours.
     func link(_ later: ULID, from earlier: ULID) {
         guard let a = notebook.entry(earlier), let b = notebook.entry(later),
               (a.startedAt, a.id) < (b.startedAt, b.id) else { return }
-        record(.linkAdd(.init(later: later, earlier: earlier)))
+        record(.link(.init(from: later, to: earlier)))
     }
 
     /// Your reply, changed. Only your own.

@@ -143,14 +143,33 @@ public enum Inbox {
                     labels[key] = group
 
                 case .linkAdd(let p):
+                    // The older shape: a thread, and done when it closes.
                     guard let later = notebook.entry(p.later), let earlier = notebook.entry(p.earlier),
                           later.author != event.author || earlier.author != event.author,
-                          later.earlier.contains(where: { $0.earlier == p.earlier }) else { continue }
+                          later.carriesOn.contains(where: { $0.to == p.earlier }) else { continue }
                     items.append(InboxItem(
                         id: event.id, author: event.author, at: event.at, kind: .link, entry: later.id,
                         what: p.closes ? "marked done" : "joined", text: words(later),
                         about: (p.closes ? "done by this: " : "carries on from: ") + words(earlier),
                         asks: false, answered: false, unread: unread(event, about: later.id)))
+
+                case .link(let p):
+                    // A thread between lines. A citation in a note shows with the note itself.
+                    guard let later = notebook.entry(p.from), let earlier = notebook.entry(p.to),
+                          later.author != event.author || earlier.author != event.author,
+                          later.carriesOn.contains(where: { $0.to == p.to }) else { continue }
+                    items.append(InboxItem(
+                        id: event.id, author: event.author, at: event.at, kind: .link, entry: later.id,
+                        what: "joined", text: words(later), about: "carries on from: " + words(earlier),
+                        asks: false, answered: false, unread: unread(event, about: later.id)))
+
+                case .done(let p):
+                    guard let entry = notebook.entry(p.entry), entry.author != event.author, entry.done?.id == event.id else { continue }
+                    items.append(InboxItem(
+                        id: event.id, author: event.author, at: event.at, kind: .link, entry: entry.id,
+                        what: "marked done", text: words(entry),
+                        about: p.by.flatMap { notebook.entry($0) }.map { "done by this: " + words($0) },
+                        asks: false, answered: false, unread: unread(event, about: entry.id)))
 
                 case .nameSet(let p):
                     let name = p.name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -160,8 +179,8 @@ public enum Inbox {
                         what: "is called \(name) now", text: "", about: nil,
                         asks: false, answered: false, unread: fresh))
 
-                case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .visit,
-                     .grantCreate, .grantRevoke:
+                case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .unlink, .undone,
+                     .visit, .grantCreate, .grantRevoke:
                     continue
                 }
             }
@@ -256,10 +275,19 @@ public enum Inbox {
                 takenBack.append("\(who(event.author)) took #\(p.label) off \(p.entry)")
             case .linkRemove(let p):
                 takenBack.append("\(who(event.author)) took back the link from \(p.later) to \(p.earlier)")
+            case .unlink(let p):
+                takenBack.append("\(who(event.author)) took back the link from \(p.from) to \(p.to)")
+            case .undone(let p):
+                takenBack.append("\(who(event.author)) took done back from \(p.entry)")
             case .labelAttach(let p):
                 marks.append("\(who(event.author)) filed \(p.entry) under #\(p.label)")
             case .linkAdd(let p):
                 marks.append("\(who(event.author)) linked \(p.later) back to \(p.earlier)\(p.closes ? ", closing it" : "")")
+            case .link(let p):
+                let kind = notebook.note(p.from) != nil ? "cited \(p.to) in a note" : "linked \(p.from) back to \(p.to)"
+                marks.append("\(who(event.author)) \(kind)")
+            case .done(let p):
+                marks.append("\(who(event.author)) marked \(p.entry) done\(p.by.map { " by \($0)" } ?? "")")
             case .nameSet(let p):
                 names.append("\(event.author) is called \(p.name) now")
             case .visit, .grantCreate, .grantRevoke:
