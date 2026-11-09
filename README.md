@@ -107,8 +107,10 @@ and a line that reaches the Mac late through iCloud is still caught.
 You have the same inbox, with a screen. What others leave that may want you, replies under
 your lines and in conversations you are in, lines on their pages, labels, links, names,
 gathers newest first, reached from the calendar sheet or from the count beside the date.
-What asks and has no answer yet stands first. Each row opens the line it is about; you
-answer there, and opening the line is what reads it: a `visit` in your own file names the
+It is one flow, newest first, and what asks and has no answer yet is in ink. Each row is the
+thing itself and is answered where it is: Reply opens a field under a reply or a line, Set it
+and Not now answer a proposed loop, a mark is dropped with one tap; the line or thing it is
+about is the row's last line, a jump. Opening the line is what reads it: a `visit` in your own file names the
 line, so the same rows are read on every device. What is about no one line, labels folded
 together, a name, is read by opening the inbox, whose `visit` records how long every event
 file was, so a mark that reaches a device late is still new. The Mac shows the same list;
@@ -158,7 +160,10 @@ log behind it, called Logs; a line's History says who read it. The Mac window ha
 A note written through the door reaches the phone as a push. The phone writes its push
 address into the folder as `devices/<device>.json` once notifications are allowed in
 Setup; the Mac, holding the developer account's push key in its keychain, hands the note
-to Apple. Marks stay silent: labels and links are for the page, not the pocket.
+to Apple. Marks stay silent when they land: labels, links, things and facts are for the page,
+not the pocket. One fact speaks once, later: a line with a `due` moment, not yet done, reaches
+you as a push when the moment comes, sent by the Mac from the fold, so a moment moved or
+taken off never fires and nothing fires twice.
 
 ## Loops
 

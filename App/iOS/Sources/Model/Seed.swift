@@ -58,6 +58,14 @@ enum Seed {
                 Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .factSet(.init(on: line, key: "pages", value: .number(2, unit: nil)))),
             ])
         }
+        // Something to do, due tomorrow, so the todos page has a line.
+        if model.notebook.entry(second)?.facts("todo").isEmpty != false {
+            try? model.store.append([
+                Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .factSet(.init(on: second, key: "todo", value: .words("open")))),
+                Event(id: ULID(), author: seed, device: model.device, at: Date(),
+                      payload: .factSet(.init(on: second, key: "due", value: .moment(Date().addingTimeInterval(86_400))))),
+            ])
+        }
         // A grant for the seed, so a loop can run as it, and a loop it proposes.
         let seedGrant = model.notebook.allGrants.first { $0.author == seed } ?? Grant(name: "Seed", author: seed, device: "seed")
         if !model.notebook.allGrants.contains(where: { $0.author == seed }) {

@@ -9,6 +9,10 @@ struct CalendarSheet: View {
     let today: DayKey
     let calendar: Calendar
     let labels: [String: Int]
+    /// The kinds of things there are, with how many of each.
+    let kinds: [(kind: String?, count: Int)]
+    /// How many lines are still to do.
+    let todos: Int
     let filter: String?
     /// The latest read, as who and one line. Nil until someone has been.
     let lastVisit: (author: Author, text: String)?
@@ -22,19 +26,24 @@ struct CalendarSheet: View {
     let onInbox: () -> Void
     let onLog: () -> Void
     let onSetup: () -> Void
+    let onTodos: () -> Void
+    let onKind: (String?) -> Void
     let onAuthor: (Author) -> Void
 
     @State private var month: DateComponents
     @State private var height: CGFloat = 480
 
-    init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], filter: String?,
+    init(days: [Day], today: DayKey, calendar: Calendar, labels: [String: Int], kinds: [(kind: String?, count: Int)], todos: Int, filter: String?,
          lastVisit: (author: Author, text: String)?, others: [Author], unread: Int, model: NotebookModel,
          onPick: @escaping (DayKey) -> Void, onFilter: @escaping (String?) -> Void, onInbox: @escaping () -> Void,
-         onLog: @escaping () -> Void, onSetup: @escaping () -> Void, onAuthor: @escaping (Author) -> Void) {
+         onLog: @escaping () -> Void, onSetup: @escaping () -> Void, onTodos: @escaping () -> Void, onKind: @escaping (String?) -> Void,
+         onAuthor: @escaping (Author) -> Void) {
         self.days = days
         self.today = today
         self.calendar = calendar
         self.labels = labels
+        self.kinds = kinds
+        self.todos = todos
         self.filter = filter
         self.lastVisit = lastVisit
         self.others = others
@@ -45,6 +54,8 @@ struct CalendarSheet: View {
         self.onInbox = onInbox
         self.onLog = onLog
         self.onSetup = onSetup
+        self.onTodos = onTodos
+        self.onKind = onKind
         self.onAuthor = onAuthor
         _month = State(initialValue: DateComponents(year: today.year, month: today.month))
     }
@@ -101,6 +112,24 @@ struct CalendarSheet: View {
                 }
             }
 
+            // The shapes: what is to do, and the things by kind, each a page. Then the tags.
+            if todos > 0 || !kinds.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        if todos > 0 {
+                            ShapeChip(title: "todos", count: todos, accent: true) { onTodos() }
+                                .accessibilityIdentifier("todos")
+                        }
+                        ForEach(Array(kinds.enumerated()), id: \.offset) { _, kind in
+                            ShapeChip(title: kind.kind.map { ThingsPage.plural($0).lowercased() } ?? "things", count: kind.count) {
+                                onKind(kind.kind)
+                            }
+                            .accessibilityIdentifier("kind-\(kind.kind ?? "things")")
+                        }
+                    }
+                }
+            }
+
             if !labels.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -143,6 +172,7 @@ struct CalendarSheet: View {
                 .frame(minHeight: 30)
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("inbox")
 
             // The latest read, and the way to everything else.
             HStack(alignment: .firstTextBaseline) {
@@ -211,6 +241,30 @@ struct CalendarSheet: View {
         guard let date = calendar.date(from: month),
               let moved = calendar.date(byAdding: .month, value: delta, to: date) else { return }
         month = calendar.dateComponents([.year, .month], from: moved)
+    }
+}
+
+/// A page over shapes, as a chip: its name and how many it holds.
+struct ShapeChip: View {
+    let title: String
+    let count: Int
+    var accent = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text(title)
+                    .foregroundStyle(accent ? Theme.accent : Theme.foreground)
+                Text("\(count)")
+                    .foregroundStyle(Theme.faint)
+            }
+            .font(Theme.mono)
+            .padding(.horizontal, 12)
+            .frame(height: 30)
+            .overlay(Theme.square(30).strokeBorder(Theme.line, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 }
 

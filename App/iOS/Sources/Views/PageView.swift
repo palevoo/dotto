@@ -140,6 +140,8 @@ struct PageView: View {
                     today: model.today,
                     calendar: model.calendar,
                     labels: model.notebook.labelCounts,
+                    kinds: model.notebook.kinds,
+                    todos: model.notebook.todos.count,
                     filter: filter,
                     lastVisit: model.notebook.visits.last { $0.author != model.store.manifest.owner }
                         .map { ($0.author, LogView.summary(of: $0, calendar: model.calendar)) },
@@ -164,6 +166,14 @@ struct PageView: View {
                     },
                     onSetup: {
                         afterCalendar = .setup
+                        showCalendar = false
+                    },
+                    onTodos: {
+                        afterCalendar = .todos
+                        showCalendar = false
+                    },
+                    onKind: { kind in
+                        afterCalendar = .things(kind)
                         showCalendar = false
                     },
                     onAuthor: { author in
@@ -254,6 +264,8 @@ struct PageView: View {
                 case .author(let author): AuthorPage(author: author, model: model)
                 case .thing(let id): ThingPage(id: id, model: model)
                 case .loops: LoopsView(model: model)
+                case .todos: TodosPage(model: model)
+                case .things(let kind): ThingsPage(kind: kind, model: model)
                 }
             }
         }

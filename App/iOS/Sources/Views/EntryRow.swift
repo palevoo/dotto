@@ -146,14 +146,14 @@ struct EntryRow: View {
     private var shapeHint: String? {
         let things = entry.belongsTo.compactMap { model.notebook.thing($0.to)?.name }
         var facts: [String] = []
-        var seen: Set<String> = []
+        // Todo and due first, in words; then the rest, one per key.
+        if entry.isTodo { facts.append("todo") }
+        if let due = entry.due {
+            facts.append("due \(Format.shortDay(due, calendar: model.calendar)) \(Format.time(due, calendar: model.calendar))")
+        }
+        var seen: Set<String> = ["todo", "due"]
         for fact in entry.facts where seen.insert(fact.key).inserted {
-            switch (fact.key, fact.value) {
-            case ("todo", _): facts.append("todo")
-            case ("due", .moment(let at)):
-                facts.append("due \(Format.shortDay(at, calendar: model.calendar)) \(Format.time(at, calendar: model.calendar))")
-            default: facts.append("\(fact.key) \(fact.value.words(calendar: model.calendar))")
-            }
+            facts.append("\(fact.key) \(fact.value.words(calendar: model.calendar))")
         }
         let parts = things + facts
         return parts.isEmpty ? nil : parts.joined(separator: " · ")

@@ -13,6 +13,10 @@ enum Route: Hashable {
     case thing(ULID)
     /// The loops that run, the ones proposed, and the place to set one.
     case loops
+    /// What is still to do, due first.
+    case todos
+    /// The things of one kind, or every thing when nil.
+    case things(String?)
 }
 
 /// Everything anyone else did in the notebook, newest first: each read, note, label and

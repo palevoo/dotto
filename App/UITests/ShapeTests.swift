@@ -20,8 +20,9 @@ final class ShapeTests: XCTestCase {
         let shapes = app.staticTexts.matching(identifier: "shapes")
         let fact = shapes.matching(NSPredicate(format: "label == %@", "pages 2")).firstMatch
         XCTAssertTrue(fact.waitForExistence(timeout: 15), "the first line wears its fact")
-        let belongs = shapes.matching(NSPredicate(format: "label == %@", "the fig")).firstMatch
-        XCTAssertTrue(belongs.exists, "the second line wears the thing it belongs to")
+        // The second line is with the fig and, since the seed also marks it, a todo with a due moment.
+        let belongs = shapes.matching(NSPredicate(format: "label BEGINSWITH %@", "the fig · todo · due")).firstMatch
+        XCTAssertTrue(belongs.exists, "the second line wears the thing it belongs to and its facts")
 
         app.staticTexts["Meaning comes later, says the second page"].tap()
         let with = app.buttons["with-the fig"]

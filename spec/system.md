@@ -108,7 +108,11 @@ the inbox, Logs, a tag's lines, a shelf, a plant's page, a yield page. A public 
 page with an audience. Pages are made from shapes; a page made by dotto for itself is the
 milestone.
 
-Today: all pages are code. Missing: a page as a definition over shapes, which is what lets
+Today: all pages are code. Since 10 November two pages stand over shapes, reached from the
+calendar sheet: Todos, the lines anyone marked todo and nobody marked done, due first; and
+a page per kind of thing, the books, the plants, the people, each thing with its facts and
+its lines. The line's page shows what a line is in one block, and the inbox is one flow
+answered in place. Missing: a page as a definition over shapes, which is what lets
 dotto make the shelf, the plant page and its own site; search over plain words, a small
 page of its own.
 

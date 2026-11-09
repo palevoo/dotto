@@ -323,6 +323,11 @@ final class NotebookModel {
         record(.undone(.init(entry: entry)))
     }
 
+    /// Your own word that a line is finished.
+    func markDone(_ entry: ULID) {
+        record(.done(.init(entry: entry)))
+    }
+
     // MARK: - Loops
 
     /// A loop set: your event, which every device knows and the Mac runs. With an id, a loop
