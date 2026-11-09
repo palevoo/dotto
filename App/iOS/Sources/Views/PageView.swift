@@ -189,9 +189,7 @@ struct PageView: View {
                     liveFocused = true
                 }
             }
-            .onChange(of: liveFocused) { _, focused in
-                if !focused { storeDraft() }
-            }
+            // Words wait in the line until Return, keyboard or not. Nothing else stores them.
             // Back on the page from a line or the inbox: a keyboard raised there has no field
             // here to belong to, so it goes.
             .onChange(of: path.count) { _, count in
@@ -226,7 +224,11 @@ struct PageView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: ULID.self) { id in
-                LineView(entryID: id, model: model)
+                LineView(entryID: id, model: model) { label in
+                    // A tag tapped on a line: back to the page, filtered by it.
+                    path = NavigationPath()
+                    withAnimation(Motion.settle) { filter = label }
+                }
             }
             .navigationDestination(for: Route.self) { route in
                 switch route {

@@ -24,7 +24,8 @@ final class PhotoViewerTests: XCTestCase {
         let thumb = app.descendants(matching: .any).matching(identifier: "thumbnail").firstMatch
         XCTAssertTrue(thumb.waitForExistence(timeout: 15), "the seeded photo is on the page")
         thumb.tap()
-        XCTAssertTrue(viewer.waitForExistence(timeout: 5), "the viewer opens")
+        XCTAssertTrue(viewer.waitForExistence(timeout: 5),
+                      "the viewer opens; keyboards: \(app.keyboards.count), live line: \(String(describing: app.textViews.firstMatch.value))")
         XCTAssertTrue(photo.waitForExistence(timeout: 5))
     }
 

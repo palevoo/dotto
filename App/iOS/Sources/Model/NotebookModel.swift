@@ -4,7 +4,7 @@ import Foundation
 import Observation
 
 /// Something that landed in the live line before it was stored.
-struct DraftMedia: Identifiable, Hashable {
+struct DraftMedia: Identifiable, Hashable, Codable {
     let hash: String
     let mime: String
     let width: Int?
@@ -32,13 +32,26 @@ final class NotebookModel {
     private(set) var days: [Day] = []
 
     /// The live line. Its time is fixed the moment the first character or the first photo lands.
+    /// Nothing stores it but Return; it is kept as it is typed, so a switch away, a tap
+    /// elsewhere or a relaunch finds the words still waiting.
     var draftText = "" {
         didSet { touchDraft() }
     }
     private(set) var draftMedia: [DraftMedia] = []
     private(set) var draftStartedAt: Date?
     /// Photos from before bring their own moment. The line can take it or keep now.
-    var draftKeepsPhotoMoment = false
+    var draftKeepsPhotoMoment = false {
+        didSet { persistDraft() }
+    }
+
+    /// The live line as kept between launches.
+    private struct Draft: Codable {
+        var text: String
+        var media: [DraftMedia]
+        var startedAt: Date?
+        var keepsPhotoMoment: Bool
+    }
+    private static let draftKey = "notebook.draft"
 
     private let generator = ULIDGenerator()
     private let location = LocationSpy()
@@ -67,6 +80,7 @@ final class NotebookModel {
         locationStatus = location.status
         location.onChange = { [weak self] status in self?.locationStatus = status }
         reload()
+        restoreDraft()
         takeInbox()
         Pushes.shared.onToken = { [weak self] token in self?.savePushAddress(token) }
         if let token = Pushes.shared.token { savePushAddress(token) }
@@ -206,6 +220,28 @@ final class NotebookModel {
         if draftIsEmpty {
             draftStartedAt = nil
         }
+        persistDraft()
+    }
+
+    /// The live line, written down as it is: cheap, and the words survive anything short of Return.
+    private func persistDraft() {
+        let defaults = UserDefaults.standard
+        if draftIsEmpty {
+            defaults.removeObject(forKey: Self.draftKey)
+            return
+        }
+        let draft = Draft(text: draftText, media: draftMedia, startedAt: draftStartedAt, keepsPhotoMoment: draftKeepsPhotoMoment)
+        if let data = try? JSONEncoder().encode(draft) { defaults.set(data, forKey: Self.draftKey) }
+    }
+
+    /// Whatever was in the live line when the app last went away.
+    private func restoreDraft() {
+        guard let data = UserDefaults.standard.data(forKey: Self.draftKey),
+              let draft = try? JSONDecoder().decode(Draft.self, from: data) else { return }
+        draftStartedAt = draft.startedAt
+        draftMedia = draft.media
+        draftKeepsPhotoMoment = draft.keepsPhotoMoment
+        draftText = draft.text
     }
 
     /// A photo lands in the live line. From the camera it is of this moment; from the library it

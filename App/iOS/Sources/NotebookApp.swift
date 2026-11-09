@@ -35,7 +35,8 @@ struct NotebookApp: App {
                     model?.reload()
                     model?.takeInbox()
                     Pushes.shared.refresh()
-                case .background, .inactive: model?.commitDraft()
+                // The live line keeps its words across a switch away; it is saved as it is typed.
+                case .background, .inactive: break
                 @unknown default: break
                 }
             }

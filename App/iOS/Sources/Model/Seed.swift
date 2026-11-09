@@ -14,13 +14,24 @@ enum Seed {
     ]
 
     static func runIfAsked(_ model: NotebookModel) async {
-        guard ProcessInfo.processInfo.arguments.contains("-uitest-seed-photos"),
-              !model.notebook.entries.contains(where: { $0.text == words }) else { return }
-        for page in pages {
-            await model.addPhoto(render(page))
+        guard ProcessInfo.processInfo.arguments.contains("-uitest-seed-photos") else { return }
+        let line: ULID
+        if let existing = model.notebook.entries.first(where: { $0.text == words }) {
+            line = existing.id
+        } else {
+            for page in pages {
+                await model.addPhoto(render(page))
+            }
+            model.draftText = words
+            guard let made = model.commitDraft() else { return }
+            line = made
         }
-        model.draftText = words
-        model.commitDraft()
+        // A tag on the line, placed by another originator, as the owner never files.
+        guard model.notebook.entry(line)?.labels.contains("book") != true else { return }
+        let label = Event(id: ULID(), author: Author(rawValue: "seed"), device: model.device, at: Date(),
+                          payload: .labelAttach(.init(entry: line, label: "book")))
+        try? model.store.append(label)
+        model.reload()
     }
 
     /// A page of a book: black serif on white, large enough for Live Text.

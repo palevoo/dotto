@@ -8,6 +8,8 @@ import UIKit
 struct LineView: View {
     let entryID: ULID
     @Bindable var model: NotebookModel
+    /// A tag on the line was tapped: whoever holds the page filters it by that tag.
+    var onFilter: ((String) -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var editing = false
     @State private var text = ""
@@ -127,15 +129,22 @@ struct LineView: View {
                 }
 
                 if !entry.labels.isEmpty {
+                    // Tap a tag to see every line under it.
                     HStack(spacing: 8) {
                         ForEach(entry.labels, id: \.self) { label in
-                            Text("#\(label)")
-                                .font(Theme.mono)
-                                .foregroundStyle(Theme.muted)
-                                .padding(.horizontal, 10)
-                                .frame(height: 26)
-                                .background(Theme.square(26).fill(Theme.paper))
-                                .overlay(Theme.square(26).strokeBorder(Theme.line, lineWidth: 1))
+                            Button {
+                                onFilter?(label)
+                            } label: {
+                                Text("#\(label)")
+                                    .font(Theme.mono)
+                                    .foregroundStyle(Theme.muted)
+                                    .padding(.horizontal, 10)
+                                    .frame(height: 26)
+                                    .background(Theme.square(26).fill(Theme.paper))
+                                    .overlay(Theme.square(26).strokeBorder(Theme.line, lineWidth: 1))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("tag-\(label)")
                         }
                     }
                 }
