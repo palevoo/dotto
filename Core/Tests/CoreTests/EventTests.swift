@@ -60,8 +60,12 @@ final class EventTests: XCTestCase {
         }
     }
 
-    func testUnknownKindFails() {
+    /// Until 10 November an unknown kind failed the line, and with it the file. The
+    /// vocabulary grows by addition, so now it is carried as unknown; see UnknownKindTests.
+    func testUnknownKindIsCarried() throws {
         let line = #"{"at":"2026-11-02T10:00:00Z","author":"me","device":"iphone","id":"01KA1C4Q6R0000000000000000","kind":"entry.explode","payload":{}}"#
-        XCTAssertThrowsError(try JSONLines.decode(line))
+        let event = try JSONLines.decode(line)
+        XCTAssertNil(event.kind)
+        XCTAssertEqual(event.kindName, "entry.explode")
     }
 }

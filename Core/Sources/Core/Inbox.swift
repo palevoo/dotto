@@ -222,7 +222,7 @@ public enum Inbox {
                         asks: true, answered: !waiting, unread: fresh && waiting))
 
                 case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .unlink, .undone,
-                     .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .thingRemove, .factRemove:
+                     .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .thingRemove, .factRemove, .unknown:
                     continue
                 }
             }
@@ -345,7 +345,7 @@ public enum Inbox {
                 marks.append("\(who(event.author)) marked \(p.entry) done\(p.by.map { " by \($0)" } ?? "")")
             case .nameSet(let p):
                 names.append("\(event.author) is called \(p.name) now")
-            case .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan:
+            case .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .unknown:
                 continue
             }
         }

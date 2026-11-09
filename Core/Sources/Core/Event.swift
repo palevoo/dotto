@@ -120,7 +120,9 @@ public enum FactValue: Hashable, Sendable, Codable {
     }
 }
 
-/// The vocabulary. Versioned by addition only; a kind never changes meaning.
+/// The vocabulary. Versioned by addition only; a kind never changes meaning. A build that
+/// meets a kind it does not know carries the event as `Payload.unknown` and passes over it,
+/// so a phone and a Mac on different builds read the same files.
 public enum Kind: String, Codable, Sendable, CaseIterable {
     case entryCreate = "entry.create"
     case entryEdit = "entry.edit"
@@ -180,8 +182,13 @@ public enum Payload: Hashable, Sendable {
     case factSet(FactSet)
     case factRemove(FactRemove)
     case loopPropose(LoopPropose)
+    /// A kind this build does not know, from a device on a newer one. Carried as it was,
+    /// counted, written back unchanged, and nothing else: the vocabulary grows by addition,
+    /// so an older reader passes over what it cannot read yet.
+    case unknown(kind: String, payload: JSONValue)
 
-    public var kind: Kind {
+    /// The kind, when this build knows it.
+    public var kind: Kind? {
         switch self {
         case .entryCreate: .entryCreate
         case .entryEdit: .entryEdit
@@ -210,6 +217,7 @@ public enum Payload: Hashable, Sendable {
         case .factSet: .factSet
         case .factRemove: .factRemove
         case .loopPropose: .loopPropose
+        case .unknown: nil
         }
     }
 
@@ -645,7 +653,14 @@ public struct Event: Hashable, Sendable, Identifiable {
         self.payload = payload
     }
 
-    public var kind: Kind { payload.kind }
+    /// The kind, when this build knows it.
+    public var kind: Kind? { payload.kind }
+
+    /// The kind's name as the file has it, known or not.
+    public var kindName: String {
+        if case .unknown(let kind, _) = payload { return kind }
+        return payload.kind?.rawValue ?? ""
+    }
 }
 
 extension Date {
@@ -666,7 +681,11 @@ extension Event: Codable {
         author = try container.decode(Author.self, forKey: .author)
         device = try container.decode(DeviceID.self, forKey: .device)
         at = try container.decode(Date.self, forKey: .at)
-        let kind = try container.decode(Kind.self, forKey: .kind)
+        let name = try container.decode(String.self, forKey: .kind)
+        guard let kind = Kind(rawValue: name) else {
+            payload = .unknown(kind: name, payload: try container.decodeIfPresent(JSONValue.self, forKey: .payload) ?? .object([:]))
+            return
+        }
         payload = switch kind {
         case .entryCreate: .entryCreate(try container.decode(Payload.EntryCreate.self, forKey: .payload))
         case .entryEdit: .entryEdit(try container.decode(Payload.EntryEdit.self, forKey: .payload))
@@ -704,8 +723,9 @@ extension Event: Codable {
         try container.encode(author, forKey: .author)
         try container.encode(device, forKey: .device)
         try container.encode(at, forKey: .at)
-        try container.encode(kind, forKey: .kind)
+        try container.encode(kindName, forKey: .kind)
         switch payload {
+        case .unknown(_, let raw): try container.encode(raw, forKey: .payload)
         case .entryCreate(let p): try container.encode(p, forKey: .payload)
         case .entryEdit(let p): try container.encode(p, forKey: .payload)
         case .entryDelete(let p): try container.encode(p, forKey: .payload)

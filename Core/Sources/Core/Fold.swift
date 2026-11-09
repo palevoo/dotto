@@ -437,7 +437,7 @@ public struct Notebook: Sendable {
         seen.insert(event.id)
         eventCount += 1
         // Only the owner opens or closes the door, and only the owner sets or stops a loop.
-        if [.grantCreate, .grantRevoke, .loopSet, .loopStop].contains(event.kind), event.author != owner { return }
+        if let kind = event.kind, [.grantCreate, .grantRevoke, .loopSet, .loopStop].contains(kind), event.author != owner { return }
         if event.author != owner, !others.contains(event.author) { others.append(event.author) }
 
         switch event.payload {
@@ -565,6 +565,10 @@ public struct Notebook: Sendable {
             if let cost = p.cost { what += String(format: ", $%.2f", cost) }
             if !p.ok { what += ", and failed" }
             trace(event, what, entry: nil)
+
+        case .unknown:
+            // From a newer build. Counted, kept, and left for a build that knows it.
+            break
         }
     }
 
@@ -1008,7 +1012,7 @@ public struct Notebook: Sendable {
             }
 
         case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .link, .unlink, .done, .undone, .visit, .nameSet, .grantCreate, .grantRevoke,
-             .loopSet, .loopStop, .loopRan, .thingSet, .thingRemove, .factSet, .factRemove, .loopPropose:
+             .loopSet, .loopStop, .loopRan, .thingSet, .thingRemove, .factSet, .factRemove, .loopPropose, .unknown:
             break
         }
     }

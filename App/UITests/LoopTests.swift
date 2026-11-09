@@ -25,14 +25,17 @@ final class LoopTests: XCTestCase {
         setup.tap()
         let loops = app.buttons["open-loops"]
         XCTAssertTrue(loops.waitForExistence(timeout: 5), "Setup has a Loops step")
-        XCTAssertTrue(app.staticTexts["1 proposed, waiting for you"].exists, "and says a proposal waits")
+        // The notebook on the simulator keeps what earlier runs did: the proposal waits the
+        // first time, and is a loop already on the runs after.
+        let waits = app.staticTexts["1 proposed, waiting for you"].exists
         loops.tap()
 
         let proposal = app.staticTexts["proposal-Bring the walks"]
-        if !proposal.waitForExistence(timeout: 5) {
-            // A run before this one may have set it already; then it is a loop.
-            XCTAssertTrue(app.staticTexts["loop-Bring the walks"].exists, "the proposal was set in an earlier run")
+        if !waits {
+            XCTAssertTrue(app.staticTexts["loop-Bring the walks"].waitForExistence(timeout: 5), "the proposal was set in an earlier run")
+            XCTAssertFalse(proposal.exists)
         } else {
+            XCTAssertTrue(proposal.waitForExistence(timeout: 5), "the proposal waits on the Loops page")
             app.buttons["take-Bring the walks"].tap()
             XCTAssertTrue(app.staticTexts["loop-Bring the walks"].waitForExistence(timeout: 5), "one tap, and it is a loop")
             XCTAssertFalse(proposal.exists, "and no longer a proposal")

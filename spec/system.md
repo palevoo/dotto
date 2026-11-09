@@ -112,6 +112,14 @@ Today: all pages are code. Missing: a page as a definition over shapes, which is
 dotto make the shelf, the plant page and its own site; search over plain words, a small
 page of its own.
 
+## Rules found on 10 November
+
+- The vocabulary grows by addition, so an older build carries an event kind it does not
+  know, counts it and passes over it; it never drops the file. Found when shapes added four
+  kinds and a phone and a Mac could be on different builds.
+- Only the owner's hand makes a loop run. Anyone may shape one as a proposal; the owner
+  sets it with one tap or declines it.
+
 ## Rules found on 9 November
 
 - A capture never changes; shapes live and die.
