@@ -367,6 +367,38 @@ final class DoorTests: XCTestCase {
         XCTAssertTrue(try store.load().loopProposals.isEmpty)
     }
 
+    /// A reply through the door is a line that says what it was said under. Its writer
+    /// answers a reply, changes its own and deletes its own, and nobody else's.
+    func testARepyIsALineAndItsWriterChangesAndDeletesIt() throws {
+        func noted(_ reply: String) throws -> ULID {
+            try XCTUnwrap(reply.components(separatedBy: " as ").last.flatMap { ULID(String($0.prefix(26))) }, reply)
+        }
+        let first = try noted(text(try rpc("tools/call", ["name": "add_note", "arguments": ["entry": wall.string, "text": "Lime mortar, not cement."]])))
+        // Written the new way: a line with what it was said under, not the older note.
+        let written = try store.loadEvents().first { $0.id == first }
+        guard case .entryCreate(let line)? = written?.payload else { return XCTFail("a reply is written as a line") }
+        XCTAssertEqual(line.under, wall)
+
+        // An answer to the reply, in the same conversation.
+        let second = try noted(text(try rpc("tools/call", ["name": "add_note", "arguments": ["entry": first.string, "text": "Hydraulic lime if it stays wet."]])))
+        var notes = try XCTUnwrap(try store.load().entry(wall)?.notes)
+        XCTAssertEqual(notes.map(\.text), ["Lime mortar, not cement.", "Hydraulic lime if it stays wet."])
+        XCTAssertEqual(notes.last?.answers, first)
+
+        // Its own words, changed and then taken back.
+        _ = try rpc("tools/call", ["name": "edit_line", "arguments": ["entry": first.string, "text": "Lime mortar, never cement."]])
+        notes = try XCTUnwrap(try store.load().entry(wall)?.notes)
+        XCTAssertEqual(notes.first?.text, "Lime mortar, never cement.")
+        _ = try rpc("tools/call", ["name": "delete_line", "arguments": ["entry": second.string]])
+        XCTAssertEqual(try store.load().entry(wall)?.notes.map(\.id), [first])
+
+        // Another originator's hand on it is refused.
+        door = Door(store: store, grant: Grant(name: "Friend", author: "friend", device: "x"), calendar: utc)
+        let refused = text(try rpc("tools/call", ["name": "edit_line", "arguments": ["entry": first.string, "text": "Mine now"]]))
+        XCTAssertTrue(refused.contains("may not change a line that is not its own"), refused)
+        XCTAssertEqual(try store.load().entry(wall)?.notes.first?.text, "Lime mortar, never cement.")
+    }
+
     /// A line whose moment is ahead, a class on Saturday, can still be changed today: its id
     /// is of when it was written, so the change comes after it on every device.
     func testALineDatedAheadCanStillBeChanged() throws {
@@ -384,7 +416,8 @@ final class DoorTests: XCTestCase {
     func testANoteCitesTheLinesItSpeaksOf() throws {
         let olives = try store.load().entries.first { $0.text == "Olives in" }!
         let reply = text(try rpc("tools/call", ["name": "add_note", "arguments": ["entry": wall.string, "text": "Same as the olives.", "cites": [olives.id.string]]]))
-        XCTAssertEqual(reply, "Noted under \(wall!), citing 1 line.")
+        XCTAssertTrue(reply.hasPrefix("Noted under \(wall!) as "), reply)
+        XCTAssertTrue(reply.hasSuffix(", citing 1 line."), reply)
         let notebook = try store.load()
         let note = notebook.entry(wall)!.notes.first!
         XCTAssertEqual(note.cites.map(\.to), [olives.id])
@@ -501,7 +534,7 @@ final class DoorTests: XCTestCase {
 
     func testNoteLandsInTheGrantsOwnFile() throws {
         let reply = text(try rpc("tools/call", ["name": "add_note", "arguments": ["entry": wall.string, "text": "Rebuilt the camera on AVFoundation."]]))
-        XCTAssertEqual(reply, "Noted under \(wall!).")
+        XCTAssertTrue(reply.hasPrefix("Noted under \(wall!) as "), reply)
         XCTAssertEqual(try store.eventFiles().map(\.lastPathComponent), ["me.iphone.jsonl", "weeju.mac-door.jsonl"])
         let notebook = try store.load()
         XCTAssertEqual(notebook.entry(wall)?.notes.first?.text, "Rebuilt the camera on AVFoundation.")

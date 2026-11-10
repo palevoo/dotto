@@ -304,9 +304,13 @@ under is read as a reply in that line's conversation, beside the replies written
 way; a change to it or its being dropped is a change to a reply or its being taken back,
 by its writer, or dropped by its writer or the owner; an answer knows the reply it answers;
 what is new tells of it as a reply; it may arrive before what it was said under. A line
-said under a thing is kept in the file and shown nowhere yet. Step two, once both apps are
-on a build that reads: the phone and the door write replies this way, and a reply takes a
-photo, a fact, a todo, a link, and is found and changed like any line.
+said under a thing is kept in the file and shown nowhere yet. Step two, the same day, once both apps were
+on a build that reads: the phone and the door write a reply as a line that says what it was
+said under; a reply written under a reply, in the inbox or through the door, answers that
+reply; its writer changes it and drops it through the door as any line of its own. Still to
+come: a reply that carries a photo, a fact or a todo is kept in the file and not yet shown,
+because the conversation is still drawn from what a note was; the reply and inbox screens
+are redrawn when it is.
 
 **Not done, on purpose.** The screen for talking to a thing, which comes with pages.
 
@@ -324,7 +328,8 @@ the test the parts keep passing.
 ## Open
 
 - Pages as definitions over shapes.
-- Lines stand somewhere: read since 10 November; writing them is step two, see above.
+- Lines stand somewhere: read and written since 10 November. A reply as a full line on
+  the screen, with its photos, facts and todo, is what is left; see above.
 - A named place: a place fact is coordinates; what calls it the nursery is not built.
 - Where loops run and pages are served, the home; media leaving the phone. Both parked,
   and both gate loops and pages.

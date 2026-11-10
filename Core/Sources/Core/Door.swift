@@ -239,9 +239,9 @@ public struct Door: Sendable {
                         "inputSchema": ["type": "object", "properties": ["words": ["type": "string"]], "required": ["words"]]]
             case .addNote:
                 return ["name": rawValue,
-                        "description": "A short note under a line, under your name: an answer to what it asks, or the one thing worth saying. When the note speaks of other lines, cite them by id and the page makes each a jump.",
+                        "description": "A short note under a line, under your name: an answer to what it asks, or the one thing worth saying. Give a reply's id as entry to answer that reply in the same conversation. When the note speaks of other lines, cite them by id and the page makes each a jump. The answer names the note's id, for edit_line and delete_line.",
                         "inputSchema": ["type": "object",
-                                        "properties": ["entry": entry, "text": ["type": "string"],
+                                        "properties": ["entry": ["type": "string", "description": "The id of the line, or of the reply being answered."], "text": ["type": "string"],
                                                        "cites": ["type": "array", "items": ["type": "string"],
                                                                  "description": "Ids of lines the note speaks of."]],
                                         "required": ["entry", "text"]]]
@@ -258,11 +258,11 @@ public struct Door: Sendable {
                                         "required": ["text"]]]
             case .editLine:
                 return ["name": rawValue,
-                        "description": "Change the words of a line of yours. The whole text; what it said before stays in its history. Only your own lines.",
+                        "description": "Change the words of a line or a note of yours. The whole text; what it said before stays in its history. Only your own.",
                         "inputSchema": ["type": "object", "properties": ["entry": entry, "text": ["type": "string"]], "required": ["entry", "text"]]]
             case .deleteLine:
                 return ["name": rawValue,
-                        "description": "Delete a line of yours. It leaves the page; the events that made it stay. Only your own lines.",
+                        "description": "Delete a line or a note of yours. It leaves the page; the events that made it stay. Only your own.",
                         "inputSchema": ["type": "object", "properties": ["entry": entry], "required": ["entry"]]]
             case .chooseName:
                 return ["name": rawValue,
@@ -485,7 +485,11 @@ public struct Door: Sendable {
 
         case .addNote:
             guard grant.writesNotes else { throw Failure.notAllowed("write notes") }
-            let entry = try line(arguments, in: notebook)
+            // Said under a line, or under a reply to answer it: either way in the line's conversation.
+            guard let raw = arguments["entry"] as? String else { throw Failure.missing("entry") }
+            guard let under = ULID(raw), let entry = notebook.entry(under)?.id ?? notebook.note(under)?.entry.id else {
+                throw Failure.noSuchLine(raw)
+            }
             guard let text = (arguments["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
                 throw Failure.missing("text")
             }
@@ -496,13 +500,14 @@ public struct Door: Sendable {
             }
             let now = Date()
             let id = generator.next(at: now)
+            // A reply is a line that says what it was said under.
             try write(Event(id: id, author: grant.author, device: grant.device, at: now,
-                            payload: .noteAdd(.init(entry: entry, note: id, text: text))))
+                            payload: .entryCreate(.init(entry: id, text: text, startedAt: now, under: under))))
             for line in cited where line != entry {
                 try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
                                 payload: .link(.init(from: id, to: line))))
             }
-            return .text(cited.isEmpty ? "Noted under \(entry)." : "Noted under \(entry), citing \(cited.count) line\(cited.count == 1 ? "" : "s").")
+            return .text("Noted under \(entry) as \(id)" + (cited.isEmpty ? "." : ", citing \(cited.count) line\(cited.count == 1 ? "" : "s")."))
 
         case .setLabel:
             guard grant.writesLabels else { throw Failure.notAllowed("write labels") }
@@ -817,9 +822,13 @@ public struct Door: Sendable {
     }
 
     /// A line this grant wrote. Anyone else's is refused before anything is written.
+    /// A line of the grant's own, or a note of its own under anyone's line: both are lines.
     private func ownLine(_ arguments: [String: Any], in notebook: Notebook) throws -> ULID {
-        let id = try line(arguments, in: notebook)
-        guard notebook.entry(id)?.author == grant.author else { throw Failure.notAllowed("change a line that is not its own") }
+        guard let raw = arguments["entry"] as? String else { throw Failure.missing("entry") }
+        guard let id = ULID(raw), let author = notebook.entry(id)?.author ?? notebook.note(id)?.note.author else {
+            throw Failure.noSuchLine(raw)
+        }
+        guard author == grant.author else { throw Failure.notAllowed("change a line that is not its own") }
         return id
     }
 

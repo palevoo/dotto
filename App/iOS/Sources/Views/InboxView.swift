@@ -211,7 +211,9 @@ struct InboxRow: View {
         }
         reply = nil
         focused = false
-        withAnimation(Motion.settle) { model.reply(to: entry, text: words) }
+        // Written under a reply, it answers that reply; under a line, the line.
+        let answering = item.kind == .reply ? item.id : nil
+        withAnimation(Motion.settle) { model.reply(to: entry, text: words, answering: answering) }
         Haptic.store()
     }
 }

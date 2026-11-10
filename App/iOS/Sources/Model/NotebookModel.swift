@@ -274,14 +274,17 @@ final class NotebookModel {
         draft.remove(item.id, now: Date(), calendar: calendar)
     }
 
-    /// Your reply under a line, yours or anyone's.
-    func reply(to entry: ULID, text: String) {
+    /// Your reply under a line, yours or anyone's: a line that says what it was said under.
+    /// `answering` is the reply it answers, when it was written under one; it is then said
+    /// under that reply, in the same conversation.
+    func reply(to entry: ULID, text: String, answering: ULID? = nil) {
         let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !words.isEmpty, notebook.entry(entry) != nil else { return }
+        let under = answering.flatMap { notebook.note($0)?.entry.id == entry ? $0 : nil } ?? entry
         let now = Date()
         let id = generator.next(at: now)
         record([Event(id: id, author: store.manifest.owner, device: device, at: now,
-                      payload: .noteAdd(.init(entry: entry, note: id, text: words)))])
+                      payload: .entryCreate(.init(entry: id, text: words, startedAt: now, under: under)))])
     }
 
     /// A voice note lands in the live line the moment it ends: the audio is kept in the
@@ -423,12 +426,12 @@ final class NotebookModel {
     func editNote(_ note: Note, text: String) {
         let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard note.author == store.manifest.owner, !words.isEmpty, words != note.text else { return }
-        record(.noteEdit(.init(note: note.id, text: words)))
+        record(.entryEdit(.init(entry: note.id, text: words)))
     }
 
     /// A reply taken away: yours, or anyone's from under your line.
     func removeNote(_ note: Note) {
-        record(.noteRemove(.init(note: note.id)))
+        record(.entryDelete(.init(entry: note.id)))
     }
 
     func mediaURL(_ media: Media) -> URL {

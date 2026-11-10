@@ -476,7 +476,9 @@ final class MacModel {
             case .noteAdd(let note):
                 self.push(APNS.Message(title: title, body: note.text, entry: note.entry))
             case .entryCreate(let line):
-                self.push(APNS.Message(title: title, body: line.text, entry: line.entry))
+                // A reply opens the line whose conversation it is in; a line opens itself.
+                let opens = line.under.map { self.notebook?.note($0)?.entry.id ?? $0 } ?? line.entry
+                self.push(APNS.Message(title: title, body: line.text, entry: opens))
             case .nameSet(let chosen):
                 self.push(APNS.Message(title: "dotto", body: "Chose the name \(chosen.name)."))
             default:
