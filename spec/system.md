@@ -236,6 +236,45 @@ is not set, has no kind, and is not counted among the kinds; it has a page like 
 **Not done, on purpose.** Shape-to-shape links, "same as" for two things that are one,
 pages as definitions.
 
+## The home, the design
+
+Decided 10 November; built a piece at a time, the simplest first. From the notebook: two
+loops reading every line, each with half the picture; a line with a paper's address
+answered with what could not be done; the wish for faceit, mail, pages, programs asked for
+in a sentence; and the question of how to give access and still feel safe.
+
+**The home is where the notebook is kept whole and where what acts runs**: the folder, the
+door, the keys, the pushes, the loops. The apps are for writing and looking. Today the home
+is inside the Mac app; what it does is moved into Core as it is touched, so it can run by
+itself on a machine that stays on, and be run and tested without a screen.
+
+**A loop is a sentence, carried out one of two ways.** Kept in mind, part of the one
+reading of each line. Or as a program, a small piece of code the home runs. Which way is
+the proposer's shaping; setting it is the owner's hand.
+
+**One reading.** An originator reads what lands once, with every sentence woken by a line
+kept in mind and the whole notebook in view. Built 10 November: the loops woken by a line,
+of one originator, run as one session, under the oldest of them; a loop on the clock runs
+by itself. The reading touches nothing outside.
+
+**Programs run with nothing but what they were given**: the door, under their own name, and
+the reach they were granted. No files, no network beyond it, no keys. To be built, small
+first: code in a little interpreter that can call only what it was handed.
+
+**Reach is the owner's grant outward**, as a grant is inward: where a program may go, and
+with which key. The key stays with the home and the program never sees it. Every use leaves
+a receipt.
+
+**In freely, out on the owner's word.** What comes in lands as a capture under its source's
+name: a fetched paper beside the line that pointed at it, a match, a mail. What goes out
+goes only on the owner's word: a line they wrote, a tap, or a standing allowance they put
+on a reach. So nothing that reads a stranger's page ever holds a way out, and a link is
+opened when it is in the owner's line, never one a fetched page put in an originator's.
+
+**Order.** The one reading, built. Then opening what the owner's lines point at. Then
+programs and reach, faceit first. Then pages, on the same footing as programs. The home as
+a process of its own when one of these needs it.
+
 ## Hands, the design
 
 Decided and built 10 November. From the notebook: a weeju and a Margo that were one being

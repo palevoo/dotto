@@ -105,6 +105,13 @@ public struct Loop: Hashable, Sendable, Identifiable {
     /// The last receipt, if the loop has run.
     public var lastRun: LoopRun?
 
+    /// Whether this is the same work as another: what would be run, as whom, within what.
+    /// A receipt landing does not make it other work.
+    public func sameWork(as other: Loop) -> Bool {
+        id == other.id && setBy == other.setBy && name == other.name && grant == other.grant && wake == other.wake
+            && brief == other.brief && turns == other.turns && budget == other.budget
+    }
+
     /// The hand the loop is: what its events say they came through, and what keeps its own
     /// place in the notebook, so two loops of one originator each see what is new to them
     /// and each write to a file of their own. Its name as a slug, with a little of its id
@@ -755,13 +762,69 @@ public struct Notebook: Sendable {
 
     /// The loops that run today, oldest first: set, and not stopped since.
     public var loops: [Loop] {
-        loopMarks.values
+        let set = loopMarks.values
             .filter { mark in
                 let stopped = mark.stoppedBy ?? stoppedLoops[mark.loop.id]
                 return stopped.map { $0 < mark.loop.setBy } ?? true
             }
             .map(\.loop)
             .sorted { ($0.createdAt, $0.id) < ($1.createdAt, $1.id) }
+        // A receipt of the reading is every sentence's: it ran with all of them in mind.
+        return set.map { loop in
+            guard loop.wake == .line else { return loop }
+            var loop = loop
+            loop.lastRun = sentences(with: loop, among: set).compactMap(\.lastRun).max { $0.id < $1.id }
+            return loop
+        }
+    }
+
+    // MARK: - The reading
+
+    /// What the home runs. A loop is a sentence, said once and kept. One woken by the clock
+    /// is run at its hour, by itself. Those woken by a line are not run each by itself: an
+    /// originator reads what lands once, with every such sentence kept in mind and the whole
+    /// notebook in view, where a session for each read the same line with half the picture,
+    /// twice. That one reading stands here as a loop of its own, under the oldest of them, so
+    /// its receipts have a place; the clock loops follow as they are.
+    public var running: [Loop] {
+        let all = loops
+        var readings: [Loop] = []
+        var placed: Set<ULID> = []
+        for loop in all where loop.wake == .line && !placed.contains(loop.id) {
+            let together = sentences(with: loop, among: all)
+            together.forEach { placed.insert($0.id) }
+            readings.append(Self.reading(of: together))
+        }
+        return readings + all.filter { $0.wake != .line }
+    }
+
+    /// The reading a line-woken loop is part of; nil for a loop woken by the clock, or stopped.
+    public func reading(holding loop: Loop) -> Loop? {
+        guard loop.wake == .line else { return nil }
+        let together = sentences(with: loop, among: loops)
+        return together.contains { $0.id == loop.id } ? Self.reading(of: together) : nil
+    }
+
+    /// The line-woken loops of the same originator as one, oldest first.
+    private func sentences(with loop: Loop, among all: [Loop]) -> [Loop] {
+        func who(_ loop: Loop) -> String { grantMarks[loop.grant].map { "by:" + $0.grant.author.rawValue } ?? "grant:" + loop.grant.string }
+        let mine = who(loop)
+        return all.filter { $0.wake == .line && who($0) == mine }
+    }
+
+    /// One reading out of the sentences kept in mind. It comes through the key of the oldest,
+    /// and is allowed the most any one of them was.
+    private static func reading(of sentences: [Loop]) -> Loop {
+        let first = sentences[0]
+        let kept = sentences.compactMap { loop -> String? in
+            guard let words = loop.brief?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty else { return nil }
+            return "- \(loop.name): \(words)"
+        }
+        let brief = kept.isEmpty ? nil
+            : "Keep in mind as you read, at the owner's word, each said once and standing until they take it back:\n" + kept.joined(separator: "\n")
+        return Loop(id: first.id, setBy: sentences.map(\.setBy).max() ?? first.setBy, name: "The reading", grant: first.grant, wake: .line,
+                    brief: brief, turns: sentences.map(\.turns).max() ?? first.turns, budget: sentences.map(\.budget).max() ?? first.budget,
+                    createdAt: first.createdAt, lastRun: sentences.compactMap(\.lastRun).max { $0.id < $1.id })
     }
 
     /// Every loop ever set, stopped ones included, oldest first.

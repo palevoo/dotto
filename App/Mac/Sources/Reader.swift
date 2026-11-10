@@ -230,7 +230,8 @@ final class ReaderRunner {
             """
             if let words = loop.brief?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty {
                 // The owner set it; the words may be the owner's or a proposer's they agreed to.
-                brief += "\n\nThe brief the owner set for this loop: \(words)"
+                // The reading's are every sentence kept in mind, and say so themselves.
+                brief += loop.wake == .line ? "\n\n\(words)" : "\n\nThe brief the owner set for this loop: \(words)"
             }
             status.state = .running
             let run = ReaderRun(loop: loop.id, startedAt: now)

@@ -136,4 +136,45 @@ final class HandsTests: XCTestCase {
         XCTAssertEqual(hands, ["the-reader-" + reader.string.suffix(4).lowercased(), "todos-" + todos.string.suffix(4).lowercased()])
         XCTAssertEqual(Set(hands).count, 2, "two loops, two hands, two files")
     }
+
+    /// The reader and the todos loop were two sessions on every line. They are one reading
+    /// now, with the todos sentence kept in mind; a loop on the clock stays by itself.
+    func testSentencesWokenByALineAreOneReading() throws {
+        let reader = ULID(), todos = ULID(), morning = ULID(), health = ULID()
+        let session = Grant(name: "Claude Code", author: .dotto, device: "claude-code")
+        let other = Grant(name: "Another key", author: .dotto, device: "grok")
+        let source = Grant(name: "Health", author: "health", device: "phone")
+        for grant in [session, other, source] { try write({ _ in .grantCreate(grant.create) }, by: owner, on: "mac") }
+        try write({ _ in .loopSet(.init(loop: reader, name: "The reader", grant: session.id, wake: "line")) }, by: owner, on: "mac")
+        try write({ _ in .loopSet(.init(loop: todos, name: "Todos", grant: other.id, wake: "line",
+                                        brief: "When a line is something I mean to do, put the fact todo on it.", turns: 60, budget: 3)) }, by: owner, on: "mac")
+        try write({ _ in .loopSet(.init(loop: morning, name: "Morning look", grant: session.id, wake: "clock", at: "08:00", brief: "Read the week.")) }, by: owner, on: "mac")
+        try write({ _ in .loopSet(.init(loop: health, name: "Walk notes", grant: source.id, wake: "line", brief: "Say how far.")) }, by: owner, on: "mac")
+
+        var notebook = try store.load()
+        XCTAssertEqual(notebook.loops.count, 4, "four sentences, as the owner said them")
+        let running = notebook.running
+        XCTAssertEqual(running.map(\.name), ["The reading", "The reading", "Morning look"], "one reading for dotto, one for Health, the clock by itself")
+        let reading = try XCTUnwrap(running.first)
+        XCTAssertEqual(reading.id, reader, "under the oldest of its sentences")
+        XCTAssertEqual(reading.grant, session.id)
+        XCTAssertEqual(reading.turns, 60)
+        XCTAssertEqual(reading.budget, 3)
+        XCTAssertEqual(reading.brief, "Keep in mind as you read, at the owner's word, each said once and standing until they take it back:\n- Todos: When a line is something I mean to do, put the fact todo on it.")
+        XCTAssertEqual(notebook.reading(holding: try XCTUnwrap(notebook.loops.first { $0.id == todos }))?.id, reader)
+        XCTAssertNil(notebook.reading(holding: try XCTUnwrap(notebook.loops.first { $0.id == morning })))
+
+        // One run of the reading is every sentence's receipt.
+        try write({ _ in .loopRan(.init(loop: reader, run: ULID(), ok: true, turns: 3, cost: 0.02, summary: "Marked one todo.", startedAt: Date(), endedAt: Date())) },
+                  by: .dotto, on: reading.hand)
+        notebook = try store.load()
+        XCTAssertEqual(notebook.loops.first { $0.id == todos }?.lastRun?.summary, "Marked one todo.")
+
+        // A sentence taken back leaves the reading without it; the work is no longer the same.
+        try write({ _ in .loopStop(.init(loop: todos)) }, by: owner, on: "mac")
+        let after = try XCTUnwrap(try store.load().running.first)
+        XCTAssertNil(after.brief)
+        XCTAssertFalse(after.sameWork(as: reading))
+        XCTAssertTrue(reading.sameWork(as: try XCTUnwrap(notebook.running.first)), "a receipt does not make it other work")
+    }
 }

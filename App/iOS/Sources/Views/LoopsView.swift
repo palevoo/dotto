@@ -21,6 +21,13 @@ struct LoopsView: View {
                 Text("Loops")
                     .font(Theme.title)
                     .foregroundStyle(Theme.foreground)
+                if loops.filter({ $0.wake == .line }).count > 1 {
+                    // How they run, so two sentences do not read as two readers.
+                    Text("The sentences woken by a line are kept in mind together: each line is read once, with all of them.")
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 if !proposals.isEmpty {
                     VStack(alignment: .leading, spacing: 14) {

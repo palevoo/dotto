@@ -559,9 +559,14 @@ final class MacModel {
     /// The loops the notebook says run today, oldest first.
     var loops: [Loop] { notebook?.loops ?? [] }
 
-    func status(of loop: Loop) -> ReaderStatus? { _ = readerTick; return runners[loop.id]?.status }
-    func runs(of loop: Loop) -> [ReaderRun] { _ = readerTick; return runners[loop.id]?.runs ?? [] }
-    func runner(of loop: Loop) -> ReaderRunner? { _ = readerTick; return runners[loop.id] }
+    func status(of loop: Loop) -> ReaderStatus? { runner(of: loop)?.status }
+    func runs(of loop: Loop) -> [ReaderRun] { runner(of: loop)?.runs ?? [] }
+    /// What runs a loop. A sentence woken by a line is run by the one reading it is part
+    /// of, with the other such sentences; a loop on the clock by itself.
+    func runner(of loop: Loop) -> ReaderRunner? {
+        _ = readerTick
+        return runners[notebook?.reading(holding: loop)?.id ?? loop.id]
+    }
 
     /// A loop is the owner's event in the notebook. Set once here; every device holding the
     /// folder knows it, and this Mac, the home, runs it.
@@ -617,7 +622,7 @@ final class MacModel {
 
     /// Looks now, whatever wakes the loop, and runs even with nothing new.
     func lookNow(_ loop: Loop) {
-        runners[loop.id]?.lookNow()
+        runner(of: loop)?.lookNow()
     }
 
     /// Runners follow the notebook: one per loop that runs, made when the loop appears or is
@@ -626,12 +631,14 @@ final class MacModel {
     private func syncLoops(_ store: FileStore, _ notebook: Notebook) {
         guard Identity.runsLoops else { return }
         carryOverReaderSettings(store, notebook)
-        let wanted = Dictionary(uniqueKeysWithValues: notebook.loops.map { ($0.id, $0) })
-        for id in runners.keys where wanted[id] == nil || wanted[id]?.setBy != runners[id]?.loop.setBy {
-            runners[id]?.stop()
+        // What runs is not the loops one by one: the sentences woken by a line are one reading.
+        let running = notebook.running
+        let wanted = Dictionary(uniqueKeysWithValues: running.map { ($0.id, $0) })
+        for (id, runner) in runners where wanted[id].map({ !$0.sameWork(as: runner.loop) }) ?? true {
+            runner.stop()
             runners[id] = nil
         }
-        for loop in notebook.loops where runners[loop.id] == nil {
+        for loop in running where runners[loop.id] == nil {
             guard let grant = grants.first(where: { $0.id == loop.grant }), !grant.key.isEmpty else { continue }
             let runner = ReaderRunner(loop: loop, grant: grant, door: "http://127.0.0.1:\(Self.defaultPort)/mcp", model: readerModel,
                                       runsDirectory: readerRunsURL, logURL: readerLogURL)

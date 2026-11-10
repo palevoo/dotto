@@ -244,6 +244,11 @@ proposal waits in your inbox and on the Loops page, on the phone and the Mac, an
 with one tap, as the proposer's grant under the proposal's own id, or decline it, which is a
 stop of that id. Only your hand makes a loop run. `list_loops` says which run and which wait.
 
+The loops woken by a line are not run one by one. Each is a sentence kept in mind, and an
+originator reads what lands once, with all of them and the whole notebook in view: one
+session where two read the same line with half the picture each. A loop on the clock runs by
+itself.
+
 When a loop wakes it runs one headless session of the `claude` command you already pay for:
 the door as its only server, every built-in tool off, no settings and no project in reach,
 the door's conduct and the loop's brief as its whole brief, the loop's caps on turns and

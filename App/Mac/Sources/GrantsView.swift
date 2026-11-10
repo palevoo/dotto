@@ -249,8 +249,13 @@ struct GrantsView: View {
     private var readerSection: some View {
         Section("Loops") {
             if model.loops.isEmpty {
-                Text("A loop wakes when a line lands, or at an hour every day, and runs one Claude Code session through the door, with the door as its only tool, then stops. It runs inside this app while it is open, under one of the grants above; Logs say which hand, and each run leaves a receipt.")
+                Text("A loop is a sentence said once and kept. One woken by a line is kept in mind: every line is read once, with all such sentences and the whole notebook in view. One on the clock runs at its hour. Either is a Claude Code session through the door, with the door as its only tool, while this app is open; each run leaves a receipt.")
                     .font(MacTheme.body)
+                    .foregroundStyle(MacTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if model.loops.filter({ $0.wake == .line }).count > 1 {
+                Text("The sentences woken by a line are kept in mind together: each line is read once, with all of them.")
+                    .font(MacTheme.mono)
                     .foregroundStyle(MacTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
