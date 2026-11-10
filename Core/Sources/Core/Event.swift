@@ -843,6 +843,33 @@ public enum JSONLines {
     public enum DecodeError: Error {
         case badLine(number: Int, underlying: Error)
     }
+
+    /// An event file as it is on disk, read for what can be read. A line that is not an
+    /// event, a write cut short, bytes that are not text, is passed over and its number
+    /// kept, so one damaged line costs that line and never the file or the notebook.
+    /// Blank lines are nothing. Line numbers start at one.
+    public static func read(_ data: Data) -> (events: [Event], unreadable: [Int]) {
+        let decoder = decoder()
+        var events: [Event] = []
+        var unreadable: [Int] = []
+        var number = 0
+        for line in data.split(separator: UInt8(ascii: "\n"), omittingEmptySubsequences: false) {
+            number += 1
+            // Spaces, tabs and a carriage return around a line are not part of it.
+            guard let first = line.firstIndex(where: { !isBlank($0) }),
+                  let last = line.lastIndex(where: { !isBlank($0) }) else { continue }
+            if let event = try? decoder.decode(Event.self, from: Data(line[first...last])) {
+                events.append(event)
+            } else {
+                unreadable.append(number)
+            }
+        }
+        return (events, unreadable)
+    }
+
+    private static func isBlank(_ byte: UInt8) -> Bool {
+        byte == 0x20 || byte == 0x09 || byte == 0x0D
+    }
 }
 
 enum ISO8601 {

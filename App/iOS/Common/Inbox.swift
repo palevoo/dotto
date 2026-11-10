@@ -63,7 +63,8 @@ enum Inbox {
     static func take(into store: FileStore) throws -> [Event] {
         guard let eventsURL, let mediaDirectory,
               FileManager.default.fileExists(atPath: eventsURL.path) else { return [] }
-        let events = try JSONLines.decodeAll(try String(contentsOf: eventsURL, encoding: .utf8))
+        // A line the share sheet did not finish writing is passed over; the rest is taken.
+        let events = JSONLines.read(try Data(contentsOf: eventsURL)).events
         for case .mediaAttach(let attach) in events.map(\.payload) {
             let url = mediaDirectory.appendingPathComponent(attach.hash + ".jpg")
             if let data = try? Data(contentsOf: url) {

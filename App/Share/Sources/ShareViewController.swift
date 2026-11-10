@@ -38,6 +38,8 @@ final class ShareModel {
     private(set) var photos: [Shot] = []
     private(set) var loading = true
     private(set) var kept = false
+    /// Return was pressed while what was shared was still loading: kept the moment it has.
+    private(set) var keepsWhenLoaded = false
     let ready = Inbox.owner != nil && Inbox.device != nil
 
     private let context: NSExtensionContext?
@@ -47,7 +49,10 @@ final class ShareModel {
     }
 
     func load() async {
-        defer { loading = false }
+        defer {
+            loading = false
+            if keepsWhenLoaded { keep() }
+        }
         for item in context?.inputItems as? [NSExtensionItem] ?? [] {
             if sharedText == nil, let text = item.attributedContentText?.string.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
                 sharedText = text
@@ -99,6 +104,12 @@ final class ShareModel {
     var hasSomething: Bool { !lineText.isEmpty || !photos.isEmpty }
 
     func keep() {
+        // Photos and links arrive one by one. A line kept before they all have would lose
+        // the rest, so Return waits for them.
+        guard !loading else {
+            keepsWhenLoaded = true
+            return
+        }
         guard ready, hasSomething, !kept, let owner = Inbox.owner, let device = Inbox.device else { return }
         kept = true
         let now = Date()
@@ -145,7 +156,7 @@ struct ShareView: View {
                 Spacer()
                 if model.ready {
                     Button(action: model.keep) {
-                        Text("Keep")
+                        Text(model.keepsWhenLoaded ? "Keeping…" : "Keep")
                             .font(Theme.mono)
                             .foregroundStyle(model.hasSomething ? Theme.accent : Theme.faint)
                             .frame(height: 44)

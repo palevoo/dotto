@@ -152,7 +152,9 @@ public final class DoorServer: @unchecked Sendable {
             guard let colon = line.firstIndex(of: ":") else { continue }
             headers[line[..<colon].lowercased()] = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
         }
-        let length = Int(headers["content-length"] ?? "0") ?? 0
+        // A length that is not a number, or is below nothing, is no body at all; the door
+        // then answers the empty request as it would any other it cannot read.
+        let length = max(0, Int(headers["content-length"] ?? "0") ?? 0)
         let bodyStart = headerEnd.upperBound
         guard data.endIndex - bodyStart >= length else { return nil }
         let body = Data(data[bodyStart..<(bodyStart + length)])

@@ -41,6 +41,8 @@ final class NotebookModel {
     private(set) var inbox: [InboxItem] = []
     /// How many of those arrived since you last looked, on any device.
     var unread: Int { inbox.filter(\.unread).count }
+    /// Lines in the event files that could not be read and were passed over.
+    private(set) var unreadable = 0
     private var reloadTask: Task<Void, Never>?
     private var projectTask: Task<Void, Never>?
 
@@ -154,10 +156,12 @@ final class NotebookModel {
     /// Re-folds the whole folder. Cheap for years of a notebook.
     func reload() {
         do {
-            let files = try store.loadEventsByFile()
+            let read = try store.loadFiles()
+            let files = read.map { (file: $0.name, events: $0.events) }
             notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
             days = notebook.days(calendar: calendar)
             inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: calendar)
+            unreadable = read.reduce(0) { $0 + $1.unreadable.count }
         } catch {
             NSLog("reload failed: \(error)")
         }

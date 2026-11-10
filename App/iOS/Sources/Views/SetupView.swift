@@ -77,6 +77,10 @@ struct SetupView: View {
     private var notebook: some View {
         Step("Notebook", done: true) {
             Status(Library.describe(model.store))
+            if model.unreadable > 0 {
+                // Damage is passed over, never hidden. The Mac's window names the file and lines.
+                Status("\(model.unreadable) line\(model.unreadable == 1 ? "" : "s") in its files could not be read and \(model.unreadable == 1 ? "was" : "were") passed over", pending: true)
+            }
             Action("Move to a folder") { showMove = true }
         }
     }

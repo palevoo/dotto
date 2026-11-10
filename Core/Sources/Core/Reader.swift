@@ -160,6 +160,12 @@ public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
 ///     idle ── woke ──▶ waking ── looked(found) ──▶ running(again: false)
 ///      ▲                 │  looked(nothing)            │ woke / forced: again = true
 ///      └─────────────────┘◀──── finished ──────────────┘  (again: look once more)
+///
+/// A run is started for what was waiting, and remembers it. A look that finds only what
+/// the last run was already started for starts nothing: that run did not take it, offline,
+/// logged out, refused, and running again for the same thing would only fail again, each
+/// time with a receipt that wakes the loop once more. The loop runs again when something
+/// new lands, and takes the old with it then.
 public struct LoopMachine: Equatable, Sendable {
     public enum Phase: Equatable, Sendable {
         /// Nothing pending.
@@ -183,8 +189,21 @@ public struct LoopMachine: Equatable, Sendable {
     }
 
     public private(set) var phase: Phase = .idle
+    /// What was waiting when the last run began, by event id.
+    public private(set) var offered: Set<ULID> = []
 
     public init() {}
+
+    /// A run begins, whatever started it, for these waiting things.
+    public mutating func began(with waiting: Set<ULID>) {
+        offered = waiting
+    }
+
+    /// The grace passed and the look was taken: these are waiting. A run starts when any of
+    /// them is one the last run was not started for.
+    public mutating func looked(waiting: Set<ULID>) -> Step {
+        looked(found: !waiting.isSubset(of: offered))
+    }
 
     /// Something landed in the folder.
     public mutating func woke() -> Step {

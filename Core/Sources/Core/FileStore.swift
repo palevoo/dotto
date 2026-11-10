@@ -103,10 +103,19 @@ public struct FileStore: Sendable {
                 if !FileManager.default.fileExists(atPath: url.path) {
                     FileManager.default.createFile(atPath: url.path, contents: nil)
                 }
-                let handle = try FileHandle(forWritingTo: url)
+                let handle = try FileHandle(forUpdating: url)
                 defer { try? handle.close() }
-                try handle.seekToEnd()
-                try handle.write(contentsOf: Data(text.utf8))
+                // A write cut short leaves a last line with no end. What is written now
+                // starts on a line of its own, so it is never glued onto the damage.
+                let end = try handle.seekToEnd()
+                var bytes = Data()
+                if end > 0 {
+                    try handle.seek(toOffset: end - 1)
+                    if try handle.read(upToCount: 1) != Data([UInt8(ascii: "\n")]) { bytes.append(UInt8(ascii: "\n")) }
+                    try handle.seekToEnd()
+                }
+                bytes.append(Data(text.utf8))
+                try handle.write(contentsOf: bytes)
                 try handle.synchronize()
             }
         }
@@ -120,18 +129,26 @@ public struct FileStore: Sendable {
     /// Every event, file by file, in the order written. Files only grow, so a count per
     /// file is a cursor into the whole notebook that no late arrival can slip past.
     public func loadEventsByFile() throws -> [(file: String, events: [Event])] {
-        var result: [(file: String, events: [Event])] = []
-        for url in try eventFiles() {
-            let text = try coordinated(reading: url) { url in
-                try String(contentsOf: url, encoding: .utf8)
-            }
-            do {
-                result.append((url.lastPathComponent, try JSONLines.decodeAll(text)))
-            } catch JSONLines.DecodeError.badLine(let number, _) {
-                throw Error.badEventFile(url, line: number)
-            }
+        try loadFiles().map { ($0.name, $0.events) }
+    }
+
+    /// One event file as read: its events, and the lines in it that could not be read.
+    public struct EventFile: Sendable {
+        public let name: String
+        public let events: [Event]
+        /// Line numbers, from one, that are not events: a write cut short, damage in transit.
+        public let unreadable: [Int]
+    }
+
+    /// Every event file, read for what can be read. A damaged line is passed over and
+    /// named here; it never costs the rest of its file, nor any other file. A file that
+    /// cannot be opened at all still throws.
+    public func loadFiles() throws -> [EventFile] {
+        try eventFiles().map { url in
+            let data = try coordinated(reading: url) { try Data(contentsOf: $0) }
+            let read = JSONLines.read(data)
+            return EventFile(name: url.lastPathComponent, events: read.events, unreadable: read.unreadable)
         }
-        return result
     }
 
     /// The event files on disk. In iCloud Drive a file not pulled down yet shows as

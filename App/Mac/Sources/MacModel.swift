@@ -205,13 +205,14 @@ final class MacModel {
     }
 
     func refreshSummary() {
-        guard let store, let files = try? store.loadEventsByFile() else {
+        guard let store, let read = try? store.loadFiles() else {
             summary = ""
             self.notebook = nil
             inbox = []
             grants = []
             return
         }
+        let files = read.map { (file: $0.name, events: $0.events) }
         let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
         self.notebook = notebook
         inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: .current)
@@ -232,6 +233,11 @@ final class MacModel {
         // Photos the door would refuse until iCloud brings them.
         if let arriving = cloud?.state?.arriving, arriving > 0 { text += " · \(arriving) media files not yet on this Mac" }
         if let trouble = cloud?.state?.trouble { text += " · iCloud: \(trouble)" }
+        // Damage is passed over, never hidden: which file, which lines.
+        for file in read where !file.unreadable.isEmpty {
+            let lines = file.unreadable.map(String.init).joined(separator: ", ")
+            text += " · \(file.name): line\(file.unreadable.count == 1 ? "" : "s") \(lines) could not be read and \(file.unreadable.count == 1 ? "was" : "were") passed over"
+        }
         summary = text
     }
 

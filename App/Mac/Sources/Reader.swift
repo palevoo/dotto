@@ -133,9 +133,22 @@ final class ReaderRunner {
             let files = try store.loadEventsByFile()
             let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
             let pending = Core.Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
-            found = pending.count > 0 && claude != nil
+            let waiting = Self.waiting(files: files, notebook: notebook, grant: grant)
+            let able = pending.count > 0 && claude != nil
+            // What the last run was started for and did not take is not run for again; the
+            // machine decides, and the window says why nothing is running.
+            let leftOver = able && waiting.isSubset(of: machine.offered)
+            found = able && !leftOver
             status.lastWake = ReaderStatus.Wake(at: now, new: pending.count, ran: found)
-            log(found ? "woke: \(pending.count) new, running" : "woke: \(pending.count) new")
+            if leftOver {
+                status.trouble = Self.leftWaiting
+                log("woke: \(pending.count) still waiting from the last run, which did not take them; not running again until something new lands")
+            } else {
+                log(found ? "woke: \(pending.count) new, running" : "woke: \(pending.count) new")
+            }
+            onChange()
+            carry(able ? machine.looked(waiting: waiting) : machine.looked(found: false))
+            return
         } catch {
             found = false
             status.lastWake = ReaderStatus.Wake(at: now, new: 0, ran: false)
@@ -144,6 +157,14 @@ final class ReaderRunner {
         }
         onChange()
         carry(machine.looked(found: found))
+    }
+
+    /// Said in the window while the last run's things still wait.
+    private static let leftWaiting = "the last run did not take what was waiting; it runs again when something new lands, or with Look Now"
+
+    /// Everything this loop's grant has not seen, by id: what a run would be started for.
+    private static func waiting(files: [(file: String, events: [Event])], notebook: Notebook, grant: Grant) -> Set<ULID> {
+        Set(Core.Inbox.fresh(files: files, notebook: notebook, grant: grant).events.map(\.id))
     }
 
     /// The clock: the next time the loop's hour comes round, then every day after.
@@ -177,6 +198,9 @@ final class ReaderRunner {
         do {
             let files = try store.loadEventsByFile()
             let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
+            // The run is for what waits now, however it was started.
+            machine.began(with: Self.waiting(files: files, notebook: notebook, grant: grant))
+            if status.trouble == Self.leftWaiting { status.trouble = nil }
             if status.lastWake == nil || status.lastWake?.ran == false {
                 let pending = Core.Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
                 status.lastWake = ReaderStatus.Wake(at: now, new: pending.count, ran: true)

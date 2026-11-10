@@ -93,6 +93,36 @@ final class ReaderTests: XCTestCase {
         XCTAssertEqual(loop.phase, .running(again: false))
     }
 
+    /// A run that did not take what it was started for is not started again for the same
+    /// thing: it would fail the same way, and its own receipt would wake it once more.
+    func testARunIsNotStartedTwiceForTheSameThings() {
+        var loop = LoopMachine()
+        let generator = ULIDGenerator()
+        let line = generator.next(at: Date()), later = generator.next(at: Date())
+
+        XCTAssertEqual(loop.woke(), .scheduleLook)
+        XCTAssertEqual(loop.looked(waiting: [line]), .startRun)
+        loop.began(with: [line])
+        // The run fails before looking. Its receipt lands, which wakes the loop.
+        XCTAssertEqual(loop.finished(), .nothing)
+        XCTAssertEqual(loop.woke(), .scheduleLook)
+        XCTAssertEqual(loop.looked(waiting: [line]), .nothing, "the same line still waiting starts nothing")
+        XCTAssertEqual(loop.phase, .idle)
+
+        // Something new lands: it runs, and the old waits with it.
+        XCTAssertEqual(loop.woke(), .scheduleLook)
+        XCTAssertEqual(loop.looked(waiting: [line, later]), .startRun)
+        loop.began(with: [line, later])
+        XCTAssertEqual(loop.finished(), .nothing)
+
+        // A run that took everything leaves nothing waiting.
+        XCTAssertEqual(loop.woke(), .scheduleLook)
+        XCTAssertEqual(loop.looked(waiting: []), .nothing)
+
+        // By hand or by the clock it runs whatever is waiting.
+        XCTAssertEqual(loop.forced(), .startRun)
+    }
+
     func testRunsAreListedNewestFirst() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("reader-runs-\(ULID().string)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

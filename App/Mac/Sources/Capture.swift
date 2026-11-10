@@ -134,7 +134,9 @@ enum Promised {
         queue.maxConcurrentOperationCount = 1
         var files: [URL] = []
         for receiver in receivers {
-            let expected = receiver.fileNames.count
+            // One call back per promised file. The names are known only once receiving has
+            // begun; the types are known now, one per file.
+            let expected = receiver.fileTypes.count
             guard expected > 0 else { continue }
             let arrived: [URL] = await withCheckedContinuation { continuation in
                 // One operation at a time on the queue, so the box is touched by one thread.

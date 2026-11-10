@@ -555,3 +555,36 @@ final class DoorTests: XCTestCase {
         XCTAssertFalse(text.contains(opened.key))
     }
 }
+
+/// The door's wire format, given what it should never be given.
+final class DoorWireTests: XCTestCase {
+    private func request(_ head: String, body: String = "") -> Data {
+        Data((head + "\r\n\r\n" + body).utf8)
+    }
+
+    func testALengthBelowNothingIsNoBodyAndNoCrash() throws {
+        let parsed = try XCTUnwrap(DoorServer.parse(request("POST /mcp HTTP/1.1\r\nContent-Length: -1", body: "{}")))
+        XCTAssertEqual(parsed.path, "/mcp")
+        XCTAssertTrue(parsed.body.isEmpty)
+    }
+
+    func testALengthThatIsNotANumberIsNoBody() throws {
+        let parsed = try XCTUnwrap(DoorServer.parse(request("POST /mcp HTTP/1.1\r\nContent-Length: lots", body: "{}")))
+        XCTAssertTrue(parsed.body.isEmpty)
+    }
+
+    func testABodyStillOnItsWayIsWaitedFor() {
+        XCTAssertNil(DoorServer.parse(request("POST /mcp HTTP/1.1\r\nContent-Length: 10", body: "{}")))
+        XCTAssertNil(DoorServer.parse(request("POST /mcp HTTP/1.1\r\nContent-Length: 9223372036854775807", body: "{}")))
+    }
+
+    func testAWholeRequestIsRead() throws {
+        let parsed = try XCTUnwrap(DoorServer.parse(request("POST /mcp HTTP/1.1\r\nContent-Length: 2\r\nAuthorization: Bearer k", body: "{}")))
+        XCTAssertEqual(parsed.body, Data("{}".utf8))
+        XCTAssertEqual(parsed.headers["authorization"], "Bearer k")
+    }
+
+    func testNoRequestLineIsNoRequest() {
+        XCTAssertNil(DoorServer.parse(request("")))
+    }
+}

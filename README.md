@@ -78,6 +78,11 @@ door is open. What a paste or a drop becomes is decided in Core (`Arrival.swift`
       media/<hash>.<ext>              photos and voice by content hash
       days/YYYY-MM-DD.md              derived pages, regenerated after every change
 
+A line in an event file that cannot be read, a write cut short, damage on the way, is passed
+over and named, by file and line number in the Mac's window and as a count in the phone's
+Setup; it never costs the rest of its file or the notebook, and the next write starts on a
+line of its own.
+
 Anyone with the folder can take part by appending to a file of their own. The `notebook`
 command in the Core package does that from a terminal:
 
@@ -221,7 +226,9 @@ stop of that id. Only your hand makes a loop run. `list_loops` says which run an
 When a loop wakes it runs one headless session of the `claude` command you already pay for:
 the door as its only server, every built-in tool off, no settings and no project in reach,
 the door's conduct and the loop's brief as its whole brief, the loop's caps, nothing kept
-afterwards. Then it waits again. When the run ends, a receipt, `loop.ran`, goes into the
+afterwards. Then it waits again. A run is started for what was waiting; if it ends with the same things
+still waiting, offline, logged out, refused, it is not started for them again, and runs when
+something new lands or with Look Now. When the run ends, a receipt, `loop.ran`, goes into the
 notebook under the loop's own originator: when, how it went, turns, cost, what it said at
 the end. Logs show it on every device. Nothing is registered with the system; if you want
 loops after a reboot, set the app to open at login like any app, and keep the Mac awake.

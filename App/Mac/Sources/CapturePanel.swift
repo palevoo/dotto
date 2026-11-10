@@ -370,6 +370,8 @@ struct WordsField: NSViewRepresentable {
             // Set from outside: cleared after Return, a link or a passage that landed.
             view.string = text
             view.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
+            // What was typed before belongs to other words now; undo starts afresh.
+            view.undoManager?.removeAllActions()
         }
     }
 
