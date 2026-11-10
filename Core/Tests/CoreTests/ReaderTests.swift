@@ -123,6 +123,21 @@ final class ReaderTests: XCTestCase {
         XCTAssertEqual(loop.forced(), .startRun)
     }
 
+    func testOnlyTheNewestRunsRecordsAreKept() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("reader-prune-\(ULID().string)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let generator = ULIDGenerator()
+        let runs = (0..<5).map { generator.next(at: Date(timeIntervalSince1970: 1_794_000_000 + Double($0) * 60)).string }
+        for run in runs {
+            try Data("{}".utf8).write(to: directory.appendingPathComponent("\(run).json"))
+            try Data("{}\n".utf8).write(to: directory.appendingPathComponent("\(run).jsonl"))
+        }
+        ReaderFiles.prune(directory, keeping: 2)
+        let left = try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted()
+        XCTAssertEqual(left, runs.suffix(2).flatMap { ["\($0).json", "\($0).jsonl"] }.sorted(), "the two newest, each with its stream")
+    }
+
     func testRunsAreListedNewestFirst() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("reader-runs-\(ULID().string)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

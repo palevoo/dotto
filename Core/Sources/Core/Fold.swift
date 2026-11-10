@@ -524,8 +524,7 @@ public struct Notebook: Sendable {
 
         case .visit(let p):
             let visit = Visit(id: event.id, author: event.author, device: event.device, at: event.at, read: p)
-            visits.append(visit)
-            visits.sort { $0.id < $1.id }
+            visits.insert(visit, at: Self.place(of: visit.id, in: visits, by: \.id))
             // The owner's own looks at the inbox are receipts for unread, not the log of what others did.
             if event.author != owner { trace(event, visit.what, entry: p.entry) }
 
@@ -979,8 +978,21 @@ public struct Notebook: Sendable {
     }
 
     private mutating func trace(_ event: Event, _ what: String, entry: ULID?) {
-        trail.append(Trace(id: event.id, author: event.author, device: event.device, at: event.at, what: what, entry: entry))
-        trail.sort { $0.id < $1.id }
+        let trace = Trace(id: event.id, author: event.author, device: event.device, at: event.at, what: what, entry: entry)
+        trail.insert(trace, at: Self.place(of: trace.id, in: trail, by: \.id))
+    }
+
+    /// Where an id belongs in a list kept in id order. Events are folded oldest first, so
+    /// almost always the end, found at once; a late one is found by halving. Sorting the
+    /// whole list for every receipt made the fold slower with the square of what was read.
+    private static func place<T>(of id: ULID, in list: [T], by key: KeyPath<T, ULID>) -> Int {
+        guard let last = list.last, id < last[keyPath: key] else { return list.count }
+        var low = 0, high = list.count
+        while low < high {
+            let middle = (low + high) / 2
+            if list[middle][keyPath: key] < id { low = middle + 1 } else { high = middle }
+        }
+        return low
     }
 
     private mutating func applyOrWait(_ event: Event, entry: ULID) {

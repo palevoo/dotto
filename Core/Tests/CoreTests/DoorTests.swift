@@ -325,6 +325,48 @@ final class DoorTests: XCTestCase {
         XCTAssertTrue(bad.contains("Not a day"))
     }
 
+    /// An originator takes back its own marks and nobody else's: not the owner's done, not
+    /// a link or a label someone else placed.
+    func testAGrantTakesBackOnlyItsOwnMarks() throws {
+        let olives = try store.load().entries.first { $0.text == "Olives in" }!
+        let me = store.manifest.owner
+        let ids = ULIDGenerator()
+        func mine(_ payload: Payload) throws {
+            let now = Date()
+            try store.append(Event(id: ids.next(at: now), author: me, device: "phone", at: now, payload: payload))
+        }
+        // The owner's own done, link and label.
+        try mine(.done(.init(entry: olives.id, by: nil)))
+        try mine(.link(.init(from: wall, to: olives.id)))
+        try mine(.labelAttach(.init(entry: wall, label: "terreno")))
+
+        let undone = text(try rpc("tools/call", ["name": "mark_done", "arguments": ["entry": olives.id.string, "on": false]]))
+        XCTAssertTrue(undone.contains("may not take back a done it did not mark"), undone)
+        let unlinked = text(try rpc("tools/call", ["name": "link", "arguments": ["from": wall.string, "to": olives.id.string, "on": false]]))
+        XCTAssertTrue(unlinked.contains("may not take back a link it did not place"), unlinked)
+        let unfiled = text(try rpc("tools/call", ["name": "set_label", "arguments": ["entry": wall.string, "label": "terreno", "on": false]]))
+        XCTAssertTrue(unfiled.contains("may not take off a label it did not file"), unfiled)
+
+        var notebook = try store.load()
+        XCTAssertNotNil(notebook.entry(olives.id)?.done)
+        XCTAssertEqual(notebook.entry(wall)?.carriesOn.count, 1)
+        XCTAssertEqual(notebook.entry(wall)?.labels, ["terreno"])
+
+        // Its own it places and takes back as before.
+        _ = try rpc("tools/call", ["name": "set_label", "arguments": ["entry": wall.string, "label": "wall"]])
+        _ = try rpc("tools/call", ["name": "set_label", "arguments": ["entry": wall.string, "label": "wall", "on": false]])
+        notebook = try store.load()
+        XCTAssertEqual(notebook.entry(wall)?.labels, ["terreno"])
+    }
+
+    func testAProposedLoopAsksForCapsAboveNothing() throws {
+        let none = text(try rpc("tools/call", ["name": "propose_loop", "arguments": ["name": "Free", "turns": 0]]))
+        XCTAssertTrue(none.contains("turns above nothing"), none)
+        let free = text(try rpc("tools/call", ["name": "propose_loop", "arguments": ["name": "Free", "budget": -1]]))
+        XCTAssertTrue(free.contains("budget above nothing"), free)
+        XCTAssertTrue(try store.load().loopProposals.isEmpty)
+    }
+
     /// A line whose moment is ahead, a class on Saturday, can still be changed today: its id
     /// is of when it was written, so the change comes after it on every device.
     func testALineDatedAheadCanStillBeChanged() throws {

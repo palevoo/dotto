@@ -71,6 +71,10 @@ struct LoopsView: View {
                     .foregroundStyle(Theme.faint)
                 Who(author: proposal.author, model: model)
             }
+            // What it asks to be allowed each run, seen before it is set.
+            Text("up to \(proposal.turns) turns and $\(String(format: "%.2f", proposal.budget)) a run")
+                .font(Theme.mono)
+                .foregroundStyle(Theme.muted)
             if let brief = proposal.brief, !brief.isEmpty {
                 Text(brief)
                     .font(Theme.sansSmall)

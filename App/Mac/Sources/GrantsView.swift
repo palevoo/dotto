@@ -329,7 +329,8 @@ struct GrantsView: View {
                     .foregroundStyle(MacTheme.accent)
                 Text(proposal.name)
                     .foregroundStyle(MacTheme.foreground)
-                Text("· \(proposal.wake.words) · by")
+                // What it asks to be allowed each run, seen before it is set.
+                Text("· \(proposal.wake.words) · up to \(proposal.turns) turns and $\(String(format: "%.2f", proposal.budget)) a run · by")
                     .foregroundStyle(MacTheme.muted)
                 Text(model.name(of: proposal.author))
                     .foregroundStyle(MacTheme.ink(for: proposal.author, owner: model.notebook?.owner))

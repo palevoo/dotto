@@ -132,7 +132,8 @@ a new key for the same author. Tools: `whats_new`, `read_days`, `list_lines`, `s
 `set_fact`, `propose_loop`, `list_loops`, `write_line`, `add_line`, `edit_line`,
 `delete_line`, `choose_name`. Writes
 land in the grant's own event file; no grant can touch
-your lines, and a grant changes or deletes only lines it wrote. Revoke the grant and the key
+your lines, a grant changes or deletes only lines it wrote, and it takes back only marks it
+placed: not your done, nor a link or a label someone else put there. Revoke the grant and the key
 stops opening the door; the author's events stay. A request may add a `Dotto-Device`
 header to say which hand of the same grant it is, as the reader does; the stamp shows in
 Logs and in a line's History.
@@ -238,8 +239,9 @@ stop of that id. Only your hand makes a loop run. `list_loops` says which run an
 
 When a loop wakes it runs one headless session of the `claude` command you already pay for:
 the door as its only server, every built-in tool off, no settings and no project in reach,
-the door's conduct and the loop's brief as its whole brief, the loop's caps, nothing kept
-afterwards. Then it waits again. A run is started for what was waiting; if it ends with the same things
+the door's conduct and the loop's brief as its whole brief, the loop's caps on turns and
+spend and a quarter of an hour on time, nothing kept afterwards. A loop stopped, or the app
+quitting, ends a session under way. A proposal shows the caps it asks for before you set it. Then it waits again. A run is started for what was waiting; if it ends with the same things
 still waiting, offline, logged out, refused, it is not started for them again, and runs when
 something new lands or with Look Now. When the run ends, a receipt, `loop.ran`, goes into the
 notebook under the loop's own originator: when, how it went, turns, cost, what it said at

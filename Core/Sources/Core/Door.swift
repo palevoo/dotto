@@ -507,6 +507,14 @@ public struct Door: Sendable {
             let label = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             guard !label.isEmpty else { throw Failure.missing("label") }
             let on = arguments["on"] as? Bool ?? true
+            if !on {
+                // An originator takes back its own. A label someone else filed is theirs, or
+                // the owner's, to take off.
+                let tag = ULID.tag(label)
+                if let filed = notebook.entry(entry)?.belongsTo.first(where: { $0.to == tag }), filed.author != grant.author {
+                    throw Failure.notAllowed("take off a label it did not file")
+                }
+            }
             let now = Date()
             let payload: Payload = on
                 ? .labelAttach(.init(entry: entry, label: label))
@@ -535,6 +543,13 @@ public struct Door: Sendable {
                 guard notebook.entry(from) != nil else { throw Failure.noSuchLine(raw) }
             }
             let on = arguments["on"] as? Bool ?? true
+            if !on {
+                let placed = notebook.entry(from)?.outgoing.first { $0.to == to }
+                    ?? notebook.note(from)?.note.cites.first { $0.to == to }
+                if let placed, placed.author != grant.author {
+                    throw Failure.notAllowed("take back a link it did not place")
+                }
+            }
             let now = Date()
             let payload: Payload = on ? .link(.init(from: from, to: to)) : .unlink(.init(from: from, to: to))
             try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
@@ -545,6 +560,9 @@ public struct Door: Sendable {
             let entry = try line(arguments, in: notebook)
             let by = try (arguments["by"] as? String).map { _ in try line(arguments, key: "by", in: notebook) }
             let on = arguments["on"] as? Bool ?? true
+            if !on, let marked = notebook.entry(entry)?.done, marked.author != grant.author {
+                throw Failure.notAllowed("take back a done it did not mark")
+            }
             let now = Date()
             let payload: Payload = on ? .done(.init(entry: entry, by: by)) : .undone(.init(entry: entry))
             try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now, payload: payload))
@@ -622,6 +640,9 @@ public struct Door: Sendable {
             let brief = (arguments["brief"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             let turns = arguments["turns"] as? Int ?? 40
             let budget = arguments["budget"] as? Double ?? (arguments["budget"] as? Int).map(Double.init) ?? 2
+            // The caps are the proposer's to ask for and the owner's to see before setting it.
+            guard turns > 0 else { throw Failure.missing("turns above nothing") }
+            guard budget > 0 else { throw Failure.missing("a budget above nothing") }
             let now = Date()
             let id = generator.next(at: now)
             try write(Event(id: id, author: grant.author, device: grant.device, at: now,

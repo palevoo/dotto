@@ -115,6 +115,9 @@ final class VoiceRecorder {
             self.recorder = recorder
             startedAt = Date()
             isRecording = true
+            // The phone does not lock while a note is being spoken: a lock would stop the
+            // recording with the timer still counting.
+            UIApplication.shared.isIdleTimerDisabled = true
         } catch {
             NSLog("record failed: \(error)")
         }
@@ -124,7 +127,10 @@ final class VoiceRecorder {
     func stop() -> Take? {
         guard let recorder, let startedAt else { return nil }
         recorder.stop()
-        let duration = Date().timeIntervalSince(startedAt)
+        UIApplication.shared.isIdleTimerDisabled = false
+        // How long the recording is, read from the file itself and not from the clock: if
+        // something did cut it short, a call, the note says its real length.
+        let duration = (try? AVAudioPlayer(contentsOf: recorder.url))?.duration ?? Date().timeIntervalSince(startedAt)
         isRecording = false
         self.recorder = nil
         self.startedAt = nil

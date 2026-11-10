@@ -69,7 +69,7 @@ final class NotebookModel {
             cloud = cloudWatcher?.state
             reloadSoon()
         }
-        walks.resume { [weak self] walks in self?.add(walks) }
+        walks.resume { [weak self] walks in self?.add(walks) ?? false }
     }
 
     /// Where this phone can be reached, kept in the folder for whoever holds it and the key.
@@ -102,7 +102,7 @@ final class NotebookModel {
 
     /// Walks from Health, switched on from Setup. From then on each one is a line.
     func turnOnWalks() {
-        Task { await walks.turnOn { [weak self] walks in self?.add(walks) } }
+        Task { await walks.turnOn { [weak self] walks in self?.add(walks) ?? false } }
     }
 
     /// Health, as an originator of its own: its lines land on your page under its name, and
@@ -110,8 +110,8 @@ final class NotebookModel {
     static let health = Author(rawValue: "health")
 
     /// Each walk is a line on your page at the moment it began, in Health's name.
-    private func add(_ walks: [Walks.Walk]) {
-        guard !walks.isEmpty else { return }
+    private func add(_ walks: [Walks.Walk]) -> Bool {
+        guard !walks.isEmpty else { return true }
         var events: [Event] = []
         if notebook.name(of: Self.health) == nil {
             events.append(Event(id: generator.next(at: Date()), author: Self.health, device: device, at: Date(),
@@ -123,7 +123,7 @@ final class NotebookModel {
                                 payload: .entryCreate(.init(entry: id, text: Walks.sentence(for: walk, locale: calendar.locale ?? .current),
                                                             startedAt: walk.start, page: store.manifest.owner))))
         }
-        record(events)
+        return record(events)
     }
 
     /// Lines kept from the share sheet while the app was away go into the notebook now.

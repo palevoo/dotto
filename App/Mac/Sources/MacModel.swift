@@ -117,21 +117,31 @@ final class MacModel {
 
     /// Grants used to be rows in a file of this app's own, with the keys in the clear. They
     /// are the owner's events in the notebook now. Each row the fold does not know becomes a
-    /// `grant.create` with the key's hash, the key goes to the keychain, and the file is set
-    /// aside under another name so this runs once. Both places the file ever lived are read.
+    /// `grant.create` with the key's hash, the key goes to the keychain, and the file, which
+    /// holds the keys in the clear, is removed, once everything in it is safely carried; a
+    /// copy set aside by an earlier build is removed too. Both places the file ever lived
+    /// are read.
     private func carryOverGrantsFiles(_ store: FileStore, _ notebook: Notebook) {
         let known = Set(notebook.allGrants.map(\.id))
-        for url in [supportDirectory.appendingPathComponent("grants.json"), Self.oldSupport.appendingPathComponent("grants.json")] {
+        for folder in [supportDirectory, Self.oldSupport] {
+            // What an earlier build set aside: the same keys, already carried.
+            try? FileManager.default.removeItem(at: folder.appendingPathComponent("grants.carried.json"))
+            let url = folder.appendingPathComponent("grants.json")
             guard let data = try? Data(contentsOf: url), let rows = try? JSONLines.decoder().decode([Grant].self, from: data) else { continue }
+            var carried = true
             for row in rows where row.device != "reader" {
                 var grant = row
                 if grant.device == "mac-door" { grant.device = Grant.device(for: grant.name) }
-                if !grant.key.isEmpty { try? GrantKeys.save(grant.key, for: grant.id) }
+                if !grant.key.isEmpty {
+                    do { try GrantKeys.save(grant.key, for: grant.id) } catch { carried = false }
+                }
                 guard !known.contains(grant.id) else { continue }
-                try? store.append(Event(id: generator.next(at: grant.createdAt), author: store.manifest.owner, device: device, at: grant.createdAt,
-                                        payload: .grantCreate(grant.create)))
+                do {
+                    try store.append(Event(id: generator.next(at: grant.createdAt), author: store.manifest.owner, device: device, at: grant.createdAt,
+                                           payload: .grantCreate(grant.create)))
+                } catch { carried = false }
             }
-            try? FileManager.default.moveItem(at: url, to: url.deletingPathExtension().appendingPathExtension("carried.json"))
+            if carried { try? FileManager.default.removeItem(at: url) }
         }
     }
 
@@ -507,6 +517,8 @@ final class MacModel {
             let item = DispatchWorkItem { [weak self] in
                 Task { @MainActor in
                     guard let self else { return }
+                    // The Mac slept through the moment: it is not sent late.
+                    guard Date().timeIntervalSince(due) < 60 else { self.dueTimers[key] = nil; return }
                     var sent = Set(UserDefaults.standard.stringArray(forKey: self.dueSentKey) ?? [])
                     guard sent.insert(key).inserted else { return }
                     UserDefaults.standard.set(Array(sent), forKey: self.dueSentKey)
@@ -515,7 +527,8 @@ final class MacModel {
                 }
             }
             dueTimers[key] = item
-            DispatchQueue.main.asyncAfter(deadline: .now() + due.timeIntervalSince(now), execute: item)
+            // By the clock on the wall, which keeps counting while the Mac sleeps.
+            DispatchQueue.main.asyncAfter(wallDeadline: .now() + due.timeIntervalSince(now), execute: item)
         }
         // What was sent is kept only while its moment is still in the notebook.
         let alive = Set(notebook.entries.flatMap { entry in
@@ -587,6 +600,11 @@ final class MacModel {
         refreshSummary()
     }
 
+    /// The app is quitting: every loop's session is ended with it.
+    func stopLoops() {
+        for runner in runners.values { runner.stop() }
+    }
+
     /// Looks now, whatever wakes the loop, and runs even with nothing new.
     func lookNow(_ loop: Loop) {
         runners[loop.id]?.lookNow()
@@ -600,6 +618,7 @@ final class MacModel {
         carryOverReaderSettings(store, notebook)
         let wanted = Dictionary(uniqueKeysWithValues: notebook.loops.map { ($0.id, $0) })
         for id in runners.keys where wanted[id] == nil || wanted[id]?.setBy != runners[id]?.loop.setBy {
+            runners[id]?.stop()
             runners[id] = nil
         }
         for loop in notebook.loops where runners[loop.id] == nil {

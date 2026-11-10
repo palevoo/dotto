@@ -30,6 +30,8 @@ final class ReaderRunner {
 
     /// The phase the loop is in and what each event means there. Decided in Core, under test.
     private var machine = LoopMachine()
+    /// The session under way, so it can be ended: the loop stopped, the app quitting.
+    private var current: RunningSession?
     private var pendingWake: DispatchWorkItem?
     private var clock: Timer?
     private let calendar = Calendar.current
@@ -89,6 +91,15 @@ final class ReaderRunner {
     }
 
     private var lastStore: FileStore?
+
+    /// The loop was stopped, set again, or the app is quitting: nothing more is scheduled
+    /// and a session under way is ended, so no claude process outlives its loop.
+    func stop() {
+        pendingWake?.cancel()
+        clock?.invalidate()
+        current?.end()
+        current = nil
+    }
 
     func remember(_ store: FileStore) {
         lastStore = store
@@ -215,7 +226,8 @@ final class ReaderRunner {
             through the door, or stays unsaid. Do what this moment asks, and stop.
             """
             if let words = loop.brief?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty {
-                brief += "\n\nThe owner's brief for this loop, in their words: \(words)"
+                // The owner set it; the words may be the owner's or a proposer's they agreed to.
+                brief += "\n\nThe brief the owner set for this loop: \(words)"
             }
             status.state = .running
             let run = ReaderRun(loop: loop.id, startedAt: now)
@@ -227,8 +239,10 @@ final class ReaderRunner {
                                       ? "Look at what is new through the door and do what the lines want. Then stop."
                                       : "It is \(Projector.time(now, calendar: calendar)). Do what this loop is for, reading through the door as needed. Then stop.",
                                   maxTurns: loop.turns, maxBudgetUSD: loop.budget)
+            let running = RunningSession()
+            current = running
             Task.detached(priority: .utility) {
-                let finished = session.run(run) { snapshot in
+                let finished = session.run(run, as: running) { snapshot in
                     Task { @MainActor in self.progress(snapshot) }
                 }
                 await MainActor.run { self.finish(finished) }
@@ -249,6 +263,8 @@ final class ReaderRunner {
     }
 
     private func finish(_ run: ReaderRun) {
+        current = nil
+        ReaderFiles.prune(runsDirectory)
         status.state = .waiting
         progress(run)
         let ending: String
@@ -264,9 +280,44 @@ final class ReaderRunner {
     }
 }
 
+/// A session's process, reachable from outside the thread that runs it, so it can be ended
+/// when its loop is stopped, the app quits, or it has run past its time.
+final class RunningSession: @unchecked Sendable {
+    private let lock = NSLock()
+    private var process: Process?
+    private var why: String?
+
+    func began(_ process: Process) {
+        lock.lock()
+        self.process = process
+        let ended = why != nil
+        lock.unlock()
+        // Ended before it had begun: it ends now.
+        if ended { process.terminate() }
+    }
+
+    /// Ends the session. The run's record says why.
+    func end(_ reason: String = "stopped") {
+        lock.lock()
+        if why == nil { why = reason }
+        let process = self.process
+        lock.unlock()
+        if process?.isRunning == true { process?.terminate() }
+    }
+
+    var reason: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return why
+    }
+}
+
 /// One headless session. Its stream is read line by line into the run as it goes, so the
-/// window can follow, and kept whole beside it.
+/// window can follow, and kept whole beside it. It has the loop's caps on turns and spend,
+/// and one on time: a session that has not ended after a quarter of an hour is ended.
 struct Session: Sendable {
+    static let longest: TimeInterval = 15 * 60
+
     let claude: String
     let door: String
     let grant: Grant
@@ -277,7 +328,7 @@ struct Session: Sendable {
     let maxTurns: Int
     let maxBudgetUSD: Double
 
-    func run(_ start: ReaderRun, progress: @escaping @Sendable (ReaderRun) -> Void) -> ReaderRun {
+    func run(_ start: ReaderRun, as running: RunningSession, progress: @escaping @Sendable (ReaderRun) -> Void) -> ReaderRun {
         var run = start
         let runFile = runsDirectory.appendingPathComponent("\(run.id.string).json")
         let streamFile = runsDirectory.appendingPathComponent("\(run.id.string).jsonl")
@@ -327,11 +378,30 @@ struct Session: Sendable {
         let out = Pipe(), err = Pipe()
         process.standardOutput = out
         process.standardError = err
+        // What claude says on its error stream is taken as it comes, so a session that says
+        // a lot there never stalls waiting for it to be read.
+        final class Said: @unchecked Sendable {
+            private let lock = NSLock()
+            private var data = Data()
+            func add(_ more: Data) { lock.lock(); data.append(more); lock.unlock() }
+            var text: String { lock.lock(); defer { lock.unlock() }; return String(decoding: data, as: UTF8.self) }
+        }
+        let said = Said()
+        err.fileHandleForReading.readabilityHandler = { handle in
+            let more = handle.availableData
+            if !more.isEmpty { said.add(more) }
+        }
         do { try process.run() } catch {
+            err.fileHandleForReading.readabilityHandler = nil
             run.fail("could not start claude: \(error)", at: Date())
             write(run)
             return run
         }
+        running.began(process)
+        // The cap on time, beside the caps on turns and spend.
+        let tooLong = DispatchWorkItem { running.end("ended after \(Int(Self.longest / 60)) minutes without finishing") }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + Self.longest, execute: tooLong)
+        defer { tooLong.cancel() }
 
         FileManager.default.createFile(atPath: streamFile.path, contents: nil)
         let stream = try? FileHandle(forWritingTo: streamFile)
@@ -355,12 +425,12 @@ struct Session: Sendable {
             run.absorb(line, at: Date())
         }
         try? stream?.close()
-        let errors = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         process.waitUntilExit()
+        err.fileHandleForReading.readabilityHandler = nil
 
         if run.isRunning {
-            let said = errors.trimmingCharacters(in: .whitespacesAndNewlines)
-            run.fail(said.isEmpty ? "claude exited \(process.terminationStatus) without a result" : String(said.prefix(300)), at: Date())
+            let errors = said.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            run.fail(running.reason ?? (errors.isEmpty ? "claude exited \(process.terminationStatus) without a result" : String(errors.prefix(300))), at: Date())
         }
         write(run)
         return run

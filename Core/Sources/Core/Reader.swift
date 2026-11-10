@@ -296,6 +296,22 @@ public enum ReaderFiles {
     public static let log = "reader.log"
     public static let runs = "reader-runs"
 
+    /// How many runs' records are kept. Each is every step of a session, photos read
+    /// included, outside the notebook folder; the receipts in the notebook are kept for good.
+    public static let kept = 200
+
+    /// Removes the records of all but the newest runs. Names begin with the run's id, which
+    /// sorts by time.
+    public static func prune(_ directory: URL, keeping limit: Int = kept) {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+        let runs = Set(names.filter { $0.hasSuffix(".json") }.map { String($0.dropLast(5)) }).sorted(by: >)
+        for run in runs.dropFirst(limit) {
+            for file in ["\(run).json", "\(run).jsonl"] {
+                try? FileManager.default.removeItem(at: directory.appendingPathComponent(file))
+            }
+        }
+    }
+
     /// The runs kept in a folder, newest first, at most `limit`.
     public static func runs(in directory: URL, limit: Int = 8) -> [ReaderRun] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []

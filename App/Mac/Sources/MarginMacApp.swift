@@ -68,6 +68,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSUpdateDynamicServices()
     }
 
+    /// No session outlives the app.
+    func applicationWillTerminate(_ notification: Notification) {
+        model.stopLoops()
+    }
+
     /// The home keeps running with its window closed: the door, the loops and the dots stay.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
