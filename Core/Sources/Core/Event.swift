@@ -170,6 +170,8 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case factRemove = "fact.remove"
     case loopPropose = "loop.propose"
     case same = "same"
+    case shapeSet = "shape.set"
+    case shapeRemove = "shape.remove"
 }
 
 /// What happened. One case per kind, each with a fixed shape.
@@ -202,6 +204,9 @@ public enum Payload: Hashable, Sendable {
     case factRemove(FactRemove)
     case loopPropose(LoopPropose)
     case same(Same)
+    /// What the things of a kind have: the newest word for a kind stands.
+    case shapeSet(KindShape)
+    case shapeRemove(ShapeRemove)
     /// A kind this build does not know, from a device on a newer one. Carried as it was,
     /// counted, written back unchanged, and nothing else: the vocabulary grows by addition,
     /// so an older reader passes over what it cannot read yet.
@@ -238,8 +243,18 @@ public enum Payload: Hashable, Sendable {
         case .factRemove: .factRemove
         case .loopPropose: .loopPropose
         case .same: .same
+        case .shapeSet: .shapeSet
+        case .shapeRemove: .shapeRemove
         case .unknown: nil
         }
+    }
+
+    /// The owner drops what was said a kind has. Things of the kind keep their word and
+    /// their facts; they are drawn by what each fact looks like.
+    public struct ShapeRemove: Hashable, Codable, Sendable {
+        public var kind: String
+
+        public init(kind: String) { self.kind = kind.lowercased() }
     }
 
     /// The owner says two originators are one: everything `author` ever did, and does from
@@ -797,6 +812,8 @@ extension Event: Codable {
         case .factRemove: .factRemove(try container.decode(Payload.FactRemove.self, forKey: .payload))
         case .loopPropose: .loopPropose(try container.decode(Payload.LoopPropose.self, forKey: .payload))
         case .same: .same(try container.decode(Payload.Same.self, forKey: .payload))
+        case .shapeSet: .shapeSet(try container.decode(KindShape.self, forKey: .payload))
+        case .shapeRemove: .shapeRemove(try container.decode(Payload.ShapeRemove.self, forKey: .payload))
         }
     }
 
@@ -837,6 +854,8 @@ extension Event: Codable {
         case .factRemove(let p): try container.encode(p, forKey: .payload)
         case .loopPropose(let p): try container.encode(p, forKey: .payload)
         case .same(let p): try container.encode(p, forKey: .payload)
+        case .shapeSet(let p): try container.encode(p, forKey: .payload)
+        case .shapeRemove(let p): try container.encode(p, forKey: .payload)
         }
     }
 }

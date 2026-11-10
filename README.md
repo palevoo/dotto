@@ -137,7 +137,7 @@ grants are in the folder, every device knows the same ones and any could serve t
 The keys themselves stay in the Mac's keychain, for the Copy button; lose them and you issue
 a new key for the same author. Tools: `whats_new`, `read_days`, `list_lines`, `search`,
 `read_photo`, `add_note`, `set_label`, `link`, `mark_done`, `set_thing`, `list_things`,
-`set_fact`, `propose_loop`, `list_loops`, `write_line`, `add_line`, `edit_line`,
+`set_fact`, `set_shape`, `list_shapes`, `propose_loop`, `list_loops`, `write_line`, `add_line`, `edit_line`,
 `delete_line`, `choose_name`. Writes
 land in the grant's own event file; no grant can touch
 your lines, a grant changes or deletes only lines it wrote, and it takes back only marks it
@@ -200,6 +200,14 @@ facts; on its own page "with fig" is a jump to the thing's page, which has its f
 state and the lines that belong to it by day. Everything shaped stands until you drop it:
 hold a fact to take it off, hold a thing's name to drop it, hold "with fig" to take the line
 out. The inbox shows each thing made and each fact put on your lines.
+
+A kind of thing has a shape: what a paper, a plant, a person has, in order, and what each
+is. `set_shape` says it and `list_shapes` reads it; the newest word for a kind stands, you
+drop it with a hold on the kind's page, and until someone says, the kinds most notebooks come
+to have their usual shape. Whoever makes a thing is told what its kind has and fills it, so
+the things of a kind are alike; a thing's page is its shape's facts in its shape's order, a
+few sentences as a paragraph, an address as a link, the rest as rows, and whatever no shape
+names after them.
 
 A tag is the simplest thing: a lower-case word that lines are under, `set_label`. Nobody
 makes it; its id comes from the word, so the reader's #reading and a loop's #reading are one

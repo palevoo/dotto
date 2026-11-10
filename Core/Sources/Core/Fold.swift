@@ -659,6 +659,17 @@ public struct Notebook: Sendable {
             // Taken before anything was folded, in `remember`.
             break
 
+        case .shapeSet(let shape):
+            // Anyone through the door says what a kind has; the newest word stands.
+            guard !shape.kind.isEmpty else { return }
+            shapeMarks.mark(shape.kind, ShapeMark(shape: shape, author: event.author), by: event.id)
+            trace(event, "said what a \(shape.kind) has: \(shape.has.map(\.key).joined(separator: ", "))", entry: nil)
+
+        case .shapeRemove(let p):
+            // Only the owner drops one.
+            guard event.author == owner else { return }
+            shapeMarks.mark(p.kind, ShapeMark(shape: nil, author: event.author), by: event.id)
+
         case .unknown:
             // From a newer build. Counted, kept, and left for a build that knows it.
             break
@@ -781,6 +792,37 @@ public struct Notebook: Sendable {
             loop.lastRun = sentences(with: loop, among: set).compactMap(\.lastRun).max { $0.id < $1.id }
             return loop
         }
+    }
+
+    // MARK: - Shapes
+
+    private struct ShapeMark: Hashable, Sendable {
+        /// What the kind has; nil when the owner dropped it.
+        let shape: KindShape?
+        let author: Author
+    }
+
+    /// Per kind, the newest word on what it has.
+    private var shapeMarks: [String: Newest<ShapeMark>] = [:]
+
+    /// What the things of a kind have: what was last said of it, or, when nobody has said,
+    /// what such a kind usually has. Nil for a kind nobody has shaped, or one the owner dropped.
+    public func shape(of kind: String) -> KindShape? {
+        let kind = kind.lowercased()
+        if let mark = shapeMarks[kind] { return mark.value.shape }
+        return KindShape.usual[kind]
+    }
+
+    /// Who last said what a kind has; nil when it is the usual shape, or none.
+    public func shaper(of kind: String) -> Author? {
+        shapeMarks[kind.lowercased()].flatMap { $0.value.shape == nil ? nil : $0.value.author }
+    }
+
+    /// Every shape that stands: the ones said, and the usual ones for the kinds in use.
+    public var shapes: [KindShape] {
+        var kinds = Set(shapeMarks.keys)
+        for thing in things.values { if let kind = thing.kind { kinds.insert(kind) } }
+        return kinds.sorted().compactMap { shape(of: $0) }
     }
 
     // MARK: - What an originator has learned
@@ -1336,7 +1378,7 @@ public struct Notebook: Sendable {
             note(&entry, event, "changed a note", before: before)
 
         case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .link, .unlink, .done, .undone, .visit, .nameSet, .grantCreate, .grantRevoke,
-             .loopSet, .loopStop, .loopRan, .thingSet, .thingRemove, .factSet, .factRemove, .loopPropose, .labelAttach, .labelDetach, .same, .unknown:
+             .loopSet, .loopStop, .loopRan, .thingSet, .thingRemove, .factSet, .factRemove, .loopPropose, .labelAttach, .labelDetach, .same, .shapeSet, .shapeRemove, .unknown:
             break
         }
     }

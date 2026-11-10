@@ -82,9 +82,24 @@ struct ThingsPage: View {
         let things = kind.map { model.notebook.things(kind: $0) } ?? model.notebook.madeThings
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                Text(kind.map { Self.plural($0) } ?? "Things")
-                    .font(Theme.title)
-                    .foregroundStyle(Theme.foreground)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(kind.map { Self.plural($0) } ?? "Things")
+                        .font(Theme.title)
+                        .foregroundStyle(Theme.foreground)
+                    // What a thing of this kind has, as its shape says. Hold it to drop the
+                    // shape; the things keep their facts and are drawn by what each looks like.
+                    if let kind, let shape = model.notebook.shape(of: kind) {
+                        Text("a \(kind) has " + shape.has.map(\.key).joined(separator: " · "))
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.muted)
+                            .accessibilityIdentifier("kind-shape")
+                            .contextMenu {
+                                Button("Drop what a \(kind) has", systemImage: "trash", role: .destructive) {
+                                    withAnimation(Motion.settle) { model.removeShape(kind) }
+                                }
+                            }
+                    }
+                }
                 if things.isEmpty {
                     Text("Nothing here yet.")
                         .font(Theme.serifSmall)
@@ -120,8 +135,9 @@ struct ThingsPage: View {
                 if let last {
                     Text("· last \(Format.shortDay(last, calendar: model.calendar))")
                 }
-                ForEach(thing.facts.prefix(3)) { fact in
-                    Text("· \(fact.key) \(fact.value.words(calendar: model.calendar))")
+                // The short facts, in the order its shape gives them; a paragraph is for its page.
+                ForEach(model.notebook.drawn(thing).filter { $0.what != .text && $0.what != .link }.prefix(3)) { item in
+                    Text("· \(item.key) \(item.fact.value.words(calendar: model.calendar))")
                 }
             }
             .font(Theme.mono)

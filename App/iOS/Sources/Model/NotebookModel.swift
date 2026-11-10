@@ -414,6 +414,11 @@ final class NotebookModel {
         record(.factRemove(.init(on: fact.on, key: fact.key, of: fact.author)))
     }
 
+    /// What a kind has, dropped: one hold. Its things keep their word and their facts.
+    func removeShape(_ kind: String) {
+        record(.shapeRemove(.init(kind: kind)))
+    }
+
     /// A thing dropped, with everything that belonged to it set loose: one hold.
     func removeThing(_ id: ULID) {
         record(.thingRemove(.init(thing: id)))

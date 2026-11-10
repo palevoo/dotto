@@ -62,7 +62,7 @@ final class DoorTests: XCTestCase {
 
         let tools = (try rpc("tools/list")?["result"] as? [String: Any])?["tools"] as? [[String: Any]]
         XCTAssertEqual(tools?.map { $0["name"] as? String },
-                       ["whats_new", "read_days", "list_lines", "search", "read_photo", "read_kept", "add_note", "set_label", "link", "mark_done", "set_thing", "list_things", "set_fact",
+                       ["whats_new", "read_days", "list_lines", "search", "read_photo", "read_kept", "add_note", "set_label", "link", "mark_done", "set_thing", "list_things", "set_fact", "set_shape", "list_shapes",
                         "propose_loop", "list_loops", "write_line", "add_line", "edit_line", "delete_line", "choose_name"])
         let conduct = result?["instructions"] as? String ?? ""
         XCTAssertTrue(conduct.contains("You have no name yet"))

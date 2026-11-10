@@ -151,6 +151,16 @@ public struct Door: Sendable {
     /// things that protect the owner, and otherwise a matter of judgment.
     /// What a grant is told on arrival in this notebook: the conduct, who it is here, and
     /// what its originator has learned here from being told.
+    /// Said after a thing is made or given a kind: what such a kind has, to be filled in.
+    private static func shapeHint(_ kind: String?, in notebook: Notebook) -> String {
+        guard let kind, !kind.isEmpty else { return "" }
+        guard let shape = notebook.shape(of: kind) else {
+            return " No shape says what a \(kind) has yet; set_shape, if there will be more than one."
+        }
+        return " A \(kind) has, in order: " + shape.has.map { "\($0.key) (\($0.is)\($0.says.map { ": \($0)" } ?? ""))" }.joined(separator: "; ")
+            + ". Put them on it with set_fact, under those keys."
+    }
+
     /// How much of a kept page one read hands over.
     public static let keptCharacters = 120_000
 
@@ -191,9 +201,11 @@ public struct Door: Sendable {
         that finished it when there is one, and the line is struck through. When lines turn out to be \
         one thing, a fig, a book, a person, a project, make it once with set_thing, after looking \
         in list_things, and put each line with it through link; a fact, a yield, a state, a count, \
-        goes on a line or a thing with set_fact, one per key under your name. Two facts a thing's \
-        page draws in their own way: about, a few plain sentences on what the thing is, shown as \
-        a paragraph; and source, the address it comes from, shown as a link. Everything you shape \
+        goes on a line or a thing with set_fact, one per key under your name. A kind of thing has \
+        a shape: what a paper, a plant, a person has, in order. Before making a thing of a kind, \
+        look in list_shapes and fill what its shape names, under those keys, so the things of a \
+        kind are alike and their pages read alike; when a kind has no shape and will have more \
+        than one thing, say what it has with set_shape. Everything you shape \
         is a proposal: it stands unless the owner drops it. When the owner says they want \
         something kept happening, propose_loop shapes it as a loop that runs as you; it waits \
         for their one tap. Your own page is for what you \
@@ -232,6 +244,8 @@ public struct Door: Sendable {
         case setThing = "set_thing"
         case listThings = "list_things"
         case setFact = "set_fact"
+        case setShape = "set_shape"
+        case listShapes = "list_shapes"
         case proposeLoop = "propose_loop"
         case listLoops = "list_loops"
         case writeLine = "write_line"
@@ -346,6 +360,23 @@ public struct Door: Sendable {
                                                        "place": ["type": "object", "properties": ["latitude": ["type": "number"], "longitude": ["type": "number"]]],
                                                        "on_": ["type": "boolean", "default": true, "description": "false takes the fact off."]],
                                         "required": ["on", "key"]]]
+            case .setShape:
+                return ["name": rawValue,
+                        "description": "Say what the things of a kind have, in the order their page shows them: for a paper, about, by, when, source. Each is a key, what it is, and a few words on it. The newest word for a kind stands and every thing of that kind is drawn by it; the owner drops it. Look in list_shapes first, and keep the keys a kind already has unless they are wrong.",
+                        "inputSchema": ["type": "object",
+                                        "properties": ["kind": ["type": "string", "description": "The kind's word, lower-case: paper, plant, wine."],
+                                                       "has": ["type": "array",
+                                                               "items": ["type": "object",
+                                                                         "properties": ["key": ["type": "string"],
+                                                                                        "is": ["type": "string", "enum": KindShape.What.allCases.map(\.rawValue),
+                                                                                               "description": "text is a few sentences, shown as a paragraph; link an address; words a short value; number, moment, span and place as set_fact has them."],
+                                                                                        "says": ["type": "string", "description": "A few words on what goes there."]],
+                                                                         "required": ["key", "is"]]]],
+                                        "required": ["kind", "has"]]]
+            case .listShapes:
+                return ["name": rawValue,
+                        "description": "What each kind of thing has: its facts in order, what each is, and how many things are of that kind. Look here before making a thing of a kind, and fill what its shape names.",
+                        "inputSchema": ["type": "object", "properties": [:]]]
             case .proposeLoop:
                 return ["name": rawValue,
                         "description": "Propose a loop: something the owner said they want kept happening, shaped as a sentence said once. It runs as you, when a line lands or at an hour every day, once the owner sets it; they see the proposal in their inbox and set or decline it with one tap. Look in list_loops first.",
@@ -645,7 +676,7 @@ public struct Door: Sendable {
                 let kind = (arguments["kind"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                 try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
                                 payload: .thingSet(.init(thing: id, name: name?.isEmpty == false ? name! : thing.name, kind: kind ?? thing.kind))))
-                return .text("Set \(id): \(name ?? thing.name)\(kind.map { ", a \($0)" } ?? "").")
+                return .text("Set \(id): \(name ?? thing.name)\(kind.map { ", a \($0)" } ?? "")." + Self.shapeHint(kind, in: notebook))
             }
             guard on else { throw Failure.missing("thing") }
             guard let name = (arguments["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
@@ -655,7 +686,7 @@ public struct Door: Sendable {
             let id = generator.next(at: now)
             try write(Event(id: id, author: grant.author, device: grant.device, at: now,
                             payload: .thingSet(.init(thing: id, name: name, kind: kind?.isEmpty == false ? kind : nil))))
-            return .text("Made \(name) as \(id). Lines belong to it through link, with to=\(id).")
+            return .text("Made \(name) as \(id). Lines belong to it through link, with to=\(id)." + Self.shapeHint(kind, in: notebook))
 
         case .listThings:
             let things = (arguments["kind"] as? String).map { notebook.things(kind: $0) } ?? notebook.allThings
@@ -670,6 +701,41 @@ public struct Door: Sendable {
                 if let author = thing.author { tail.append("by \(notebook.name(of: author) ?? author.rawValue)") }
                 return "\(thing.id)  \(thing.isTag ? "#" : "")\(thing.name)  \(tail.joined(separator: " · "))"
             }.joined(separator: "\n"))
+
+        case .setShape:
+            guard grant.writesLabels else { throw Failure.notAllowed("write shapes") }
+            guard let kind = (arguments["kind"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !kind.isEmpty else {
+                throw Failure.missing("kind")
+            }
+            var seen: Set<String> = []
+            let has = try ((arguments["has"] as? [Any]) ?? []).map { raw -> KindShape.Part in
+                guard let part = raw as? [String: Any],
+                      let key = (part["key"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(), !key.isEmpty else {
+                    throw Failure.missing("a key for each thing a \(kind) has")
+                }
+                guard seen.insert(key).inserted else { throw Failure.missing("each key once; \(key) is there twice") }
+                guard let word = part["is"] as? String, let what = KindShape.What(rawValue: word) else {
+                    throw Failure.missing("what \(key) is: \(KindShape.What.allCases.map(\.rawValue).joined(separator: ", "))")
+                }
+                let says = (part["says"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                return KindShape.Part(key, what, says?.isEmpty == false ? says : nil)
+            }
+            guard !has.isEmpty else { throw Failure.missing("has, what a \(kind) has") }
+            let now = Date()
+            try write(Event(id: generator.next(at: now), author: grant.author, device: grant.device, at: now,
+                            payload: .shapeSet(KindShape(kind: kind, has: has))))
+            return .text("A \(kind) has: \(has.map(\.key).joined(separator: ", ")). Every \(kind) is drawn by it from now on.")
+
+        case .listShapes:
+            let shapes = notebook.shapes
+            try receipt(.init(what: .other("shapes"), count: shapes.count))
+            if shapes.isEmpty { return .text("No kind has a shape yet. set_shape says what the things of a kind have.") }
+            return .text(shapes.map { shape in
+                let count = notebook.things(kind: shape.kind).count
+                let by = notebook.shaper(of: shape.kind).map { "said by \(notebook.name(of: $0) ?? $0.rawValue)" } ?? "the usual shape"
+                let parts = shape.has.map { "  \($0.key)  \($0.is)\($0.says.map { "  \($0)" } ?? "")" }.joined(separator: "\n")
+                return "\(shape.kind)  \(count) thing\(count == 1 ? "" : "s") · \(by)\n\(parts)"
+            }.joined(separator: "\n\n"))
 
         case .setFact:
             guard grant.writesLabels else { throw Failure.notAllowed("write shapes") }

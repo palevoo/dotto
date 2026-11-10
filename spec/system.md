@@ -297,6 +297,31 @@ there whatever becomes of the address.
 programs and reach, faceit first. Then pages, on the same footing as programs. The home as
 a process of its own when one of these needs it.
 
+## A kind's shape, the design
+
+Decided and built 10 November. Said by the owner that day: a shape is a type that is made,
+filled and drawn. A kind was one word on a thing, and nothing said what a paper has, so
+each came out with whatever facts its maker happened to write, under whatever names.
+
+**A shape says what the things of a kind have, in order, and what each is**: for a paper,
+about, a few sentences; by; when; source, an address. That is all it holds.
+
+**It is found by its kind's word**, as a tag is by its own, so every thing already called a
+paper is of the paper shape, and nothing migrates. Anyone through the door says what a kind
+has; the newest word stands; only the owner drops it. Until someone says, a kind most
+notebooks come to, a paper, an article, a talk, a book, a plant, a person, a project, has
+its usual shape.
+
+**A thing is made by its shape and drawn by it.** Whoever makes a thing of a kind is told
+what such a kind has and fills it, under those keys, so the things of a kind are alike. A
+thing's page is its shape's facts in its shape's order, each drawn by what it is: a few
+sentences as a paragraph, an address as a link, the rest as rows. What no shape names comes
+after, drawn by what it looks like. One row per key, the newest word, whoever put it. The
+page of a kind says what the kind has, and shows each thing's short facts in that order.
+
+**Not done, on purpose.** A shape that does something; a shape made of other shapes; the
+owner saying a shape from the phone.
+
 ## Hands, the design
 
 Decided and built 10 November. From the notebook: a weeju and a Margo that were one being
@@ -388,10 +413,9 @@ the test the parts keep passing.
 
 ## Open
 
-- A kind as a shape of its own. Said by the owner on 10 November: a shape is a type that
-  is made, filled and drawn. Today a kind is one word on a thing, and nothing says what a
-  paper has or how it is shown; `about` and `source` are the first two facts every page
-  knows. A shape with the facts it expects and a page of its own is where pages belong.
+- A shape that does something: a todo that ticks, a streak with its run and its breaks,
+  elements collected. A kind's shape says what its things have and how they are drawn; a
+  page that acts is the programs piece, and stands on it.
 - Pages as definitions over shapes.
 - Lines stand somewhere: read and written since 10 November. A reply as a full line on
   the screen, with its photos, facts and todo, is what is left; see above.

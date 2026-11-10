@@ -342,8 +342,16 @@ public enum Inbox {
                         what: "proposes a loop", text: "\(proposal.name) · \(proposal.wake.words)", about: proposal.brief,
                         asks: true, answered: !waiting, unread: fresh && waiting))
 
+                case .shapeSet(let p):
+                    // What a kind has, as it stands now; a later word for the same kind is the item.
+                    guard notebook.shape(of: p.kind) == p else { continue }
+                    items.append(InboxItem(
+                        id: event.id, author: event.author, at: event.at, kind: .shape, entry: nil,
+                        what: "said what a \(p.kind) has", text: p.has.map(\.key).joined(separator: ", "),
+                        about: nil, asks: false, answered: false, unread: fresh))
+
                 case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .unlink, .undone,
-                     .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .thingRemove, .factRemove, .same, .unknown:
+                     .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .thingRemove, .factRemove, .same, .shapeRemove, .unknown:
                     continue
                 }
             }
@@ -467,6 +475,10 @@ public enum Inbox {
                 marks.append("\(who(event.author)) marked \(p.entry) done\(p.by.map { " by \($0)" } ?? "")")
             case .nameSet(let p):
                 names.append("\(event.author) is called \(p.name) now")
+            case .shapeSet(let p):
+                marks.append("\(who(event.author)) said what a \(p.kind) has: \(p.has.map(\.key).joined(separator: ", "))")
+            case .shapeRemove(let p):
+                takenBack.append("\(who(event.author)) dropped what a \(p.kind) has")
             case .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .same, .unknown:
                 continue
             }

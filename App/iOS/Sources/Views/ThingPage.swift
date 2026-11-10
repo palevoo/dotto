@@ -61,36 +61,21 @@ struct ThingPage: View {
                     }
                 }
 
-                // What it is, in a few sentences, as a paragraph; where it comes from, as a link;
-                // then the rest of what is known of it, as a list.
-                ForEach(thing.facts.filter { $0.key == "about" }) { fact in
-                    Text(fact.value.words(calendar: model.calendar))
-                        .font(Theme.serif)
-                        .foregroundStyle(Theme.foreground)
-                        .lineSpacing(5)
-                        .textSelection(.enabled)
-                        .accessibilityIdentifier("thing-about")
-                        .contextMenu {
-                            Button("Take it off", systemImage: "minus.circle", role: .destructive) {
-                                withAnimation(Motion.settle) { model.removeFact(fact) }
-                            }
+                // Its facts as its shape orders them, each drawn by what it is: a few sentences
+                // as a paragraph, an address as a link, the rest as rows. What no shape names
+                // comes after, drawn by what it looks like.
+                let drawn = model.notebook.drawn(thing)
+                if !drawn.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(drawn) { item in
+                            fact(item)
                         }
+                    }
                 }
-                let sources = thing.facts.filter { $0.key == "source" }
-                let rest = thing.facts.filter { $0.key != "about" && $0.key != "source" }
+                // What its lines pointed at, kept: read here, whatever became of the address.
                 let kept = lines.flatMap { entry in entry.media.filter(\.isKept).map { (entry.id, $0) } }
-                if !sources.isEmpty || !kept.isEmpty {
+                if !kept.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
-                        ForEach(sources) { fact in
-                            let words = fact.value.words(calendar: model.calendar)
-                            if let url = URL(string: words), url.scheme?.hasPrefix("http") == true {
-                                Link(destination: url) { ThingPage.pointer("source", url.host.map { $0 + url.path } ?? words) }
-                                    .accessibilityIdentifier("thing-source")
-                            } else {
-                                ThingPage.pointer("source", words)
-                            }
-                        }
-                        // What its lines pointed at, kept: read here, whatever became of the address.
                         ForEach(kept, id: \.1.hash) { entry, page in
                             NavigationLink(value: Route.kept(entry: entry, hash: page.hash)) {
                                 ThingPage.pointer("kept", page.title ?? page.source ?? "a page")
@@ -99,9 +84,6 @@ struct ThingPage: View {
                             .accessibilityIdentifier("thing-kept")
                         }
                     }
-                }
-                if !rest.isEmpty {
-                    FactList(facts: rest, model: model)
                 }
 
                 if days.isEmpty {
@@ -130,6 +112,45 @@ struct ThingPage: View {
         .background(Theme.background.ignoresSafeArea())
         .toolbarBackground(Theme.background, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// One fact, drawn by what it is. Hold it to take it off, whichever way it is drawn.
+    @ViewBuilder
+    private func fact(_ item: DrawnFact) -> some View {
+        let words = item.fact.value.words(calendar: model.calendar)
+        Group {
+            switch item.what {
+            case .text:
+                VStack(alignment: .leading, spacing: 4) {
+                    // "about" is the page's own opening and needs no word over it.
+                    if item.key != "about" {
+                        Text(item.key)
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.muted)
+                    }
+                    Text(words)
+                        .font(Theme.serif)
+                        .foregroundStyle(Theme.foreground)
+                        .lineSpacing(5)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("thing-\(item.key)")
+                }
+            case .link:
+                if let url = URL(string: words), url.scheme?.hasPrefix("http") == true {
+                    Link(destination: url) { ThingPage.pointer(item.key, url.host.map { $0 + url.path } ?? words) }
+                        .accessibilityIdentifier("thing-\(item.key)")
+                } else {
+                    FactRow(fact: item.fact, model: model)
+                }
+            case .words, .number, .moment, .span, .place:
+                FactRow(fact: item.fact, model: model)
+            }
+        }
+        .contextMenu {
+            Button("Take it off", systemImage: "minus.circle", role: .destructive) {
+                withAnimation(Motion.settle) { model.removeFact(item.fact) }
+            }
+        }
     }
 
     /// One way out of the page: what it is, and where it leads, in the one colour.
@@ -175,26 +196,36 @@ struct FactList: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(facts) { fact in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(fact.key)
-                        .font(Theme.mono)
-                        .foregroundStyle(Theme.muted)
-                        .frame(minWidth: 44, alignment: .leading)
-                    Text(fact.value.words(calendar: model.calendar))
-                        .font(Theme.sansSmall)
-                        .foregroundStyle(Theme.foreground)
-                    Spacer(minLength: 0)
-                    Who(author: fact.author, model: model)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .accessibilityIdentifier("fact-\(fact.key)")
-                .contextMenu {
-                    Button("Take it off", systemImage: "minus.circle", role: .destructive) {
-                        withAnimation(Motion.settle) { model.removeFact(fact) }
+                FactRow(fact: fact, model: model)
+                    .contextMenu {
+                        Button("Take it off", systemImage: "minus.circle", role: .destructive) {
+                            withAnimation(Motion.settle) { model.removeFact(fact) }
+                        }
                     }
-                }
             }
         }
+    }
+}
+
+/// One fact as a row: the key, the value, and who put it there.
+struct FactRow: View {
+    let fact: Fact
+    @Bindable var model: NotebookModel
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(fact.key)
+                .font(Theme.mono)
+                .foregroundStyle(Theme.muted)
+                .frame(minWidth: 44, alignment: .leading)
+            Text(fact.value.words(calendar: model.calendar))
+                .font(Theme.sansSmall)
+                .foregroundStyle(Theme.foreground)
+            Spacer(minLength: 0)
+            Who(author: fact.author, model: model)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityIdentifier("fact-\(fact.key)")
     }
 }

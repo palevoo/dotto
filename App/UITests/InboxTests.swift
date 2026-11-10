@@ -57,6 +57,8 @@ final class InboxTests: XCTestCase {
         XCTAssertTrue(plants.waitForExistence(timeout: 5), "and the kinds of things")
         plants.tap()
         XCTAssertTrue(app.staticTexts["Plants"].waitForExistence(timeout: 5))
+        // The page says what a plant has, as its shape does.
+        XCTAssertEqual(app.staticTexts["kind-shape"].label, "a plant has species · state · planted · about")
         XCTAssertTrue(app.staticTexts["thing-the fig"].exists, "with the fig on the plants page")
     }
 }
