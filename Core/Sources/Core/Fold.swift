@@ -22,6 +22,8 @@ public struct Note: Hashable, Sendable, Identifiable {
     public var editedAt: Date?
     /// The lines this note speaks of: links from the note to each, oldest first.
     public var cites: [Link] = []
+    /// The reply this one answers, when it was said under a reply and not under the line.
+    public var answers: ULID? = nil
     /// The id of the event that last set `text`, so an older edit arriving late cannot win.
     var lastTextEvent: ULID
 }
@@ -396,7 +398,8 @@ public struct Notebook: Sendable {
         var revoked: Bool
     }
     private var noteToEntry: [ULID: ULID] = [:]
-    private var removedNotes: Set<ULID> = []
+    /// Per reply, who has taken it back. It is gone when one of them was its writer or the owner.
+    private var removedNotes: [ULID: Set<Author>] = [:]
     /// Edits to notes not seen yet.
     private var pendingNoteEdits: [ULID: [Event]] = [:]
     /// Per pair of ends, the newest link or unlink seen, so order of arrival does not matter.
@@ -510,8 +513,7 @@ public struct Notebook: Sendable {
     /// Every file's events as their originators stand today, for what reads the files
     /// beside the fold: the inbox, what a hand has not seen.
     public func resolved(_ files: [(file: String, events: [Event])]) -> [(file: String, events: [Event])] {
-        guard !sameAs.isEmpty else { return files }
-        return files.map { ($0.file, $0.events.map { resolved($0) }) }
+        files.map { ($0.file, $0.events.map { asRead(resolved($0)) }) }
     }
 
     public mutating func apply(_ written: Event) {
@@ -526,6 +528,7 @@ public struct Notebook: Sendable {
 
         switch event.payload {
         case .entryCreate(let p):
+            if let under = p.under { return said(event, p, under: under) }
             if table[p.entry] != nil { return }
             table[p.entry] = Entry(
                 id: p.entry,
@@ -543,9 +546,12 @@ public struct Notebook: Sendable {
             }
 
         case .entryEdit(let p):
+            // A reply is a line too: a change to one is a change to its words under its line.
+            if noteToEntry[p.entry] != nil { return changeReply(event, p) }
             applyOrWait(event, entry: p.entry)
 
         case .entryDelete(let p):
+            if noteToEntry[p.entry] != nil { return removeNote(event, p.entry) }
             applyOrWait(event, entry: p.entry)
 
         case .mediaAttach(let p):
@@ -567,16 +573,7 @@ public struct Notebook: Sendable {
             fact(event)
 
         case .noteRemove(let p):
-            removedNotes.insert(p.note)
-            if let entryID = noteToEntry[p.note], var entry = table[entryID] {
-                if let gone = entry.notes.first(where: { $0.id == p.note }) {
-                    // A gone note cites nothing: the lines it spoke of forget it.
-                    for link in gone.cites { table[link.to]?.incoming.removeAll { $0.id == link.id } }
-                }
-                entry.notes.removeAll { $0.id == p.note }
-                note(&entry, event, "took a note back")
-                table[entryID] = entry
-            }
+            removeNote(event, p.note)
 
         case .noteEdit(let p):
             // Only the note's author changes its words; an edit that arrives before the note waits on its line.
@@ -654,6 +651,93 @@ public struct Notebook: Sendable {
             // From a newer build. Counted, kept, and left for a build that knows it.
             break
         }
+    }
+
+    // MARK: - Lines said under something
+
+    /// A line said under something. Under a line it is a reply; under a reply, an answer to
+    /// it in the same conversation; either way it joins the line's conversation, where the
+    /// replies written the older way already are. Under a thing it is something said on that
+    /// thing's page, which has no screen yet: it is kept in the file and shown nowhere.
+    /// Under something not here yet, it waits for it.
+    private mutating func said(_ event: Event, _ p: Payload.EntryCreate, under: ULID) {
+        guard noteToEntry[p.entry] == nil, table[p.entry] == nil else { return }
+        if things[under] != nil || removedThings.contains(under) { return }
+        let line: ULID
+        var answers: ULID?
+        if table[under] != nil {
+            line = under
+        } else if let root = noteToEntry[under] {
+            line = root
+            answers = under
+        } else {
+            return waiting[under, default: []].append(event)
+        }
+        let reply = Event(id: event.id, author: event.author, device: event.device, at: event.at,
+                          payload: .noteAdd(.init(entry: line, note: p.entry, text: p.text)))
+        apply(reply, toExisting: line)
+        if let index = table[line]?.notes.firstIndex(where: { $0.id == p.entry }) {
+            table[line]?.notes[index].answers = answers
+            table[line]?.notes[index].at = p.startedAt
+        }
+    }
+
+    /// The words of a reply changed, by a line's own kind of change.
+    private mutating func changeReply(_ event: Event, _ p: Payload.EntryEdit) {
+        guard let line = noteToEntry[p.entry] else { return }
+        let change = Event(id: event.id, author: event.author, device: event.device, at: event.at,
+                           payload: .noteEdit(.init(note: p.entry, text: p.text)))
+        applyOrWait(change, entry: line)
+    }
+
+    /// A reply taken back. Whoever wrote it may, and the owner may; anyone else's word is
+    /// kept and changes nothing. It may come before the reply does, and holds then.
+    private mutating func removeNote(_ event: Event, _ id: ULID) {
+        removedNotes[id, default: []].insert(event.author)
+        guard let entryID = noteToEntry[id], var entry = table[entryID],
+              let gone = entry.notes.first(where: { $0.id == id }),
+              event.author == gone.author || event.author == owner else { return }
+        // A gone note cites nothing: the lines it spoke of forget it.
+        for link in gone.cites { table[link.to]?.incoming.removeAll { $0.id == link.id } }
+        entry.notes.removeAll { $0.id == id }
+        note(&entry, event, "took a note back")
+        table[entryID] = entry
+    }
+
+    /// Something that waited for a reply, now that the reply is here: an answer to it, a
+    /// change to it, its being taken back, a link that cites it.
+    private mutating func afterReply(_ event: Event) {
+        switch event.payload {
+        case .entryCreate(let p):
+            if let under = p.under { said(event, p, under: under) }
+        case .entryEdit(let p):
+            changeReply(event, p)
+        case .entryDelete(let p):
+            removeNote(event, p.entry)
+        default:
+            join(event)
+        }
+    }
+
+    /// An event as the notebook reads it: a line said under a line is a reply, and a change
+    /// to it or its being dropped is a change to a reply or its being taken back. For what
+    /// reads the files beside the fold and tells of replies.
+    private func asRead(_ event: Event) -> Event {
+        let payload: Payload
+        switch event.payload {
+        case .entryCreate(let p):
+            guard p.under != nil, let line = noteToEntry[p.entry] else { return event }
+            payload = .noteAdd(.init(entry: line, note: p.entry, text: p.text))
+        case .entryEdit(let p):
+            guard noteToEntry[p.entry] != nil else { return event }
+            payload = .noteEdit(.init(note: p.entry, text: p.text))
+        case .entryDelete(let p):
+            guard noteToEntry[p.entry] != nil else { return event }
+            payload = .noteRemove(.init(note: p.entry))
+        default:
+            return event
+        }
+        return Event(id: event.id, author: event.author, device: event.device, at: event.at, payload: payload)
     }
 
     private var stoppedLoops: [ULID: ULID] = [:]
@@ -1078,6 +1162,9 @@ public struct Notebook: Sendable {
     private mutating func apply(_ event: Event, toExisting entryID: ULID) {
         // A link touches two things, so it is placed on its own rather than through the one below.
         switch event.payload {
+        case .entryCreate(let p) where p.under != nil:
+            // A reply that arrived before the line it was said under.
+            return said(event, p, under: p.under!)
         case .linkAdd, .linkRemove, .link, .unlink, .done, .undone: return join(event)
         case .labelAttach, .labelDetach: return tag(event)
         case .factSet, .factRemove: return fact(event)
@@ -1133,7 +1220,8 @@ public struct Notebook: Sendable {
 
         case .noteAdd(let p):
             noteToEntry[p.note] = entryID
-            guard !removedNotes.contains(p.note), !entry.notes.contains(where: { $0.id == p.note }) else { return }
+            let takenBack = removedNotes[p.note].map { $0.contains(event.author) || $0.contains(owner) } ?? false
+            guard !takenBack, !entry.notes.contains(where: { $0.id == p.note }) else { return }
             entry.notes.append(Note(id: p.note, entry: entryID, author: event.author, text: p.text, at: event.at, lastTextEvent: event.id))
             entry.notes.sort { $0.id < $1.id }
             note(&entry, event, "left a note")
@@ -1145,7 +1233,7 @@ public struct Notebook: Sendable {
             // Links that cite this note arrived before it: placed now that the note is here.
             if let queued = waiting.removeValue(forKey: p.note) {
                 table[entryID] = entry
-                for later in queued.sorted(by: { $0.id < $1.id }) { join(later) }
+                for later in queued.sorted(by: { $0.id < $1.id }) { afterReply(later) }
                 entry = table[entryID]!
             }
 

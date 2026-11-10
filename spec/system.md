@@ -276,7 +276,8 @@ that are told apart on the page; a ceremony for naming.
 
 ## Lines stand somewhere, the design
 
-Decided 10 November, not built. From the notebook: a reply that could not carry a photo, be
+Decided 10 November. Read since that day by every build; nothing writes it yet, so that no
+build ever meets a reply it would show as a loose line. From the notebook: a reply that could not carry a photo, be
 a todo, be linked to, be found, or be fixed by the one who wrote it; the owner's line of 9
 November that every message is one thing, appearing in different places; and the wish to
 talk to a page from inside it.
@@ -298,6 +299,15 @@ answers. Whoever wrote a line changes it; they or the owner drop it.
 **Nothing migrates.** The replies already in the files read as lines under lines. Only where
 a line was said is kept; the top of a conversation is worked out, since the whole log is here.
 
+**Read first, written second.** Step one, 10 November: a line that says what it was said
+under is read as a reply in that line's conversation, beside the replies written the older
+way; a change to it or its being dropped is a change to a reply or its being taken back,
+by its writer, or dropped by its writer or the owner; an answer knows the reply it answers;
+what is new tells of it as a reply; it may arrive before what it was said under. A line
+said under a thing is kept in the file and shown nowhere yet. Step two, once both apps are
+on a build that reads: the phone and the door write replies this way, and a reply takes a
+photo, a fact, a todo, a link, and is found and changed like any line.
+
 **Not done, on purpose.** The screen for talking to a thing, which comes with pages.
 
 ## The cases, run through
@@ -314,7 +324,7 @@ the test the parts keep passing.
 ## Open
 
 - Pages as definitions over shapes.
-- Lines stand somewhere: decided 10 November, see above, to be built.
+- Lines stand somewhere: read since 10 November; writing them is step two, see above.
 - A named place: a place fact is coordinates; what calls it the nursery is not built.
 - Where loops run and pages are served, the home; media leaving the phone. Both parked,
   and both gate loops and pages.

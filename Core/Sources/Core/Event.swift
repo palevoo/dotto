@@ -614,17 +614,24 @@ public enum Payload: Hashable, Sendable {
         /// write a line onto the owner's page under its own name, a walk, a booking, a book,
         /// and the owner drops it with one hold. Since 9 November 2026.
         public var page: Author?
+        /// What the line was said under: a line, which makes it a reply; a reply, which makes
+        /// it an answer to that reply in the same conversation; or a thing, which makes it
+        /// something said on that thing's page. Absent, it stands on its writer's days. Where
+        /// a line was said is part of it and never changes. Read since 10 November 2026;
+        /// nothing writes it until every build can read it.
+        public var under: ULID?
 
-        public init(entry: ULID, text: String, startedAt: Date, location: Location? = nil, page: Author? = nil) {
+        public init(entry: ULID, text: String, startedAt: Date, location: Location? = nil, page: Author? = nil, under: ULID? = nil) {
             self.entry = entry
             self.text = text
             self.startedAt = startedAt.toMilliseconds
             self.location = location
             self.page = page
+            self.under = under
         }
 
         enum CodingKeys: String, CodingKey {
-            case entry, text, page
+            case entry, text, page, under
             case startedAt = "at"
             case location = "loc"
         }
