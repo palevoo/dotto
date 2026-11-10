@@ -175,3 +175,73 @@ struct LineWords: View {
             .lineSpacing(4)
     }
 }
+
+/// What a line is, in a few words: the things it is with, its moment, its facts, what was
+/// kept beside it, its tags. "fig · due 12 Nov 11:30 · #nursery". The same words wherever
+/// lines are listed, so a line reads alike on its day, on a thing's page and among what is
+/// coming. On a thing's own page the thing is left out, being the page.
+enum LineHint {
+    @MainActor
+    static func words(of entry: Entry, model: NotebookModel, on page: ULID? = nil, moment shown: Bool = true) -> String? {
+        let calendar = model.calendar
+        let things = entry.belongsTo.compactMap { link -> String? in
+            guard link.to != page, let thing = model.notebook.thing(link.to), !thing.isTag else { return nil }
+            return thing.name
+        }
+        var facts: [String] = []
+        // Its moment first, while the line is open. An event simply happens then; something
+        // to do is due then. That it is to do is said by its mark, not in words.
+        if shown, entry.done == nil, let moment = entry.moment {
+            let words = "\(Format.shortDay(moment, calendar: calendar)) \(Format.time(moment, calendar: calendar))"
+            facts.append(entry.at == nil && entry.todo != nil ? "due \(words)" : words)
+        }
+        var seen: Set<String> = ["todo", "due", "at"]
+        for fact in entry.facts where seen.insert(fact.key).inserted {
+            if fact.key == "break" {
+                // The day a streak broke, when the line names another day than its own.
+                if case .moment(let happened) = fact.value {
+                    facts.append("broke \(Format.shortDay(happened, calendar: calendar))")
+                } else {
+                    facts.append("broke")
+                }
+            } else {
+                facts.append("\(fact.key) \(fact.value.words(calendar: calendar))")
+            }
+        }
+        // What the line points at, once the home has opened it and kept it beside the line.
+        let kept = entry.media.filter(\.isKept).map { "kept: \($0.title ?? $0.source ?? "a page")" }
+        let tags = entry.belongsTo.compactMap { link -> String? in
+            guard link.to != page, let tag = model.notebook.thing(link.to), tag.isTag else { return nil }
+            return "#\(tag.name)"
+        }
+        let parts = things + facts + kept + tags
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+}
+
+/// A line in a list: its words, and under them what it is, in the same quiet words as on
+/// its day.
+struct ListedLine: View {
+    let entry: Entry
+    @Bindable var model: NotebookModel
+    /// The thing whose page this is, left out of what the line says of itself.
+    var page: ULID?
+    /// Whether its moment is said; not where the list is already by moment.
+    var moment = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            LineWords(entry: entry)
+            if let hint = LineHint.words(of: entry, model: model, on: page, moment: moment) {
+                Text(hint)
+                    .font(Theme.sansSmall)
+                    .foregroundStyle(Theme.muted)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .accessibilityIdentifier("line-hint")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+}

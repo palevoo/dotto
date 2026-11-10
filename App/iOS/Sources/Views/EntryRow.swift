@@ -189,27 +189,8 @@ struct EntryRow: View {
         return "\(count)\(last.from == entry.id ? "from" : "on to") \(words.isEmpty ? "a photo" : words)"
     }
 
-    /// The things the line is with, its facts and its tags, in a few words:
-    /// "fig · due 12 Nov 11:30 · #nursery".
-    private var shapeHint: String? {
-        let things = entry.belongsTo.compactMap { link in model.notebook.thing(link.to).flatMap { $0.isTag ? nil : $0.name } }
-        var facts: [String] = []
-        // Due first, in words, while the line is open; then the rest, one per key. That it
-        // is to do is said by its mark, not in words.
-        if entry.done == nil, let moment = entry.moment {
-            // An event simply happens at its moment; something to do is due then.
-            let words = "\(Format.shortDay(moment, calendar: model.calendar)) \(Format.time(moment, calendar: model.calendar))"
-            facts.append(entry.at == nil && entry.todo != nil ? "due \(words)" : words)
-        }
-        var seen: Set<String> = ["todo", "due", "at"]
-        for fact in entry.facts where seen.insert(fact.key).inserted {
-            facts.append("\(fact.key) \(fact.value.words(calendar: model.calendar))")
-        }
-        // What the line points at, once the home has opened it and kept it beside the line.
-        let kept = entry.media.filter(\.isKept).map { "kept: \($0.title ?? $0.source ?? "a page")" }
-        let parts = things + facts + kept + entry.labels.map { "#\($0)" }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
+    /// What the line is, in a few words, as every list of lines says it.
+    private var shapeHint: String? { LineHint.words(of: entry, model: model) }
 
     /// Stores the words and leaves the edit, whichever way it ended. Safe to call twice.
     private func finishEditing() {

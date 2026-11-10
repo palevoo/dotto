@@ -70,6 +70,11 @@ public struct KindShape: Hashable, Codable, Sendable, Identifiable {
                                        Part("planted", .moment, "When it went into soil."), Part("about", .text, "Anything worth knowing of it.")]),
         KindShape(kind: "person", has: [Part("about", .text, "Who they are to the owner, in a sentence or two.")]),
         KindShape(kind: "project", has: [Part("about", .text, "What it is for."), Part("state", .words, "Where it stands.")]),
+        KindShape(kind: "streak", has: [Part("about", .text, "What is being kept up, in a sentence."),
+                                        Part("since", .moment, "When it began."),
+                                        Part("counts", .words, "without: every day counts unless a line says it broke. with: a day counts when a line is with it."),
+                                        Part("span", .span, "How long it is meant to run, when it has an end."),
+                                        Part("ended", .moment, "When it was stopped, if it was.")]),
     ].map { ($0.kind, $0) })
 }
 

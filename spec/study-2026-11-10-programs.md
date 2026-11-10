@@ -201,6 +201,24 @@ what wants the owner, which the spec had named and nothing read; "one `due`" abo
 wrong. A Coming page, the phone's own notices, the Mac stepping back. Not built: a copy
 into Calendar; notices have not fired on a real phone yet.
 
+Built the same day, the third piece: streaks. A thing with `since` is a streak and its run
+is worked out, never set; without or with; a break is a fact on a line. The first number
+that is counted and the first block drawn from a thing's facts, a strip of days. Not
+built: past periods of a streak begun again, since a fact holds one value per originator;
+a way to say which of two streaks a line broke, since a break counts against every streak
+its line is with.
+
+What repeated, written down as the owner asked on 10 November. Each is a problem to study
+before more patches:
+- Incoming captures. A link whose page needs a login, a script or an app comes in empty: a
+  Claude chat, a YouTube video, a Luma event. Three times in one day.
+- A line drawn differently in each list. Met again building streaks and settled there: one
+  description of what a line is, used by every list.
+- Where the reading runs. Every experience depends on one Mac being awake.
+- Projects. In the owner's words a different thing from linear capture: back and forth,
+  iterations, something prepared towards a moment. Nothing built answers it; the thing's
+  page is a list of lines.
+
 Found on the way, there before, not solved: a page shorter than the screen and taller than
 the room above the keyboard stops answering when the keyboard comes up. A new notebook's
 first day would meet it. It goes when the page stops tracking its top row, which the pinned

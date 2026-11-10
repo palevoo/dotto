@@ -350,10 +350,10 @@ public struct Door: Sendable {
                         "inputSchema": ["type": "object", "properties": ["kind": ["type": "string", "description": "Only things of this kind."]]]]
             case .setFact:
                 return ["name": rawValue,
-                        "description": "Put a fact on a line or a thing: a key and one value. yield 10 L on the harvest line; state potted on the fig. Something the owner has to do gets todo, words open, and due too when it has a moment; mark_done finishes it, and nothing else needs taking off. Something that happens at a moment whether or not the owner does anything, an appointment, a booking, a class, is an event: it gets at with its moment, and never todo or due. A plain reminder, nothing to finish, gets due alone. One fact per key under your name; a newer one replaces it; on=false takes yours off. Give exactly one of number, words, moment, span or place.",
+                        "description": "Put a fact on a line or a thing: a key and one value. yield 10 L on the harvest line; state potted on the fig. Something the owner has to do gets todo, words open, and due too when it has a moment; mark_done finishes it, and nothing else needs taking off. Something that happens at a moment whether or not the owner does anything, an appointment, a booking, a class, is an event: it gets at with its moment, and never todo or due. A plain reminder, nothing to finish, gets due alone. A thing with since, a moment, is a streak, and its run is worked out, never set: when a line that is with it says a day broke, put break on that line, with the moment it happened when that was another day than the line's own. A break counts against every streak its line is with, so a line that broke one streak and kept another is put only with the one it broke. One fact per key under your name; a newer one replaces it; on=false takes yours off. Give exactly one of number, words, moment, span or place.",
                         "inputSchema": ["type": "object",
                                         "properties": ["on": ["type": "string", "description": "The id of the line or thing."],
-                                                       "key": ["type": "string", "description": "A lower-case word: yield, state, days, todo, due, at, place."],
+                                                       "key": ["type": "string", "description": "A lower-case word: yield, state, days, todo, due, at, since, break, place."],
                                                        "number": ["type": "number"],
                                                        "unit": ["type": "string", "description": "With number: L, kg, km, °C."],
                                                        "words": ["type": "string"],
@@ -700,6 +700,10 @@ public struct Door: Sendable {
                 if let kind = thing.kind { tail.append("a \(kind)") }
                 tail.append("\(thing.lines.count) line\(thing.lines.count == 1 ? "" : "s")")
                 tail.append(contentsOf: thing.facts.map { "\($0.key) \($0.value.words(calendar: calendar))" })
+                // A streak says where it stands, worked out and never set by hand.
+                if let streak = notebook.streak(thing, at: Date(), calendar: calendar) {
+                    tail.append("run \(streak.run) d" + (streak.breaks > 0 ? ", \(streak.breaks) broken" : ""))
+                }
                 if let author = thing.author { tail.append("by \(notebook.name(of: author) ?? author.rawValue)") }
                 return "\(thing.id)  \(thing.isTag ? "#" : "")\(thing.name)  \(tail.joined(separator: " · "))"
             }.joined(separator: "\n"))

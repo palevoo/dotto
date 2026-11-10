@@ -1,6 +1,12 @@
 import XCTest
 
 extension XCUIApplication {
+    /// A line in a list, found by its words, whether it is drawn as plain text or as a row
+    /// to tap that also says what the line is.
+    func line(_ words: String) -> XCUIElement {
+        descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH %@", words)).firstMatch
+    }
+
     /// The app, launched on a notebook of this test's own: new and empty, under the
     /// simulator's temporary directory, gone when the next test starts. What one test writes
     /// is never there for another, and the day a test runs on does not matter. `seeded` adds

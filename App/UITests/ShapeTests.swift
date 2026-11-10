@@ -43,8 +43,7 @@ final class ShapeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["thing-name"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["plant"].exists, "and its kind")
         XCTAssertTrue(app.otherElements["fact-state"].exists || app.staticTexts["potted"].exists, "its state is a fact on it")
-        // The line is a row to tap, so its words are the row's name.
-        XCTAssertTrue(app.buttons["Meaning comes later, says the second page"].exists, "the line belongs to it")
+        XCTAssertTrue(app.line("Meaning comes later, says the second page").exists, "the line belongs to it")
     }
 
     /// Read, and nothing said: a line the seed took in and left nothing under wears a mark
@@ -106,8 +105,40 @@ final class ShapeTests: XCTestCase {
         XCTAssertTrue(coming.waitForExistence(timeout: 5), "the sheet offers what is coming")
         coming.tap()
         XCTAssertTrue(app.staticTexts["Coming"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["A quiet afternoon"].exists, "the event is coming")
-        XCTAssertTrue(app.buttons["Meaning comes later, says the second page"].exists, "and so is what is due")
+        XCTAssertTrue(app.line("A quiet afternoon").exists, "the event is coming")
+        XCTAssertTrue(app.line("Meaning comes later, says the second page").exists, "and so is what is due")
         XCTAssertEqual(app.buttons.matching(identifier: "todo-mark").count, 1, "only what is to do wears the mark")
+    }
+
+    /// A streak's page says its run and shows its days. The seeded one began three days ago
+    /// and broke yesterday: four days, one of them broken, and a run of one, today. Stopped,
+    /// it says so; begun again, it is one day old.
+    func testAStreakShowsItsRunAndItsDays() {
+        XCTAssertTrue(app.buttons["date"].waitForExistence(timeout: 15))
+        app.buttons["date"].tap()
+        let streaks = app.buttons["kind-streak"]
+        XCTAssertTrue(streaks.waitForExistence(timeout: 5), "streaks are a kind with a page")
+        streaks.tap()
+        let row = app.staticTexts["thing-no sugar"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["· 1 day"].exists, "its row says its run")
+        row.tap()
+
+        let run = app.staticTexts["streak-run"]
+        XCTAssertTrue(run.waitForExistence(timeout: 5))
+        XCTAssertEqual(run.label, "1", "broken yesterday, today is the first day again")
+        let summary = app.staticTexts["streak-summary"]
+        XCTAssertTrue(summary.label.contains("1 broken"), summary.label)
+        XCTAssertTrue(summary.label.contains("longest 2"), summary.label)
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "streak-day").count, 4, "a dot for each day since it began")
+        XCTAssertFalse(app.otherElements["fact-since"].exists, "what it is worked out from is not said again")
+        // The line that broke it says so, here as on its day.
+        let hint = app.staticTexts.matching(identifier: "line-hint").firstMatch
+        XCTAssertTrue(hint.label.contains("broke"), hint.label)
+
+        run.press(forDuration: 1.0)
+        app.buttons["Begin again from today"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "identifier == %@ AND label == %@", "streak-run", "1")).firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "streak-day").count, 1, "begun again, it is one day old")
     }
 }

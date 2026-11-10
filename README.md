@@ -221,6 +221,18 @@ read, the soonest sixty, so a moment moved, taken off or finished needs nothing 
 phone writes the moments it has covered beside its push address, and the Mac sends its own
 push at a due moment only to a phone that has not.
 
+A thing with a `since` moment is a streak, and nothing about it is set by hand: its run is
+worked out from the notebook each time it is shown. It runs one of two ways. Without: every
+day counts unless a line that is with it carries `break`, with the moment it happened when
+that was another day than the line's own; you state nothing while it holds. With (`counts`
+with): a day counts when a line is with it, a walk, a page read. A `span` is how long it is
+meant to run; `ended` stops it; a newer `since` begins it again. Its page says the run in
+days, a few quiet words, and every day since it began as a dot, seven to a row: ink for a
+day that counts, an empty ring for one that broke, today in the one colour; a dot with a
+line behind it leads to that line. Hold the number to stop it or begin again. It never
+counts at you and never asks to be kept. Every list of lines, on a thing's page and among
+what is coming, now says what each line is in the same quiet words as its day does.
+
 A kind of thing has a shape: what a paper, a plant, a person has, in order, and what each
 is. `set_shape` says it and `list_shapes` reads it; the newest word for a kind stands, you
 drop it with a hold on the kind's page, and until someone says, the kinds most notebooks come

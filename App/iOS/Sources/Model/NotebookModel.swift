@@ -446,6 +446,16 @@ final class NotebookModel {
         stopLoop(proposal.id)
     }
 
+    /// A streak stopped, by your word: it counts no further.
+    func endStreak(_ thing: ULID) {
+        record(.factSet(.init(on: thing, key: "ended", value: .moment(Date()))))
+    }
+
+    /// A streak begun again from now: a newer beginning, which the old end does not reach.
+    func beginStreak(_ thing: ULID) {
+        record(.factSet(.init(on: thing, key: "since", value: .moment(Date()))))
+    }
+
     /// A fact taken off, whoever put it there: one hold.
     func removeFact(_ fact: Fact) {
         record(.factRemove(.init(on: fact.on, key: fact.key, of: fact.author)))

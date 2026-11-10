@@ -170,10 +170,7 @@ struct ComingPage: View {
             .frame(width: 44, alignment: .leading)
             .padding(.top, 4)
             NavigationLink(value: entry.id) {
-                LineWords(entry: entry)
-                    .accessibilityIdentifier("coming-line")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
+                ListedLine(entry: entry, model: model, moment: false)
             }
             .buttonStyle(.plain)
         }
@@ -244,8 +241,14 @@ struct ThingsPage: View {
                 if let last {
                     Text("· last \(Format.shortDay(last, calendar: model.calendar))")
                 }
+                // A streak says its run, worked out; the facts it comes from are left to its page.
+                let streak = model.notebook.streak(thing, at: Date(), calendar: model.calendar)
+                if let streak {
+                    Text("· \(streak.run) day\(streak.run == 1 ? "" : "s")")
+                        .foregroundStyle(Theme.foreground)
+                }
                 // The short facts, in the order its shape gives them; a paragraph is for its page.
-                ForEach(model.notebook.drawn(thing).filter { $0.what != .text && $0.what != .link }.prefix(3)) { item in
+                ForEach(model.notebook.drawn(thing).filter { $0.what != .text && $0.what != .link && (streak == nil || !Notebook.streakKeys.contains($0.key)) }.prefix(3)) { item in
                     Text("· \(item.key) \(item.fact.value.words(calendar: model.calendar))")
                 }
             }

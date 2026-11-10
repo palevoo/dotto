@@ -110,6 +110,19 @@ enum Seed {
             try? model.store.append(Event(id: ULID(), author: seed, device: model.device, at: Date(),
                                           payload: .factSet(.init(on: quiet.id, key: "at", value: .moment(Date().addingTimeInterval(2 * 86_400))))))
         }
+        // A streak begun three days ago, which the quiet line says broke yesterday.
+        if !model.notebook.allThings.contains(where: { $0.name == streak }),
+           let quiet = model.notebook.entries.first(where: { $0.text == plain }) {
+            let id = ULID()
+            try? model.store.append([
+                Event(id: id, author: seed, device: model.device, at: Date(), payload: .thingSet(.init(thing: id, name: streak, kind: "streak"))),
+                Event(id: ULID(), author: seed, device: model.device, at: Date(),
+                      payload: .factSet(.init(on: id, key: "since", value: .moment(Date().addingTimeInterval(-3 * 86_400))))),
+                Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .link(.init(from: quiet.id, to: id))),
+                Event(id: ULID(), author: seed, device: model.device, at: Date(),
+                      payload: .factSet(.init(on: quiet.id, key: "break", value: .moment(Date().addingTimeInterval(-86_400))))),
+            ])
+        }
         // The seed has looked: everything written so far is taken in, so the lines it left
         // nothing under are read with nothing said.
         if !model.notebook.visits.contains(where: { $0.author == seed && $0.read.what == .inbox }),
@@ -148,6 +161,7 @@ enum Seed {
     static let about = "A fig cutting taken in September, rooted in water and potted in November."
     static let source = "https://example.com/figs/cuttings"
     static let plain = "A quiet afternoon"
+    static let streak = "no sugar"
     static let keptTitle = "Rooting fig cuttings"
     static let keptWords = "Take a cutting in late summer. Keep it in water until roots show, then pot it."
 

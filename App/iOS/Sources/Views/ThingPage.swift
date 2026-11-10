@@ -64,10 +64,20 @@ struct ThingPage: View {
                 // Its facts as its shape orders them, each drawn by what it is: a few sentences
                 // as a paragraph, an address as a link, the rest as rows. What no shape names
                 // comes after, drawn by what it looks like.
-                let drawn = model.notebook.drawn(thing)
-                if !drawn.isEmpty {
+                // A streak says where it stands itself: its run and its days. The facts it is
+                // worked out from are not said again under it.
+                let streak = model.notebook.streak(thing, at: Date(), calendar: model.calendar)
+                let drawn = model.notebook.drawn(thing).filter { streak == nil || !Notebook.streakKeys.contains($0.key) }
+                if let about = drawn.first(where: { $0.key == "about" }), streak != nil {
+                    fact(about)
+                }
+                if let streak {
+                    StreakBlock(thing: thing, streak: streak, model: model)
+                }
+                let rest = streak == nil ? drawn : drawn.filter { $0.key != "about" }
+                if !rest.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
-                        ForEach(drawn) { item in
+                        ForEach(rest) { item in
                             fact(item)
                         }
                     }
@@ -97,7 +107,7 @@ struct ThingPage: View {
                             .font(Theme.mono)
                             .foregroundStyle(Theme.faint)
                         ForEach(day.entries) { entry in
-                            row(entry)
+                            row(entry, on: thing.id)
                         }
                     }
                 }
@@ -169,7 +179,7 @@ struct ThingPage: View {
 
     /// A line as its day draws it: the time, its mark under the time when it is something
     /// to do, and its words, struck through once it is finished.
-    private func row(_ entry: Entry) -> some View {
+    private func row(_ entry: Entry, on thing: ULID) -> some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(Format.time(entry.startedAt, calendar: model.calendar))
@@ -183,10 +193,7 @@ struct ThingPage: View {
             .frame(width: 44, alignment: .leading)
             .padding(.top, 4)
             NavigationLink(value: entry.id) {
-                LineWords(entry: entry)
-                    .accessibilityIdentifier("line")
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
+                ListedLine(entry: entry, model: model, page: thing)
             }
             .buttonStyle(.plain)
         }
