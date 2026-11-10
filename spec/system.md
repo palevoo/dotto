@@ -54,6 +54,9 @@ a form. An originator has a key, a name once it chooses one, a colour from its i
 of its own, and a file of its own. Every read leaves a receipt. The owner takes back
 anything an originator left with one hold. A loop runs as an originator.
 
+Since 10 November every notebook has one originator of its own, dotto, and an originator
+acts through hands; see the design below.
+
 Today: grants as the owner's events, keys on the Mac, names, colours, devices, pages,
 receipts, Logs and History, takeback for notes, links and done. A line by another
 originator lands on the owner's page under its own name and goes with one hold, built 9
@@ -233,6 +236,70 @@ is not set, has no kind, and is not counted among the kinds; it has a page like 
 **Not done, on purpose.** Shape-to-shape links, "same as" for two things that are one,
 pages as definitions.
 
+## Hands, the design
+
+Decided and built 10 November. From the notebook: a weeju and a Margo that were one being
+through two keys; two loops sharing one memory of what had been seen, so one looking hid
+lines from the other, and both writing to one file; and the owner's line that dotto should
+be itself whatever tool or model people come through.
+
+**An originator is who answers for something. A hand is how it acts at one moment**: a
+session at the keyboard, a loop, whichever model. The owner's hands are the phone and the
+Mac. Every event already says both, its author and what it came through; the hand is that
+second word.
+
+**Every notebook has one dotto.** It is there without being made, as a tag is: the one who
+reads, answers and shapes. It is called dotto until it is named, and it wears the one colour
+the app has. A new key is one more hand of dotto unless the owner says it is for someone
+new: a source, Health, Mail, faceit, or another person.
+
+**What has been seen is kept per hand.** A session and each loop have a place of their own
+in the notebook, so each is told what is new to it, and each writes to a file of its own. A
+hand looking for the first time starts from where its originator last looked at all. What
+the originator's other hands did since is said briefly beside what is new, not as news
+from someone else: it is the same being's own doing.
+
+**dotto's memory is the notebook**: its page, its marks, its receipts. That is what makes it
+one whatever comes through the door, and why nothing about a model is identity.
+
+**Two ids that are one.** The owner says so with one event, `same`, and the fold reads
+through it: everything the one did, and does, is the other's, in any order of arrival.
+Nothing is rewritten; the files keep the names they were written under. A key the one holds
+opens the door as the other from then on. Only the owner's word counts, and nobody is made
+the same as the owner.
+
+**A loop is a hand**, named from the loop: its own place, its own file, its receipts under
+it. Only a source needs to be an originator of its own.
+
+**Not done, on purpose.** A hand's model or tool as anything but a word in a receipt; hands
+that are told apart on the page; a ceremony for naming.
+
+## Lines stand somewhere, the design
+
+Decided 10 November, not built. From the notebook: a reply that could not carry a photo, be
+a todo, be linked to, be found, or be fixed by the one who wrote it; the owner's line of 9
+November that every message is one thing, appearing in different places; and the wish to
+talk to a page from inside it.
+
+**There is one kind of written thing, a line, and where it was said is part of it.** Said
+nowhere, it is on its writer's days: the owner's on the page, an originator's on its own
+page. Said on the owner's days by someone else, it is the walk, the booking. Said under a
+line, it is a reply. Said under a thing, it is something said on that thing's page.
+
+**Where a line was said is part of the capture and never changes; what it connects to is a
+link**, placed afterwards by anyone and taken back. A reply's place is the first; a thread,
+a citation, a belonging are the second. A line under a line that points at another line
+cites it; a line on its own days that points at an earlier one carries on from it.
+
+**A reply is a full line**: photos, facts, a todo, links, search, a change by its writer. It
+may answer a reply; the conversation shows flat under its line, and each reply knows what it
+answers. Whoever wrote a line changes it; they or the owner drop it.
+
+**Nothing migrates.** The replies already in the files read as lines under lines. Only where
+a line was said is kept; the top of a conversation is worked out, since the whole log is here.
+
+**Not done, on purpose.** The screen for talking to a thing, which comes with pages.
+
 ## The cases, run through
 
 A quote photo: one capture, linked to the work, on the shelf page, a loop fetching the
@@ -247,10 +314,7 @@ the test the parts keep passing.
 ## Open
 
 - Pages as definitions over shapes.
-- Three kinds of written words, the owner's line, an originator's page line and a reply,
-  are three event kinds for one act. Not merged; shapes must not deepen the split.
-- One originator with two hands, a session and the reader, shares one memory of what it
-  has seen.
+- Lines stand somewhere: decided 10 November, see above, to be built.
 - A named place: a place fact is coordinates; what calls it the nursery is not built.
 - Where loops run and pages are served, the home; media leaving the phone. Both parked,
   and both gate loops and pages.

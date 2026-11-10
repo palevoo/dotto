@@ -40,7 +40,10 @@ final class ReaderRunner {
 
     init(loop: Loop, grant: Grant, door: String, model: String, runsDirectory: URL, logURL: URL) {
         self.loop = loop
-        self.grant = grant
+        // The loop is a hand of its own: its own place in what has been seen, its own file.
+        var hand = grant
+        hand.device = loop.hand
+        self.grant = hand
         self.door = door
         self.model = model
         self.runsDirectory = runsDirectory
@@ -344,9 +347,9 @@ struct Session: Sendable {
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workDir) }
 
-        // The same grant as a session at the keyboard; the header says this hand is the reader.
+        // The same key as a session at the keyboard; the header says which hand this is.
         let servers: [String: Any] = ["mcpServers": ["dotto": [
-            "type": "http", "url": door, "headers": ["Authorization": "Bearer \(grant.key)", "Dotto-Device": "reader"],
+            "type": "http", "url": door, "headers": ["Authorization": "Bearer \(grant.key)", "Dotto-Device": grant.device.rawValue],
         ]]]
         let mcpConfig = workDir.appendingPathComponent("door.json")
         guard let json = try? JSONSerialization.data(withJSONObject: servers), (try? json.write(to: mcpConfig)) != nil else {

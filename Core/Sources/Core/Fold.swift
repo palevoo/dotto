@@ -102,6 +102,17 @@ public struct Loop: Hashable, Sendable, Identifiable {
     public let createdAt: Date
     /// The last receipt, if the loop has run.
     public var lastRun: LoopRun?
+
+    /// The hand the loop is: what its events say they came through, and what keeps its own
+    /// place in the notebook, so two loops of one originator each see what is new to them
+    /// and each write to a file of their own. Its name as a slug, with a little of its id
+    /// so two loops of one name are two hands: "the-reader-0epw".
+    public var hand: DeviceID {
+        let slug = String(name.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "-" })
+            .split(separator: "-").joined(separator: "-")
+        // Short enough to pass through the door's header as it is.
+        return DeviceID(rawValue: (slug.isEmpty ? "loop" : String(slug.prefix(24))) + "-" + id.string.suffix(4).lowercased())
+    }
 }
 
 /// A loop someone other than the owner asked for, waiting for the owner's hand: set with
@@ -447,15 +458,68 @@ public struct Notebook: Sendable {
     }
 
     public mutating func apply(_ events: some Sequence<Event>) {
+        let events = Array(events)
+        // Who is the same as whom is known before anything is folded, so it holds for an
+        // event however early it was written and whatever order the files came in.
+        for event in events { remember(event) }
         for event in events.sorted(by: { $0.id < $1.id }) {
             apply(event)
         }
     }
 
-    public mutating func apply(_ event: Event) {
-        guard !seen.contains(event.id) else { return }
-        seen.insert(event.id)
+    // MARK: - Originators that are one
+
+    /// Per originator, the one the owner says it is the same as; the newest word stands.
+    private var sameAs: [Author: Newest<Author>] = [:]
+
+    /// Takes the owner's word that two originators are one. Nobody is the owner's same.
+    private mutating func remember(_ event: Event) {
+        guard case .same(let p) = event.payload, event.author == owner, p.author != owner, p.same != owner, p.author != p.same else { return }
+        sameAs.mark(p.author, p.same, by: event.id)
+    }
+
+    /// The originator an id stands for today: itself, or the one the owner said it is the
+    /// same as. Followed a few steps, so one said to be another that is in turn dotto is dotto.
+    public func resolved(_ author: Author) -> Author {
+        var author = author
+        for _ in 0..<4 {
+            guard let next = sameAs[author]?.value else { break }
+            author = next
+        }
+        return author
+    }
+
+    /// An event as its originator stands today. The id, the hand and the words are as written.
+    public func resolved(_ event: Event) -> Event {
+        let author = resolved(event.author)
+        var payload = event.payload
+        switch payload {
+        case .entryCreate(var p):
+            if let page = p.page { p.page = resolved(page); payload = .entryCreate(p) }
+        case .factRemove(var p):
+            if let of = p.of { p.of = resolved(of); payload = .factRemove(p) }
+        case .grantCreate(var p):
+            p.author = resolved(p.author); payload = .grantCreate(p)
+        default:
+            break
+        }
+        guard author != event.author || payload != event.payload else { return event }
+        return Event(id: event.id, author: author, device: event.device, at: event.at, payload: payload)
+    }
+
+    /// Every file's events as their originators stand today, for what reads the files
+    /// beside the fold: the inbox, what a hand has not seen.
+    public func resolved(_ files: [(file: String, events: [Event])]) -> [(file: String, events: [Event])] {
+        guard !sameAs.isEmpty else { return files }
+        return files.map { ($0.file, $0.events.map { resolved($0) }) }
+    }
+
+    public mutating func apply(_ written: Event) {
+        guard !seen.contains(written.id) else { return }
+        seen.insert(written.id)
         eventCount += 1
+        remember(written)
+        let event = resolved(written)
         // Only the owner opens or closes the door, and only the owner sets or stops a loop.
         if let kind = event.kind, [.grantCreate, .grantRevoke, .loopSet, .loopStop].contains(kind), event.author != owner { return }
         if event.author != owner, !others.contains(event.author) { others.append(event.author) }
@@ -582,6 +646,10 @@ public struct Notebook: Sendable {
             if !p.ok { what += ", and failed" }
             trace(event, what, entry: nil)
 
+        case .same:
+            // Taken before anything was folded, in `remember`.
+            break
+
         case .unknown:
             // From a newer build. Counted, kept, and left for a build that knows it.
             break
@@ -637,14 +705,18 @@ public struct Notebook: Sendable {
         return grant
     }
 
-    /// What an author is called, if they have chosen. Nobody is called anything until then.
+    /// What an author is called, if they have chosen. Nobody is called anything until then,
+    /// but the notebook's own, which is dotto until it is named.
     public func name(of author: Author) -> String? {
-        names[author]?.value
+        let author = resolved(author)
+        return names[author]?.value ?? (author == .dotto ? "dotto" : nil)
     }
 
-    /// Every chosen name, by author id.
+    /// Every name, by author id: the chosen ones, and dotto's own once it has done anything.
     public var chosenNames: [Author: String] {
-        names.mapValues(\.value)
+        var all = names.mapValues(\.value)
+        if all[.dotto] == nil, others.contains(.dotto) { all[.dotto] = "dotto" }
+        return all
     }
 
     /// Something done to one line: on the line's own trail and on the notebook's.
@@ -1088,7 +1160,7 @@ public struct Notebook: Sendable {
             note(&entry, event, "changed a note", before: before)
 
         case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .link, .unlink, .done, .undone, .visit, .nameSet, .grantCreate, .grantRevoke,
-             .loopSet, .loopStop, .loopRan, .thingSet, .thingRemove, .factSet, .factRemove, .loopPropose, .labelAttach, .labelDetach, .unknown:
+             .loopSet, .loopStop, .loopRan, .thingSet, .thingRemove, .factSet, .factRemove, .loopPropose, .labelAttach, .labelDetach, .same, .unknown:
             break
         }
     }

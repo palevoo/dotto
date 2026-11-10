@@ -156,7 +156,14 @@ file was, so a mark that reaches a device late is still new. The Mac shows the s
 the looks are made on the phone. Nothing is stored for the inbox: it is a fold of the same
 files.
 
-A grant is an author with a fresh id and no name. It may write lines of its own, which make
+A grant is a key, and by default one more hand of dotto, the notebook's own originator: a
+session, a bot, a loop, whichever model. dotto is there in every notebook without being made,
+is called dotto until it is named, and wears the persimmon dot. What has been seen is kept
+per hand, so a session and each loop are each told what is new to them, and what dotto's
+other hands did since. Two ids that were one being, through two keys, are made one by your
+word, "This is dotto" in the grant's menu: a `same` event the fold reads through, with
+nothing rewritten. A grant for someone new, a source or another person, has a fresh id and
+no name. An originator may write lines of its own, which make
 up its page, reached from the calendar sheet; you reply under them as under your own, and it
 reads your replies with `mine=true`. It chooses what it is called when it wants to, and the
 name stands beside everything it does from then on. Until then it is only a mark.

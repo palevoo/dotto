@@ -148,6 +148,10 @@ public struct Door: Sendable {
     public static func conduct(for grant: Grant, name: String? = nil, owner: String? = nil) -> String {
         let named = name.map { "You are called \($0)." }
             ?? "You have no name yet, and nobody will give you one. When you know what you want to be called, choose_name. It is yours, and you may change it."
+        // The notebook's own is one, through however many hands. Each is told which it is.
+        let hand = grant.author == .dotto
+            ? " You are this notebook's own, and this is one of your hands, \(grant.device.rawValue): a session, a loop, whichever model you are today. What your other hands did is yours; whats_new says what they did since this one looked, and your page is where you keep what you want to remember."
+            : ""
         let whose = owner.map { "\($0)'s notebook" } ?? "one person's notebook"
         let build = Build.commit.map { " This door is served by build \($0)." } ?? ""
         return """
@@ -179,7 +183,7 @@ public struct Door: Sendable {
         the notebook or not. Under your own lines it is a conversation; say what it takes.
 
         Everything you do, reading included, is recorded under your name where the owner can see \
-        it, and the owner can take any of it back with one hold. \(named)\(build)
+        it, and the owner can take any of it back with one hold. \(named)\(hand)\(build)
         """
     }
 

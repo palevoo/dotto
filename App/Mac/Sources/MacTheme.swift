@@ -21,6 +21,8 @@ enum MacTheme {
     /// Everyone's own colour, from their id, the same as on the phone. The owner is the ink.
     static func ink(for author: Author, owner: Author?) -> Color {
         guard author != owner else { return foreground }
+        // The notebook's own wears the one colour the app has.
+        guard author != .dotto else { return accent }
         let hue = author.hue
         return Color(nsColor: NSColor(name: nil) { appearance in
             let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua

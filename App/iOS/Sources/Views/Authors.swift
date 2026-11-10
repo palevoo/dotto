@@ -6,6 +6,8 @@ import SwiftUI
 extension Theme {
     static func ink(for author: Author, owner: Author) -> Color {
         guard author != owner else { return foreground }
+        // The notebook's own wears the one colour the app has.
+        if author == .dotto { return Theme.accent }
         let hue = author.hue
         return Color(uiColor: UIColor { traits in
             traits.userInterfaceStyle == .dark

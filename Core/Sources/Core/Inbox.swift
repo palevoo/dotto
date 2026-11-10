@@ -50,8 +50,25 @@ public enum Inbox {
     /// counts; on the first look, since the grant last read anything, or since it was made.
     /// The same cursor whether the door answers whats_new or the reader asks whether to wake.
     public static func fresh(files: [(file: String, events: [Event])], notebook: Notebook, grant: Grant) -> (events: [Event], since: Date?) {
+        let (others, _, since) = unseen(files: files, notebook: notebook, grant: grant)
+        return (others, since)
+    }
+
+    /// What dotto's other hands, or any originator's, did since this hand last looked: the
+    /// same originator through another session or loop. Not new from someone else, and not
+    /// unknown to the one who did it: said briefly, so each hand knows what the others did.
+    public static func byOtherHands(files: [(file: String, events: [Event])], notebook: Notebook, grant: Grant) -> [Event] {
+        unseen(files: files, notebook: notebook, grant: grant).mine.filter { $0.device != grant.device }
+    }
+
+    /// Everything since this hand's last look, in two piles: by anyone else, and by its own
+    /// originator. What has been seen is kept per hand: a session and each loop have a place
+    /// of their own, so one looking does not hide a line from another.
+    private static func unseen(files written: [(file: String, events: [Event])], notebook: Notebook, grant: Grant)
+        -> (others: [Event], mine: [Event], since: Date?) {
+        let files = notebook.resolved(written)
         let me = grant.author
-        let last = notebook.visits.last { $0.author == me && $0.read.what == .inbox && $0.read.seen != nil }
+        let last = notebook.visits.last { $0.author == me && $0.device == grant.device && $0.read.what == .inbox && $0.read.seen != nil }
         var fresh: [Event] = []
         if let seen = last?.read.seen {
             for (file, events) in files {
@@ -63,14 +80,44 @@ public enum Inbox {
                 fresh.append(contentsOf: events.filter { event in floor.map { event.id > $0 } ?? (event.at >= grant.createdAt) })
             }
         }
-        fresh = fresh.filter { $0.author != me }.sorted { $0.id < $1.id }
-        return (fresh, last?.at ?? notebook.visits.last { $0.author == me }?.at)
+        fresh.sort { $0.id < $1.id }
+        return (fresh.filter { $0.author != me }, fresh.filter { $0.author == me },
+                last?.at ?? notebook.visits.last { $0.author == me }?.at)
     }
 
     /// What a grant would be told by whats_new right now, without leaving a receipt.
     public static func pending(files: [(file: String, events: [Event])], notebook: Notebook, grant: Grant, calendar: Calendar) -> Report {
         let (events, since) = fresh(files: files, notebook: notebook, grant: grant)
-        return report(events, all: files.flatMap(\.events), notebook: notebook, me: grant.author, since: since, calendar: calendar)
+        let told = report(events, all: notebook.resolved(files).flatMap(\.events), notebook: notebook, me: grant.author, since: since, calendar: calendar)
+        let hands = otherHands(byOtherHands(files: files, notebook: notebook, grant: grant))
+        guard !hands.isEmpty else { return told }
+        // Not counted as new: it is the same originator's own doing, told so this hand knows.
+        return Report(count: told.count, text: told.text + "\n\n## Your other hands, since this one looked\n" + hands.joined(separator: "\n"))
+    }
+
+    /// One line per hand: what it wrote and how many marks it left.
+    static func otherHands(_ events: [Event]) -> [String] {
+        var order: [DeviceID] = []
+        var counts: [DeviceID: (words: Int, marks: Int, runs: Int)] = [:]
+        for event in events {
+            var count = counts[event.device] ?? (0, 0, 0)
+            switch event.payload {
+            case .entryCreate, .noteAdd: count.words += 1
+            case .loopRan: count.runs += 1
+            case .visit, .unknown: continue
+            default: count.marks += 1
+            }
+            if counts[event.device] == nil { order.append(event.device) }
+            counts[event.device] = count
+        }
+        return order.compactMap { hand in
+            guard let count = counts[hand] else { return nil }
+            var parts: [String] = []
+            if count.runs > 0 { parts.append("ran \(count.runs) time\(count.runs == 1 ? "" : "s")") }
+            if count.words > 0 { parts.append("wrote \(count.words) line\(count.words == 1 ? "" : "s") or note\(count.words == 1 ? "" : "s")") }
+            if count.marks > 0 { parts.append("left \(count.marks) mark\(count.marks == 1 ? "" : "s")") }
+            return parts.isEmpty ? nil : "\(hand.rawValue): \(parts.joined(separator: ", "))"
+        }
     }
 
     /// The owner's inbox, newest first. Everything other authors left that the owner might
@@ -82,7 +129,8 @@ public enum Inbox {
     /// line, labels folded together, a name, is unread until the owner next opens the inbox,
     /// whose visit records how long every event file was, so an event that reached this
     /// device late is still new.
-    public static func items(files: [(file: String, events: [Event])], notebook: Notebook, calendar: Calendar) -> [InboxItem] {
+    public static func items(files written: [(file: String, events: [Event])], notebook: Notebook, calendar: Calendar) -> [InboxItem] {
+        let files = notebook.resolved(written)
         let owner = notebook.owner
         let looks = notebook.visits.filter { $0.author == owner && $0.read.what == .inbox }
         let seen = looks.last { $0.read.seen != nil }?.read.seen ?? [:]
@@ -222,7 +270,7 @@ public enum Inbox {
                         asks: true, answered: !waiting, unread: fresh && waiting))
 
                 case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .unlink, .undone,
-                     .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .thingRemove, .factRemove, .unknown:
+                     .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .thingRemove, .factRemove, .same, .unknown:
                     continue
                 }
             }
@@ -345,7 +393,7 @@ public enum Inbox {
                 marks.append("\(who(event.author)) marked \(p.entry) done\(p.by.map { " by \($0)" } ?? "")")
             case .nameSet(let p):
                 names.append("\(event.author) is called \(p.name) now")
-            case .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .unknown:
+            case .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .same, .unknown:
                 continue
             }
         }

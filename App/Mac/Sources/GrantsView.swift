@@ -9,7 +9,8 @@ struct GrantsView: View {
     let ways: Ways
     @State private var newName = "Claude Code"
     /// Who the new key is for: nil for a new author.
-    @State private var newAuthor: Author?
+    /// Who a new key is for: dotto unless said otherwise; nil for a new originator.
+    @State private var newAuthor: Author? = .dotto
     @State private var copied: ULID?
     @State private var readerGrantID: ULID?
     @State private var openRuns: Set<ULID> = []
@@ -166,6 +167,8 @@ struct GrantsView: View {
                     copied = grant.id
                 } onRevoke: {
                     model.revoke(grant)
+                } onSame: {
+                    model.declare(grant.author, sameAs: .dotto)
                 } onReassign: { author in
                     model.reassign(grant, to: author)
                 } onReissue: {
@@ -176,8 +179,10 @@ struct GrantsView: View {
                 TextField("Who gets a key", text: $newName)
                     .textFieldStyle(.roundedBorder)
                 Picker("as", selection: $newAuthor) {
-                    Text("a new author").tag(Optional<Author>.none)
-                    ForEach(model.authors, id: \.self) { author in
+                    // A session, a bot, another model: one more hand of the notebook's own.
+                    Text("dotto").tag(Optional(Author.dotto))
+                    Text("someone new").tag(Optional<Author>.none)
+                    ForEach(model.authors.filter { $0 != .dotto }, id: \.self) { author in
                         Text(model.name(of: author)).tag(Optional(author))
                     }
                 }
@@ -188,7 +193,7 @@ struct GrantsView: View {
                 .disabled(model.store == nil)
             }
             .padding(.top, 6)
-            Text("A grant is a key for an author. A new author starts with a fresh id and no name; an author who has already written can be handed another key and stays the same being. Grants are your events in the notebook; only the key stays on this Mac.")
+            Text("A grant is a key. By default it is one more hand of dotto, the notebook's own: a session, a bot, a loop, whichever model. Someone new, a source or another person, starts with a fresh id and no name. Grants are your events in the notebook; only the key stays on this Mac.")
                 .font(MacTheme.mono)
                 .foregroundStyle(MacTheme.faint)
                 .fixedSize(horizontal: false, vertical: true)
@@ -616,6 +621,8 @@ struct GrantCard: View {
     let others: [(Author, String)]
     let onCopy: () -> Void
     let onRevoke: () -> Void
+    /// The owner says this originator is dotto: everything it did, and does, is dotto's.
+    let onSame: () -> Void
     let onReassign: (Author) -> Void
     let onReissue: () -> Void
 
@@ -635,6 +642,10 @@ struct GrantCard: View {
                     .frame(width: 8, height: 8)
                 // The author this key is for. The menu hands the same key to another author instead.
                 Menu {
+                    if grant.author != .dotto {
+                        Button("This is dotto: all it did is dotto's", action: onSame)
+                        Divider()
+                    }
                     ForEach(others, id: \.0) { author, called in
                         Button("Same author as \(called)") { onReassign(author) }
                     }

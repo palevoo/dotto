@@ -12,6 +12,12 @@ public struct Author: RawRepresentable, Hashable, Codable, Sendable, Expressible
     /// the lines it left keep their author.
     public static let weeju: Author = "weeju"
 
+    /// The notebook's own originator. Every notebook has one, without anyone making it, as a
+    /// tag is there once a line is under it: the one who reads, answers and shapes, whatever
+    /// session, loop or model it comes through as. Those are its hands; it is one. It is
+    /// called dotto until it is named. Since 10 November 2026.
+    public static let dotto: Author = "dotto"
+
     /// A fresh id for a new author: six characters nobody chose.
     public static func fresh() -> Author {
         Author(rawValue: String(ULID().string.suffix(6)).lowercased())
@@ -163,6 +169,7 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case factSet = "fact.set"
     case factRemove = "fact.remove"
     case loopPropose = "loop.propose"
+    case same = "same"
 }
 
 /// What happened. One case per kind, each with a fixed shape.
@@ -194,6 +201,7 @@ public enum Payload: Hashable, Sendable {
     case factSet(FactSet)
     case factRemove(FactRemove)
     case loopPropose(LoopPropose)
+    case same(Same)
     /// A kind this build does not know, from a device on a newer one. Carried as it was,
     /// counted, written back unchanged, and nothing else: the vocabulary grows by addition,
     /// so an older reader passes over what it cannot read yet.
@@ -229,7 +237,23 @@ public enum Payload: Hashable, Sendable {
         case .factSet: .factSet
         case .factRemove: .factRemove
         case .loopPropose: .loopPropose
+        case .same: .same
         case .unknown: nil
+        }
+    }
+
+    /// The owner says two originators are one: everything `author` ever did, and does from
+    /// now on, is `same`'s. Nothing is rewritten; the files keep the name they were written
+    /// under and the fold reads through it. For an originator that came through two keys
+    /// under two ids, a weeju and a Margo that were both dotto. Only the owner's count, and
+    /// nobody is made the same as the owner. Since 10 November 2026.
+    public struct Same: Hashable, Codable, Sendable {
+        public var author: Author
+        public var same: Author
+
+        public init(author: Author, as same: Author) {
+            self.author = author
+            self.same = same
         }
     }
 
@@ -758,6 +782,7 @@ extension Event: Codable {
         case .factSet: .factSet(try container.decode(Payload.FactSet.self, forKey: .payload))
         case .factRemove: .factRemove(try container.decode(Payload.FactRemove.self, forKey: .payload))
         case .loopPropose: .loopPropose(try container.decode(Payload.LoopPropose.self, forKey: .payload))
+        case .same: .same(try container.decode(Payload.Same.self, forKey: .payload))
         }
     }
 
@@ -797,6 +822,7 @@ extension Event: Codable {
         case .factSet(let p): try container.encode(p, forKey: .payload)
         case .factRemove(let p): try container.encode(p, forKey: .payload)
         case .loopPropose(let p): try container.encode(p, forKey: .payload)
+        case .same(let p): try container.encode(p, forKey: .payload)
         }
     }
 }

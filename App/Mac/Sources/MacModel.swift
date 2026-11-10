@@ -354,6 +354,14 @@ final class MacModel {
         write(.grantCreate(grant.create))
     }
 
+    /// The owner's word that one originator is another: everything it did, and does from now
+    /// on, is the other's. Nothing is rewritten; the fold reads through it. A key it holds
+    /// opens the door as the other from the next request.
+    func declare(_ author: Author, sameAs other: Author) {
+        guard let owner = store?.manifest.owner, author != owner, other != owner, author != other else { return }
+        write(.same(.init(author: author, as: other)))
+    }
+
     /// What an author is called, if they have chosen; else their id.
     func name(of author: Author) -> String {
         notebook?.name(of: author) ?? author.rawValue
@@ -629,7 +637,7 @@ final class MacModel {
             runner.onRan = { [weak self, weak runner] run in
                 guard let self, let runner, let endedAt = run.endedAt else { return }
                 // The receipt, in the notebook, under the loop's own originator and the reader's hand.
-                try? store.append(Event(id: self.generator.next(at: endedAt), author: runner.grant.author, device: "reader", at: endedAt,
+                try? store.append(Event(id: self.generator.next(at: endedAt), author: runner.grant.author, device: runner.loop.hand, at: endedAt,
                                         payload: .loopRan(.init(loop: runner.loop.id, run: run.id, ok: run.ok ?? false, turns: run.turns,
                                                                 cost: run.costUSD, summary: run.summary, startedAt: run.startedAt, endedAt: endedAt))))
             }

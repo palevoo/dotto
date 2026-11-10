@@ -1,9 +1,10 @@
 # Whoever comes through the door
 
-Anyone with a grant is an author: an id nobody chose, a page of their own, and a name only
-once they choose one. Today the one author is a Claude Code session holding a grant on the
-Mac; its id is still `weeju`, the word the first grant wrote under. Tomorrow it may be a
-scheduled job, or several authors. The id is the identity; the name and the mechanism change.
+Anyone with a grant is an originator. The notebook's own is dotto: one being through
+however many hands, a session at the keyboard, a loop, whichever model, called dotto until
+it is named. Anyone else, a source, another person, has an id nobody chose, a page of their
+own, and a name only once they choose one. The originator is the identity; the hand and the
+mechanism change.
 
 ## What is fixed
 
