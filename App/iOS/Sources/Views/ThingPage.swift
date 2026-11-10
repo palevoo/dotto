@@ -61,8 +61,47 @@ struct ThingPage: View {
                     }
                 }
 
-                if !thing.facts.isEmpty {
-                    FactList(facts: thing.facts, model: model)
+                // What it is, in a few sentences, as a paragraph; where it comes from, as a link;
+                // then the rest of what is known of it, as a list.
+                ForEach(thing.facts.filter { $0.key == "about" }) { fact in
+                    Text(fact.value.words(calendar: model.calendar))
+                        .font(Theme.serif)
+                        .foregroundStyle(Theme.foreground)
+                        .lineSpacing(5)
+                        .textSelection(.enabled)
+                        .accessibilityIdentifier("thing-about")
+                        .contextMenu {
+                            Button("Take it off", systemImage: "minus.circle", role: .destructive) {
+                                withAnimation(Motion.settle) { model.removeFact(fact) }
+                            }
+                        }
+                }
+                let sources = thing.facts.filter { $0.key == "source" }
+                let rest = thing.facts.filter { $0.key != "about" && $0.key != "source" }
+                let kept = lines.flatMap { entry in entry.media.filter(\.isKept).map { (entry.id, $0) } }
+                if !sources.isEmpty || !kept.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(sources) { fact in
+                            let words = fact.value.words(calendar: model.calendar)
+                            if let url = URL(string: words), url.scheme?.hasPrefix("http") == true {
+                                Link(destination: url) { ThingPage.pointer("source", url.host.map { $0 + url.path } ?? words) }
+                                    .accessibilityIdentifier("thing-source")
+                            } else {
+                                ThingPage.pointer("source", words)
+                            }
+                        }
+                        // What its lines pointed at, kept: read here, whatever became of the address.
+                        ForEach(kept, id: \.1.hash) { entry, page in
+                            NavigationLink(value: Route.kept(entry: entry, hash: page.hash)) {
+                                ThingPage.pointer("kept", page.title ?? page.source ?? "a page")
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("thing-kept")
+                        }
+                    }
+                }
+                if !rest.isEmpty {
+                    FactList(facts: rest, model: model)
                 }
 
                 if days.isEmpty {
@@ -91,6 +130,23 @@ struct ThingPage: View {
         .background(Theme.background.ignoresSafeArea())
         .toolbarBackground(Theme.background, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// One way out of the page: what it is, and where it leads, in the one colour.
+    static func pointer(_ what: String, _ whereTo: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(what)
+                .font(Theme.mono)
+                .foregroundStyle(Theme.muted)
+                .frame(minWidth: 44, alignment: .leading)
+            Text(whereTo)
+                .font(Theme.sansSmall)
+                .foregroundStyle(Theme.accent)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
     }
 
     private func row(_ entry: Entry) -> some View {

@@ -110,6 +110,14 @@ struct LineView: View {
                 // block, every row a mark someone placed, each gone with a hold.
                 if MarksBlock.has(entry) {
                     MarksBlock(entry: entry, model: model)
+                    // What the line points at, kept beside it: its words, one tap away.
+                    ForEach(entry.media.filter(\.isKept)) { page in
+                        NavigationLink(value: Route.kept(entry: entry.id, hash: page.hash)) {
+                            ThingPage.pointer("kept", page.title ?? page.source ?? "a page")
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("line-kept")
+                    }
                 }
 
                 // The thread it is in, and, for your own lines, the way to join it to an

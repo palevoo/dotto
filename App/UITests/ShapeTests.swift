@@ -27,6 +27,20 @@ final class ShapeTests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["thing-name"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["thing-name"].label, "the fig")
+
+        // What it is, as a paragraph; where it comes from, as a link; and what its line
+        // pointed at, kept, one tap away with its words.
+        XCTAssertEqual(app.staticTexts["thing-about"].label, "A fig cutting taken in September, rooted in water and potted in November.")
+        XCTAssertTrue(app.links["thing-source"].exists || app.buttons["thing-source"].exists, "the source is a way out")
+        XCTAssertFalse(app.staticTexts["fact-about"].exists, "and not repeated in the list of facts")
+        let kept = app.buttons["thing-kept"]
+        XCTAssertTrue(kept.waitForExistence(timeout: 5), "the kept page is on the thing's page")
+        kept.tap()
+        XCTAssertTrue(app.staticTexts["kept-title"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["kept-title"].label, "Rooting fig cuttings")
+        XCTAssertEqual(app.staticTexts["kept-words"].label, "Take a cutting in late summer. Keep it in water until roots show, then pot it.")
+        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["thing-name"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["plant"].exists, "and its kind")
         XCTAssertTrue(app.otherElements["fact-state"].exists || app.staticTexts["potted"].exists, "its state is a fact on it")
         XCTAssertTrue(app.staticTexts["Meaning comes later, says the second page"].exists, "the line belongs to it")

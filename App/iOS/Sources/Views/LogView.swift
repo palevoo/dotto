@@ -15,6 +15,8 @@ enum Route: Hashable {
     case loops
     /// What is still to do, due first.
     case todos
+    /// What a line points at, kept beside it: its words, to read.
+    case kept(entry: ULID, hash: String)
     /// The things of one kind, or every thing when nil.
     case things(String?)
     /// Plain words over the notebook.

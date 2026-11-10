@@ -191,7 +191,9 @@ public struct Door: Sendable {
         that finished it when there is one, and the line is struck through. When lines turn out to be \
         one thing, a fig, a book, a person, a project, make it once with set_thing, after looking \
         in list_things, and put each line with it through link; a fact, a yield, a state, a count, \
-        goes on a line or a thing with set_fact, one per key under your name. Everything you shape \
+        goes on a line or a thing with set_fact, one per key under your name. Two facts a thing's \
+        page draws in their own way: about, a few plain sentences on what the thing is, shown as \
+        a paragraph; and source, the address it comes from, shown as a link. Everything you shape \
         is a proposal: it stands unless the owner drops it. When the owner says they want \
         something kept happening, propose_loop shapes it as a loop that runs as you; it waits \
         for their one tap. Your own page is for what you \

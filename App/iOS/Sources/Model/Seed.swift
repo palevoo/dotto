@@ -56,8 +56,16 @@ enum Seed {
                 Event(id: fig, author: seed, device: model.device, at: Date(), payload: .thingSet(.init(thing: fig, name: thing, kind: "plant"))),
                 Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .link(.init(from: second, to: fig))),
                 Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .factSet(.init(on: fig, key: "state", value: .words("potted")))),
+                Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .factSet(.init(on: fig, key: "about", value: .words(about)))),
+                Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .factSet(.init(on: fig, key: "source", value: .words(source)))),
                 Event(id: ULID(), author: seed, device: model.device, at: Date(), payload: .factSet(.init(on: line, key: "pages", value: .number(2, unit: nil)))),
             ])
+        }
+        // What the second line points at, kept beside it, as the home keeps a page.
+        if model.notebook.entry(second)?.media.contains(where: \.isKept) != true,
+           let hash = try? model.store.storeMedia(Data("# \(keptTitle)\n\nKept from \(source)\n\n\(keptWords)\n".utf8), fileExtension: "md") {
+            try? model.store.append(Event(id: ULID(), author: model.store.manifest.owner, device: model.device, at: Date(),
+                                          payload: .mediaAttach(.init(entry: second, hash: hash, mime: "text/markdown", title: keptTitle, source: source))))
         }
         // Something to do, due tomorrow, so the todos page has a line.
         if model.notebook.entry(second)?.facts("todo").isEmpty != false {
@@ -117,6 +125,11 @@ enum Seed {
     }
 
     static func yesterdayLine(_ number: Int) -> String { "A line from yesterday, number \(number)" }
+
+    static let about = "A fig cutting taken in September, rooted in water and potted in November."
+    static let source = "https://example.com/figs/cuttings"
+    static let keptTitle = "Rooting fig cuttings"
+    static let keptWords = "Take a cutting in late summer. Keep it in water until roots show, then pot it."
 
     static let walk = "Walk, 3.1 km, 41 min"
     static let thing = "the fig"

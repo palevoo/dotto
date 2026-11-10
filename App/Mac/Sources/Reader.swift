@@ -240,7 +240,9 @@ final class ReaderRunner {
             onChange()
             let session = Session(claude: claude, door: door, grant: grant, model: model, runsDirectory: runsDirectory, brief: brief,
                                   prompt: loop.wake == .line
-                                      ? "Look at what is new through the door and do what the lines want. Then stop."
+                                      // Handed what it would otherwise go and find, so it starts at the thinking.
+                                      ? "Look at what is new and do what the lines want. Then stop.\n\n"
+                                          + Core.Inbox.upFront(files: files, notebook: notebook, grant: grant, store: store, calendar: calendar)
                                       : "It is \(Projector.time(now, calendar: calendar)). Do what this loop is for, reading through the door as needed. Then stop.",
                                   maxTurns: loop.turns, maxBudgetUSD: loop.budget)
             let running = RunningSession()

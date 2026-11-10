@@ -160,7 +160,7 @@ struct EntryRow: View {
         }
         // What the line points at, once the home has opened it and kept it beside the line.
         let kept = entry.media.filter(\.isKept).map { "kept: \($0.title ?? $0.source ?? "a page")" }
-        let parts = kept + things + facts + entry.labels.map { "#\($0)" }
+        let parts = things + facts + kept + entry.labels.map { "#\($0)" }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 

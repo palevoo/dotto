@@ -282,6 +282,17 @@ only to where it could have gone anyway; nothing of the owner's is sent. What is
 the reading like anything that lands; `read_kept` hands it the words, said to be the page's
 own and no instruction. Pages and PDFs; a video's transcript is not opened yet.
 
+**A reading is handed what it needs as it starts**, built 10 November: what is new to its
+hand as whats_new will say it, the days those lines are on as the page reads, and the
+beginning of anything newly kept beside one. It starts at the thinking and not at the
+looking around; the one look it still takes is what marks things as seen.
+
+**What a dropped link becomes.** With the page kept, a sentence kept in mind has the reading
+make a thing of it, a paper, a talk, a book, with what is worth knowing as its facts. Two
+facts a thing's page draws in their own way: `about`, a few plain sentences, as a paragraph;
+`source`, an address, as a link. The pages its lines pointed at are on it too, to read
+there whatever becomes of the address.
+
 **Order.** The one reading, built. Opening what the owner's lines point at, built. Then
 programs and reach, faceit first. Then pages, on the same footing as programs. The home as
 a process of its own when one of these needs it.
@@ -377,6 +388,10 @@ the test the parts keep passing.
 
 ## Open
 
+- A kind as a shape of its own. Said by the owner on 10 November: a shape is a type that
+  is made, filled and drawn. Today a kind is one word on a thing, and nothing says what a
+  paper has or how it is shown; `about` and `source` are the first two facts every page
+  knows. A shape with the facts it expects and a page of its own is where pages belong.
 - Pages as definitions over shapes.
 - Lines stand somewhere: read and written since 10 November. A reply as a full line on
   the screen, with its photos, facts and todo, is what is left; see above.
