@@ -221,4 +221,27 @@ final class HandsTests: XCTestCase {
         }
         XCTAssertEqual(try store.load().learned(by: .dotto, atMost: 3), ["Lesson 3", "Lesson 4", "Lesson 5"])
     }
+
+    /// A line read with nothing said under it is told apart from one nobody has got to.
+    func testALineIsTakenInByTheFirstLookThatReachesIt() throws {
+        let opened = Date().addingTimeInterval(-3600)
+        func door(_ author: Author, _ hand: DeviceID) -> Door {
+            Door(store: store, grant: Grant(name: "Key", author: author, device: hand, createdAt: opened), calendar: calendar)
+        }
+        let first = try line("a thought that wants nothing")
+        XCTAssertEqual(Inbox.taken(files: try store.loadEventsByFile(), notebook: try store.load()), [:], "nobody has looked")
+
+        _ = try tell(door(.dotto, "the-reading-0epw"), "whats_new")
+        let second = try line("written after the look")
+        let reply = try write({ .entryCreate(.init(entry: $0, text: "mine, under it", startedAt: Date(), under: first)) }, by: owner, on: "phone")
+        var taken = Inbox.taken(files: try store.loadEventsByFile(), notebook: try store.load())
+        XCTAssertEqual(taken, [first: .dotto], "the first line is read; the one written after is not, and a reply is not a line of the page")
+        XCTAssertNil(taken[reply])
+
+        // Someone else looks later: the second line is theirs first; the first stays dotto's.
+        _ = try tell(door("friend", "x"), "whats_new")
+        taken = Inbox.taken(files: try store.loadEventsByFile(), notebook: try store.load())
+        XCTAssertEqual(taken[first], .dotto)
+        XCTAssertEqual(taken[second], "friend")
+    }
 }

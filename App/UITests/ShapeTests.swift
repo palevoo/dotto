@@ -45,4 +45,20 @@ final class ShapeTests: XCTestCase {
         XCTAssertTrue(app.otherElements["fact-state"].exists || app.staticTexts["potted"].exists, "its state is a fact on it")
         XCTAssertTrue(app.staticTexts["Meaning comes later, says the second page"].exists, "the line belongs to it")
     }
+
+    /// Read, and nothing said: a line the seed took in and left nothing under wears a mark
+    /// under its time; a line written since, which nobody has got to, does not.
+    func testALineReadWithNothingSaidWearsAMark() {
+        let liveLine = app.textViews["live-line"]
+        XCTAssertTrue(liveLine.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.otherElements["read-mark"].firstMatch.waitForExistence(timeout: 10), "a line that was read and not answered says so")
+        let before = app.otherElements.matching(identifier: "read-mark").count
+
+        liveLine.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        let words = "Nobody has read this yet \(Int.random(in: 1000...9999))"
+        liveLine.typeText(words + "\n")
+        XCTAssertTrue(app.staticTexts[words].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.otherElements.matching(identifier: "read-mark").count, before, "the new line has no mark")
+    }
 }

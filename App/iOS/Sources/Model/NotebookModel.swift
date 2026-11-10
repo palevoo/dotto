@@ -42,6 +42,9 @@ final class NotebookModel {
     private(set) var inbox: [InboxItem] = []
     /// How many of those arrived since you last looked, on any device.
     var unread: Int { inbox.filter(\.unread).count }
+    /// Which of your lines someone else has taken in, and who first. The page says so on
+    /// today's lines that have nothing under them from that someone.
+    private(set) var taken: [ULID: Author] = [:]
     /// Lines in the event files that could not be read and were passed over.
     private(set) var unreadable = 0
     private var reloadTask: Task<Void, Never>?
@@ -169,6 +172,7 @@ final class NotebookModel {
             notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
             days = notebook.days(calendar: calendar)
             inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: calendar)
+            taken = Core.Inbox.taken(files: files, notebook: notebook)
             unreadable = read.reduce(0) { $0 + $1.unreadable.count }
         } catch {
             NSLog("reload failed: \(error)")

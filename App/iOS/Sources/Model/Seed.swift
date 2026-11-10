@@ -99,6 +99,14 @@ enum Seed {
                                 payload: .entryCreate(.init(entry: id, text: walk, startedAt: Date(), page: model.store.manifest.owner))))
             try? model.store.append(events)
         }
+        // The seed has looked: everything written so far is taken in, so the lines it left
+        // nothing under are read with nothing said.
+        if !model.notebook.visits.contains(where: { $0.author == seed && $0.read.what == .inbox }),
+           let files = try? model.store.loadEventsByFile() {
+            try? model.store.append(Event(id: ULID(), author: seed, device: model.device, at: Date(),
+                                          payload: .visit(.init(what: .inbox, count: 2,
+                                                                seen: Dictionary(uniqueKeysWithValues: files.map { ($0.file, $0.events.count) })))))
+        }
         model.reload()
     }
 

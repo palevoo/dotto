@@ -20,17 +20,40 @@ struct EntryRow: View {
     @State private var draft: String?
     @State private var focused = false
 
+    /// Who has taken this line in without saying anything under it, on a line of today's.
+    /// A reply is its own proof, and older days are quiet; their trail is in History.
+    private var readWithNothingSaid: Author? {
+        guard entry.author == model.store.manifest.owner,
+              DayKey(entry.startedAt, calendar: model.calendar) == model.today,
+              let reader = model.taken[entry.id],
+              !entry.notes.contains(where: { $0.author == reader }) else { return nil }
+        return reader
+    }
+
     private var photos: [Media] { entry.media.filter { $0.mime.hasPrefix("image") } }
     private var voices: [Media] { entry.media.filter { $0.mime.hasPrefix("audio") } }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(Format.time(entry.startedAt, calendar: model.calendar))
-                .font(Theme.mono)
-                .foregroundStyle(Theme.muted)
-                .frame(width: 44, alignment: .leading)
-                .monospacedDigit()
-                .padding(.top, 6)
+            VStack(alignment: .leading, spacing: 5) {
+                Text(Format.time(entry.startedAt, calendar: model.calendar))
+                    .font(Theme.mono)
+                    .foregroundStyle(Theme.muted)
+                    .monospacedDigit()
+                // Read, and nothing said: a dot in the reader's colour under the time, so
+                // silence after a line is told apart from a line nobody has got to yet.
+                if let reader = readWithNothingSaid {
+                    Circle()
+                        .fill(Theme.ink(for: reader, owner: model.store.manifest.owner))
+                        .frame(width: 5, height: 5)
+                        .padding(.leading, 1)
+                        .accessibilityElement()
+                        .accessibilityLabel("Read by \(model.notebook.name(of: reader) ?? "someone")")
+                        .accessibilityIdentifier("read-mark")
+                }
+            }
+            .frame(width: 44, alignment: .leading)
+            .padding(.top, 6)
             VStack(alignment: .leading, spacing: 10) {
                 if entry.author != model.store.manifest.owner {
                     // A line another originator put on your page wears its name.

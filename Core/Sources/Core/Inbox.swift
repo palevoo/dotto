@@ -95,6 +95,34 @@ public enum Inbox {
         return Report(count: told.count, text: told.text + "\n\n## Your other hands, since this one looked\n" + hands.joined(separator: "\n"))
     }
 
+    /// Which of the owner's lines someone else has taken in, and who first: for each line,
+    /// the originator whose look was the first to reach it. A look says how long every file
+    /// was when it was taken, so a line is taken in by the first look whose count for its
+    /// file is past it. This is what lets the page say a line was read when nothing was said
+    /// under it: read and nothing to say, told apart from not read yet.
+    public static func taken(files written: [(file: String, events: [Event])], notebook: Notebook) -> [ULID: Author] {
+        let files = notebook.resolved(written)
+        let owner = notebook.owner
+        let looks = notebook.visits.filter { $0.author != owner && $0.read.what == .inbox && $0.read.seen != nil }
+        guard !looks.isEmpty else { return [:] }
+        var taken: [ULID: Author] = [:]
+        for (file, events) in files {
+            // The owner's lines in this file, with where each is in it.
+            let lines = events.enumerated().compactMap { index, event -> (index: Int, entry: ULID)? in
+                guard event.author == owner, case .entryCreate(let p) = event.payload, p.under == nil else { return nil }
+                return (index, p.entry)
+            }
+            guard !lines.isEmpty else { continue }
+            for look in looks {
+                guard let count = look.read.seen?[file] else { continue }
+                for line in lines where line.index < count && taken[line.entry] == nil {
+                    taken[line.entry] = look.author
+                }
+            }
+        }
+        return taken
+    }
+
     /// What a reading is handed as it starts, so it begins with what it would otherwise have
     /// to go and find: what is new to this hand, as whats_new will say it; the days those
     /// lines are on, as the page reads; and the beginning of anything newly kept beside one.

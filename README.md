@@ -223,6 +223,11 @@ shown with it; things whose names match come first. On the phone it is one page,
 the calendar sheet beside Inbox, that finds as you type. Through the door it is `search`, and
 its receipt says what was searched for, so a line's History knows it was found that way.
 
+A line of yours that was read and had nothing said under it wears a small dot under its time,
+in the reader's colour, on today's page: read and nothing to say, told apart from a line
+nobody has got to yet, with the home asleep or the line still on its way. A reply is its own
+proof and shows no dot.
+
 Every read leaves a receipt: a `visit` event in the grant's file saying what was asked for
 and how much came back. The phone shows the latest one on the calendar sheet and the whole
 log behind it, called Logs; a line's History says who read it. The Mac window has the same log.
