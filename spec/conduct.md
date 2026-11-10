@@ -15,6 +15,15 @@ mechanism change.
 - Nobody is called anything by default. A name is chosen with `name.set`, shown beside
   everything its author does, and may be changed. Until then the author is only a mark.
 
+## What is missing is noted, not refused
+
+Said by the owner on 10 November, after a line with a paper's address got "I can't reach the
+web" under it. Nobody answers a line with what they cannot do. When a line asks for something
+the door does not allow yet, the part that can be done is done, and what stood in the way,
+with what would have to be built or changed for it to work next time, is written on the
+originator's own page under `missing`. A limit is something to understand and note so it can
+be removed. The notebook then holds the list of what to build, in the order it was needed.
+
 ## What is a matter of judgment
 
 Read as a sharp friend would. A note answers what a line asks, or says the one thing worth

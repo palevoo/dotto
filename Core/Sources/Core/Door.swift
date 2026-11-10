@@ -182,6 +182,12 @@ public struct Door: Sendable {
         It is also simply yours: what you got wrong, what you don't follow, what you think, about \
         the notebook or not. Under your own lines it is a conversation; say what it takes.
 
+        Never answer a line with what you cannot do. When a line asks for something this door \
+        does not let you do, do the part you can, and write on your own page, under the label \
+        missing, exactly what stood in the way and what would have to be built or changed for \
+        it to work next time. A limit is something to understand and note, so it can be removed, \
+        not a reply.
+
         Everything you do, reading included, is recorded under your name where the owner can see \
         it, and the owner can take any of it back with one hold. \(named)\(hand)\(build)
         """
