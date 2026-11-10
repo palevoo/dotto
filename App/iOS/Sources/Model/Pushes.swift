@@ -56,6 +56,7 @@ final class Pushes: NSObject {
 final class PushDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = Taps.shared
+        Notices.register()
         Pushes.shared.refresh()
         return true
     }
@@ -69,9 +70,23 @@ final class PushDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
-/// A push shown while the app is open, and a push tapped: the line it names opens.
+/// A push shown while the app is open, and a push tapped: the line it names opens. A notice
+/// about something to do can be answered where it is: Done finishes the line, In an hour
+/// says it again then; neither opens the app.
 final class Taps: NSObject, UNUserNotificationCenterDelegate {
     static let shared = Taps()
+
+    /// Finishes a line, once there is a notebook open to finish it in.
+    @MainActor var onDone: ((ULID) -> Void)? {
+        didSet {
+            guard let onDone else { return }
+            let waiting = finished
+            finished = []
+            waiting.forEach(onDone)
+        }
+    }
+    /// Lines finished from a notice before the notebook was open.
+    @MainActor private var finished: [ULID] = []
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
@@ -81,8 +96,19 @@ final class Taps: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         let entry = response.notification.request.content.userInfo["entry"] as? String
+        let action = response.actionIdentifier
+        let request = response.notification.request
         Task { @MainActor in
-            if let entry { Launch.shared.request = .line(entry) }
+            switch action {
+            case Notices.doneAction:
+                if let id = entry.flatMap({ ULID($0) }) {
+                    if let onDone { onDone(id) } else { finished.append(id) }
+                }
+            case Notices.laterAction:
+                Notices.putOff(request)
+            default:
+                if let entry { Launch.shared.request = .line(entry) }
+            }
             completionHandler()
         }
     }

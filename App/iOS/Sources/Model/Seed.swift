@@ -99,6 +99,17 @@ enum Seed {
                                 payload: .entryCreate(.init(entry: id, text: walk, startedAt: Date(), page: model.store.manifest.owner))))
             try? model.store.append(events)
         }
+        // A plain line of the owner's that nothing is made of, so one line is read with
+        // nothing said and wears no other mark.
+        if !model.notebook.entries.contains(where: { $0.text == plain }) {
+            model.draftText = plain
+            _ = model.commitDraft()
+        }
+        // And an event on it, the day after tomorrow: something that happens, not to do.
+        if let quiet = model.notebook.entries.first(where: { $0.text == plain }), quiet.at == nil {
+            try? model.store.append(Event(id: ULID(), author: seed, device: model.device, at: Date(),
+                                          payload: .factSet(.init(on: quiet.id, key: "at", value: .moment(Date().addingTimeInterval(2 * 86_400))))))
+        }
         // The seed has looked: everything written so far is taken in, so the lines it left
         // nothing under are read with nothing said.
         if !model.notebook.visits.contains(where: { $0.author == seed && $0.read.what == .inbox }),
@@ -136,6 +147,7 @@ enum Seed {
 
     static let about = "A fig cutting taken in September, rooted in water and potted in November."
     static let source = "https://example.com/figs/cuttings"
+    static let plain = "A quiet afternoon"
     static let keptTitle = "Rooting fig cuttings"
     static let keptWords = "Take a cutting in late summer. Keep it in water until roots show, then pot it."
 

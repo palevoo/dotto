@@ -13,15 +13,20 @@ public struct PushAddress: Hashable, Codable, Sendable, Identifiable {
     /// The app's bundle id, which Apple calls the topic.
     public var topic: String
     public var updatedAt: Date
+    /// The moments this phone has set its own notices for, as `Notice.key` writes them. The
+    /// Mac sends no push of its own for these: the phone will say them, awake or not, Mac or
+    /// no Mac. Absent from a phone on an older build, which says nothing by itself.
+    public var scheduled: [String]?
 
     public var id: DeviceID { device }
 
-    public init(device: DeviceID, token: String, environment: String, topic: String, updatedAt: Date = Date()) {
+    public init(device: DeviceID, token: String, environment: String, topic: String, updatedAt: Date = Date(), scheduled: [String]? = nil) {
         self.device = device
         self.token = token
         self.environment = environment
         self.topic = topic
         self.updatedAt = updatedAt
+        self.scheduled = scheduled
     }
 }
 

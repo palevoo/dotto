@@ -200,7 +200,8 @@ struct PageView: View {
                     calendar: model.calendar,
                     tags: model.notebook.tags,
                     kinds: model.notebook.kinds,
-                    todos: model.notebook.todos.count,
+                    coming: model.notebook.coming(after: Date()).compactMap(\.moment),
+                    todos: model.notebook.todos(at: Date(), calendar: model.calendar).isEmpty ? nil : model.notebook.todos.count,
                     lastVisit: model.notebook.visits.last { $0.author != model.store.manifest.owner }
                         .map { ($0.author, LogView.summary(of: $0, calendar: model.calendar)) },
                     others: model.notebook.others,
@@ -233,6 +234,10 @@ struct PageView: View {
                     },
                     onTodos: {
                         afterCalendar = .todos
+                        showCalendar = false
+                    },
+                    onComing: {
+                        afterCalendar = .coming
                         showCalendar = false
                     },
                     onKind: { kind in
@@ -325,6 +330,7 @@ struct PageView: View {
                 case .thing(let id): ThingPage(id: id, model: model)
                 case .loops: LoopsView(model: model)
                 case .todos: TodosPage(model: model)
+                case .coming: ComingPage(model: model)
                 case .things(let kind): ThingsPage(kind: kind, model: model)
                 case .kept(let entry, let hash): KeptPage(entry: entry, hash: hash, model: model)
                 case .search: SearchPage(model: model)

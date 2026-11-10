@@ -201,6 +201,26 @@ state and the lines that belong to it by day. Everything shaped stands until you
 hold a fact to take it off, hold a thing's name to drop it, hold "with fig" to take the line
 out. The inbox shows each thing made and each fact put on your lines.
 
+Something to do wears one mark, the same wherever the line is drawn: a ring under its time
+while it is open, filled and quiet once it is done. Tap it and the line is finished where it
+stands; tap it again and it is open. Done is what closes a todo: the word is never taken off
+for it, and a finished line no longer says it is to do or when it was due. The Todos page is
+the same lines with the same mark, due first; a line finished today keeps its place until the
+day ends, and a todo with no moment that has waited three weeks steps back into Someday,
+never late. You say a line is to do, or is not, in its hold menu; that is a correction, and
+the reading still marks most of them.
+
+Two facts carry a moment. `at` is when something happens whether or not you do anything, an
+appointment, a class: an event, never to do, and it passes by itself. `due` is when
+something wants you: a todo to be done by then, or a plain reminder. What is coming, both
+kinds, has a page reached from the calendar sheet, by day, and a ring under its day in the
+calendar. The phone says it by itself, with no Mac and no network: an event the evening
+before and an hour before, something due at its moment, with Done and In an hour on a
+notice about a todo. The notices are worked out from the fold each time the notebook is
+read, the soonest sixty, so a moment moved, taken off or finished needs nothing undone. The
+phone writes the moments it has covered beside its push address, and the Mac sends its own
+push at a due moment only to a phone that has not.
+
 A kind of thing has a shape: what a paper, a plant, a person has, in order, and what each
 is. `set_shape` says it and `list_shapes` reads it; the newest word for a kind stands, you
 drop it with a hold on the kind's page, and until someone says, the kinds most notebooks come

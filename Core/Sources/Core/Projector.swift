@@ -52,7 +52,7 @@ public enum Projector {
                 threads.append(done.byAt.map { "done by \(moment($0, calendar: calendar))" } ?? "done")
             }
             threads += entry.belongsTo.compactMap { link in things[link.to].map { "with \($0)" } }
-            threads += entry.facts.map { "\($0.key) \($0.value.words(calendar: calendar)) · \(names[$0.author] ?? $0.author.rawValue)" }
+            threads += entry.standingFacts.map { "\($0.key) \($0.value.words(calendar: calendar)) · \(names[$0.author] ?? $0.author.rawValue)" }
             if !threads.isEmpty {
                 lines.append("")
                 lines.append(contentsOf: threads.map { "_\($0)_" })

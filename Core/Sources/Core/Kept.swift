@@ -166,13 +166,18 @@ public enum Web {
 }
 
 extension Notebook {
-    /// What the owner's lines point at that nothing has been kept for yet: each link in a
-    /// line the owner wrote on their own page since `since`, that the home may open and that
-    /// no page kept beside the line came from. Lines by anyone else are never opened from.
+    /// What the owner's words point at that nothing has been kept for yet: each link the
+    /// owner wrote since `since`, in a line on their own page or in a reply of theirs under
+    /// one, that the home may open and that no page kept beside the line came from. A link
+    /// in a reply is kept beside the line the reply is under, where the conversation is.
+    /// Words by anyone else are never opened from.
     public func unopened(since: Date) -> [(entry: ULID, url: URL)] {
-        entries.filter { $0.author == owner && $0.startedAt >= since }.flatMap { entry -> [(entry: ULID, url: URL)] in
+        entries.filter { $0.author == owner }.flatMap { entry -> [(entry: ULID, url: URL)] in
             let kept = Set(entry.media.compactMap(\.source))
-            return Web.links(in: entry.text).filter { Web.mayOpen($0) && !kept.contains($0.absoluteString) }.map { (entry.id, $0) }
+            let own = entry.startedAt >= since ? Web.links(in: entry.text) : []
+            let replied = entry.notes.filter { $0.author == owner && $0.at >= since }.flatMap { Web.links(in: $0.text) }
+            var seen = Set<URL>()
+            return (own + replied).filter { Web.mayOpen($0) && !kept.contains($0.absoluteString) && seen.insert($0).inserted }.map { (entry.id, $0) }
         }
     }
 }

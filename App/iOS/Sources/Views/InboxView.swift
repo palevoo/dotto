@@ -89,20 +89,30 @@ struct InboxRow: View {
                 .frame(width: 54, alignment: .leading)
                 .padding(.top, 3)
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .firstTextBaseline, spacing: 5) {
-                        Who(author: item.author, model: model)
-                        Text(item.what)
-                            .font(Theme.mono)
-                            .foregroundStyle(Theme.muted)
-                            .lineLimit(1)
+                    // The row itself opens what it is about: who, what and the words are
+                    // one thing to tap, as the jump under them is.
+                    jump {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                                Who(author: item.author, model: model)
+                                Text(item.what)
+                                    .font(Theme.mono)
+                                    .foregroundStyle(Theme.muted)
+                                    .lineLimit(1)
+                            }
+                            if !item.text.isEmpty {
+                                Text(item.text)
+                                    .font(Theme.serifSmall)
+                                    .foregroundStyle(item.unread || item.wantsYou ? Theme.foreground : Theme.muted)
+                                    .lineSpacing(3)
+                                    .lineLimit(4)
+                                    .multilineTextAlignment(.leading)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
-                    if !item.text.isEmpty {
-                        Text(item.text)
-                            .font(Theme.serifSmall)
-                            .foregroundStyle(item.unread || item.wantsYou ? Theme.foreground : Theme.muted)
-                            .lineSpacing(3)
-                            .lineLimit(4)
-                    }
+                    .accessibilityIdentifier("inbox-row")
                     // Where it is: the line it is about, or the thing, one tap away.
                     if let about = item.about ?? entry.map({ $0.text.isEmpty ? "a photo" : $0.text }), item.entry != nil || item.about != nil {
                         context(about)
@@ -136,14 +146,21 @@ struct InboxRow: View {
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(Theme.faint)
         }
+        jump { label }
+    }
+
+    /// A way to what the row is about: its line, its thing, or the loops; plain when there
+    /// is nowhere to go.
+    @ViewBuilder
+    private func jump<Label: View>(@ViewBuilder _ label: () -> Label) -> some View {
         if let entry = item.entry, model.notebook.entry(entry) != nil {
-            NavigationLink(value: entry) { label }.buttonStyle(.plain)
+            NavigationLink(value: entry) { label() }.buttonStyle(.plain)
         } else if let thing = item.thing, model.notebook.thing(thing) != nil {
-            NavigationLink(value: Route.thing(thing)) { label }.buttonStyle(.plain)
+            NavigationLink(value: Route.thing(thing)) { label() }.buttonStyle(.plain)
         } else if item.kind == .loop {
-            NavigationLink(value: Route.loops) { label }.buttonStyle(.plain)
+            NavigationLink(value: Route.loops) { label() }.buttonStyle(.plain)
         } else {
-            label
+            label()
         }
     }
 

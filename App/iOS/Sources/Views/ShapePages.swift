@@ -1,33 +1,54 @@
 import Core
 import SwiftUI
 
-/// What is still to do: every line anyone marked todo and nobody marked done. Due first,
-/// soonest first; then the rest, newest first. Tap a line to open it; hold to mark it done.
+/// What is to do. Lines with a due moment first, soonest first; then the rest, newest
+/// first. Each line wears the same mark it wears on its day: tap it and the line is done,
+/// where it stands, and stays there until the day ends. What has waited three weeks with no
+/// moment of its own steps back into Someday, out of the way and never late.
 struct TodosPage: View {
     @Bindable var model: NotebookModel
+    @State private var showsSomeday = false
 
     var body: some View {
-        let todos = model.notebook.todos
+        let todos = model.notebook.todos(at: Date(), calendar: model.calendar)
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 Text("Todos")
                     .font(Theme.title)
                     .foregroundStyle(Theme.foreground)
                 if todos.isEmpty {
-                    Text("Nothing to do. A line becomes a todo when someone marks it one; it leaves when it is done.")
+                    Text("Nothing to do.")
                         .font(Theme.serifSmall)
                         .foregroundStyle(Theme.muted)
-                        .lineSpacing(3)
                 }
-                VStack(alignment: .leading, spacing: 14) {
-                    ForEach(todos) { entry in
-                        NavigationLink(value: entry.id) {
+                if !todos.now.isEmpty {
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach(todos.now) { entry in
                             row(entry)
                         }
+                    }
+                }
+                if !todos.someday.isEmpty {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Button {
+                            withAnimation(Motion.settle) { showsSomeday.toggle() }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text("Someday")
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .rotationEffect(.degrees(showsSomeday ? 90 : 0))
+                            }
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.muted)
+                            .frame(height: 30)
+                            .contentShape(Rectangle())
+                        }
                         .buttonStyle(.plain)
-                        .contextMenu {
-                            Button("Done", systemImage: "checkmark") {
-                                withAnimation(Motion.settle) { model.markDone(entry.id) }
+                        .accessibilityIdentifier("someday")
+                        if showsSomeday {
+                            ForEach(todos.someday) { entry in
+                                row(entry)
                             }
                         }
                     }
@@ -42,32 +63,120 @@ struct TodosPage: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
+    /// The mark, the words, and one quiet line under them: when it is due, or else the day
+    /// it was written. Only a moment that has passed looks late.
     private func row(_ entry: Entry) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            // The due moment where there is one, else the day the line was written.
-            VStack(alignment: .leading, spacing: 2) {
-                if let due = entry.due {
-                    Text(Format.shortDay(due, calendar: model.calendar))
-                        .foregroundStyle(due < Date() ? Theme.recording : Theme.accent)
-                    Text(Format.time(due, calendar: model.calendar))
+        HStack(alignment: .top, spacing: 0) {
+            TodoMark(entry: entry, model: model)
+            NavigationLink(value: entry.id) {
+                VStack(alignment: .leading, spacing: 4) {
+                    LineWords(entry: entry)
+                        .accessibilityIdentifier("todo")
+                    Group {
+                        if let due = entry.due {
+                            Text("\(Format.shortDay(due, calendar: model.calendar)) \(Format.time(due, calendar: model.calendar))")
+                                .foregroundStyle(entry.done != nil ? Theme.faint : due < Date() ? Theme.recording : Theme.muted)
+                        } else {
+                            Text(Format.shortDay(entry.startedAt, calendar: model.calendar))
+                                .foregroundStyle(Theme.faint)
+                        }
+                    }
+                    .font(Theme.mono)
+                    .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .contextMenu {
+            Button("Not to do", systemImage: "circle.slash") {
+                withAnimation(Motion.settle) { model.setTodo(entry, false) }
+            }
+        }
+    }
+}
+
+/// What is coming, by day, soonest first: events at the moment they happen and what is due
+/// at the moment it is due. An event passes by itself and leaves the page; something to do
+/// wears its mark here as everywhere, and is finished here as everywhere.
+struct ComingPage: View {
+    @Bindable var model: NotebookModel
+
+    private struct ComingDay: Identifiable {
+        let key: DayKey
+        var entries: [Entry]
+        var id: DayKey { key }
+    }
+
+    private var days: [ComingDay] {
+        var days: [ComingDay] = []
+        for entry in model.notebook.coming(after: Date()) {
+            guard let moment = entry.moment else { continue }
+            let key = DayKey(moment, calendar: model.calendar)
+            if days.last?.key == key {
+                days[days.count - 1].entries.append(entry)
+            } else {
+                days.append(ComingDay(key: key, entries: [entry]))
+            }
+        }
+        return days
+    }
+
+    var body: some View {
+        let days = days
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("Coming")
+                    .font(Theme.title)
+                    .foregroundStyle(Theme.foreground)
+                if days.isEmpty {
+                    Text("Nothing coming.")
+                        .font(Theme.serifSmall)
                         .foregroundStyle(Theme.muted)
-                } else {
-                    Text(Format.shortDay(entry.startedAt, calendar: model.calendar))
-                        .foregroundStyle(Theme.faint)
+                }
+                ForEach(days) { day in
+                    VStack(alignment: .leading, spacing: 14) {
+                        Text(day.key == model.today ? "Today" : Format.day(day.key, calendar: model.calendar, withYear: day.key.year != model.today.year))
+                            .font(Theme.mono)
+                            .foregroundStyle(Theme.faint)
+                        ForEach(day.entries) { entry in
+                            row(entry)
+                        }
+                    }
                 }
             }
-            .font(Theme.mono)
-            .monospacedDigit()
-            .frame(width: 54, alignment: .leading)
-            .padding(.top, 3)
-            Text(entry.text.isEmpty ? "a photo" : entry.text)
-                .font(Theme.serif)
-                .foregroundStyle(Theme.foreground)
-                .lineSpacing(4)
-                .accessibilityIdentifier("todo")
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
+        .background(Theme.background.ignoresSafeArea())
+        .toolbarBackground(Theme.background, for: .navigationBar)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// A line as its day draws it, with the moment it is about where its own time would be.
+    private func row(_ entry: Entry) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.moment.map { Format.time($0, calendar: model.calendar) } ?? "")
+                    .font(Theme.mono)
+                    .foregroundStyle(Theme.muted)
+                    .monospacedDigit()
+                if entry.todo != nil {
+                    TodoMark(entry: entry, model: model)
+                }
+            }
+            .frame(width: 44, alignment: .leading)
+            .padding(.top, 4)
+            NavigationLink(value: entry.id) {
+                LineWords(entry: entry)
+                    .accessibilityIdentifier("coming-line")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 

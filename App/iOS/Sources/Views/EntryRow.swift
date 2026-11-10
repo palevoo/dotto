@@ -40,9 +40,14 @@ struct EntryRow: View {
                     .font(Theme.mono)
                     .foregroundStyle(Theme.muted)
                     .monospacedDigit()
-                // Read, and nothing said: a dot in the reader's colour under the time, so
-                // silence after a line is told apart from a line nobody has got to yet.
-                if let reader = readWithNothingSaid {
+                // One place under the time for what was made of the line. Something to do
+                // wears its mark there, and the mark is proof enough that it was read.
+                if entry.todo != nil {
+                    TodoMark(entry: entry, model: model)
+                        .padding(.top, -3)
+                } else if let reader = readWithNothingSaid {
+                    // Read, and nothing said: a dot in the reader's colour, so silence after
+                    // a line is told apart from a line nobody has got to yet.
                     Circle()
                         .fill(Theme.ink(for: reader, owner: model.store.manifest.owner))
                         .frame(width: 5, height: 5)
@@ -149,11 +154,28 @@ struct EntryRow: View {
                     editingRow = entry.id
                 }
                 Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
+                todoButton
                 Button("Delete", systemImage: "trash", role: .destructive) { model.delete(entry.id) }
             } else {
                 // Someone else's line on your page: yours to drop, never to change.
                 Button("Copy", systemImage: "doc.on.doc") { UIPasteboard.general.string = entry.text }
+                todoButton
                 Button("Drop", systemImage: "trash", role: .destructive) { model.delete(entry.id) }
+            }
+        }
+    }
+
+    /// Your word on whether the line is something to do, when the reading got it wrong or
+    /// has not got to it.
+    @ViewBuilder
+    private var todoButton: some View {
+        if entry.todo == nil {
+            Button("To do", systemImage: "circle") {
+                withAnimation(Motion.settle) { model.setTodo(entry, true) }
+            }
+        } else {
+            Button("Not to do", systemImage: "circle.slash") {
+                withAnimation(Motion.settle) { model.setTodo(entry, false) }
             }
         }
     }
@@ -168,16 +190,18 @@ struct EntryRow: View {
     }
 
     /// The things the line is with, its facts and its tags, in a few words:
-    /// "fig · todo · due Thu 11:30 · #nursery".
+    /// "fig · due 12 Nov 11:30 · #nursery".
     private var shapeHint: String? {
         let things = entry.belongsTo.compactMap { link in model.notebook.thing(link.to).flatMap { $0.isTag ? nil : $0.name } }
         var facts: [String] = []
-        // Todo and due first, in words; then the rest, one per key.
-        if entry.isTodo { facts.append("todo") }
-        if let due = entry.due {
-            facts.append("due \(Format.shortDay(due, calendar: model.calendar)) \(Format.time(due, calendar: model.calendar))")
+        // Due first, in words, while the line is open; then the rest, one per key. That it
+        // is to do is said by its mark, not in words.
+        if entry.done == nil, let moment = entry.moment {
+            // An event simply happens at its moment; something to do is due then.
+            let words = "\(Format.shortDay(moment, calendar: model.calendar)) \(Format.time(moment, calendar: model.calendar))"
+            facts.append(entry.at == nil && entry.todo != nil ? "due \(words)" : words)
         }
-        var seen: Set<String> = ["todo", "due"]
+        var seen: Set<String> = ["todo", "due", "at"]
         for fact in entry.facts where seen.insert(fact.key).inserted {
             facts.append("\(fact.key) \(fact.value.words(calendar: model.calendar))")
         }

@@ -513,12 +513,19 @@ final class MacModel {
         }
     }
 
-    private func push(_ message: APNS.Message) {
+    /// `unless` is a moment's key, for a push about one: a phone that has set its own notice
+    /// for that moment is not sent another.
+    private func push(_ message: APNS.Message, unless covered: String? = nil) {
         guard pushKey != nil else {
             pushReport = "No push key on this Mac yet."
             return
         }
-        let addresses = (try? store?.pushAddresses()) ?? []
+        let all = (try? store?.pushAddresses()) ?? []
+        let addresses = all.filter { address in covered.map { address.scheduled?.contains($0) != true } ?? true }
+        if !all.isEmpty, addresses.isEmpty {
+            pushReport = "The phone says this one itself."
+            return
+        }
         guard !addresses.isEmpty else {
             pushReport = "No phone has written its address to the folder yet. Allow notifications in the phone's Setup."
             return
@@ -559,7 +566,8 @@ final class MacModel {
                     guard sent.insert(key).inserted else { return }
                     UserDefaults.standard.set(Array(sent), forKey: self.dueSentKey)
                     self.dueTimers[key] = nil
-                    self.push(APNS.Message(title: "Due now", body: entry.text.isEmpty ? "a photo" : entry.text, entry: entry.id))
+                    self.push(APNS.Message(title: "Due now", body: entry.text.isEmpty ? "a photo" : entry.text, entry: entry.id),
+                              unless: Notice.key(entry: entry.id, moment: due))
                 }
             }
             dueTimers[key] = item

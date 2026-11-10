@@ -197,7 +197,9 @@ public struct Door: Sendable {
         lines want nothing, and silence is never wrong. Never restate, never praise, never touch \
         the owner's words. Labels are lower-case words for finding things later. A link joins a \
         later line to an earlier one it carries on from; a note that speaks of a line cites it, \
-        and the page makes the citation a jump. mark_done says a line is finished, with the line \
+        and the page makes the citation a jump. Never point at a line by its time or date in \
+        words, "the one at 14:55", "your 11-05 quote": a time is nothing to tap and nothing \
+        to recognise. Say what the line is, in a few of its own words, and cite it. mark_done says a line is finished, with the line \
         that finished it when there is one, and the line is struck through. When lines turn out to be \
         one thing, a fig, a book, a person, a project, make it once with set_thing, after looking \
         in list_things, and put each line with it through link; a fact, a yield, a state, a count, \
@@ -348,10 +350,10 @@ public struct Door: Sendable {
                         "inputSchema": ["type": "object", "properties": ["kind": ["type": "string", "description": "Only things of this kind."]]]]
             case .setFact:
                 return ["name": rawValue,
-                        "description": "Put a fact on a line or a thing: a key and one value. yield 10 L on the harvest line; state potted on the fig. One fact per key under your name; a newer one replaces it; on=false takes yours off. Give exactly one of number, words, moment, span or place.",
+                        "description": "Put a fact on a line or a thing: a key and one value. yield 10 L on the harvest line; state potted on the fig. Something the owner has to do gets todo, words open, and due too when it has a moment; mark_done finishes it, and nothing else needs taking off. Something that happens at a moment whether or not the owner does anything, an appointment, a booking, a class, is an event: it gets at with its moment, and never todo or due. A plain reminder, nothing to finish, gets due alone. One fact per key under your name; a newer one replaces it; on=false takes yours off. Give exactly one of number, words, moment, span or place.",
                         "inputSchema": ["type": "object",
                                         "properties": ["on": ["type": "string", "description": "The id of the line or thing."],
-                                                       "key": ["type": "string", "description": "A lower-case word: yield, state, days, due, place."],
+                                                       "key": ["type": "string", "description": "A lower-case word: yield, state, days, todo, due, at, place."],
                                                        "number": ["type": "number"],
                                                        "unit": ["type": "string", "description": "With number: L, kg, km, °C."],
                                                        "words": ["type": "string"],
@@ -878,7 +880,7 @@ public struct Door: Sendable {
         if !entry.carriesOn.isEmpty { tail.append("[continues \(entry.carriesOn.map(\.to.string).joined(separator: " "))]") }
         if let done = entry.done { tail.append(done.by.map { "[done by \($0)]" } ?? "[done]") }
         tail.append(contentsOf: entry.belongsTo.compactMap { link in notebook.thing(link.to).flatMap { $0.isTag ? nil : "[with \($0.name)]" } })
-        tail.append(contentsOf: entry.facts.map { "[\($0.key) \($0.value.words(calendar: calendar))]" })
+        tail.append(contentsOf: entry.standingFacts.map { "[\($0.key) \($0.value.words(calendar: calendar))]" })
         tail.append(contentsOf: entry.labels.map { "#\($0)" })
         let day = DayKey(entry.startedAt, calendar: calendar)
         return "\(entry.id)  \(day) \(Projector.time(entry.startedAt, calendar: calendar))  \(text)\(tail.isEmpty ? "" : "  " + tail.joined(separator: " "))"

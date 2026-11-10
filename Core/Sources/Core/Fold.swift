@@ -244,8 +244,16 @@ public struct Entry: Hashable, Sendable, Identifiable {
     /// The facts under one key, by every originator that put one.
     public func facts(_ key: String) -> [Fact] { facts.filter { $0.key == key } }
 
+    /// Something to do, by anyone's word: still open, or finished. Nil when nobody called
+    /// it one. Being done is what closes it; the word todo is never taken off for that.
+    public var todo: Todo? { facts("todo").isEmpty ? nil : (done == nil ? .open : .done) }
+
     /// Something to do, by anyone's word, and not done.
-    public var isTodo: Bool { done == nil && !facts("todo").isEmpty }
+    public var isTodo: Bool { todo == .open }
+
+    /// The facts the line still wears. A finished line no longer says it is to do: done
+    /// answered that, and the word stays in the files and in History.
+    public var standingFacts: [Fact] { done == nil ? facts : facts.filter { $0.key != "todo" } }
 
     /// The moment it is due, when any originator put one: the earliest of them.
     public var due: Date? {
@@ -262,6 +270,21 @@ public struct Entry: Hashable, Sendable, Identifiable {
 
     /// The id of the event that last set `text`, so an older edit arriving late cannot win.
     var lastTextEvent: ULID
+}
+
+/// How a line that is something to do stands.
+public enum Todo: Hashable, Sendable {
+    case open
+    case done
+}
+
+/// What is to do, as its page shows it. `now` is what wants doing, with what was finished
+/// today still in its place; `someday` is what has waited long with no moment of its own.
+public struct TodoList: Hashable, Sendable {
+    public var now: [Entry]
+    public var someday: [Entry]
+
+    public var isEmpty: Bool { now.isEmpty && someday.isEmpty }
 }
 
 /// One thing done to a line, by someone, from somewhere, at some time.
@@ -1430,6 +1453,28 @@ public struct Notebook: Sendable {
         let dated = open.filter { $0.due != nil }.sorted { ($0.due!, $0.id) < ($1.due!, $1.id) }
         let undated = open.filter { $0.due == nil }.sorted { ($0.startedAt, $0.id) > ($1.startedAt, $1.id) }
         return dated + undated
+    }
+
+    /// How long a todo with no moment of its own stays among what wants doing before it
+    /// steps back into someday: three weeks. It is not late, since nothing said when.
+    public static let somedayAfter: TimeInterval = 21 * 86_400
+
+    /// What is to do, as of `now`. Lines with a due moment first, soonest first; then the
+    /// rest, newest first. A line finished today keeps its place until the day ends, so
+    /// finishing moves nothing. A todo with no due moment, written more than three weeks
+    /// ago, waits in someday.
+    public func todos(at now: Date, calendar: Calendar) -> TodoList {
+        let shown = entries.filter { entry in
+            switch entry.todo {
+            case .open: true
+            case .done: entry.done.map { calendar.isDate($0.at, inSameDayAs: now) } ?? false
+            case nil: false
+            }
+        }
+        let dated = shown.filter { $0.due != nil }.sorted { ($0.due!, $0.id) < ($1.due!, $1.id) }
+        let undated = shown.filter { $0.due == nil }.sorted { ($0.startedAt, $0.id) > ($1.startedAt, $1.id) }
+        let waited = { (entry: Entry) in entry.done == nil && now.timeIntervalSince(entry.startedAt) > Self.somedayAfter }
+        return TodoList(now: dated + undated.filter { !waited($0) }, someday: undated.filter(waited))
     }
 
     /// The owner's lines with a due moment still ahead of `now`, soonest first, done or not

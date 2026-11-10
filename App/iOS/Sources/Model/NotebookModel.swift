@@ -48,6 +48,9 @@ final class NotebookModel {
     /// Lines in the event files that could not be read and were passed over.
     private(set) var unreadable = 0
     private var reloadTask: Task<Void, Never>?
+    private var noticeTask: Task<Void, Never>?
+    /// The moments this phone has set its own notices for.
+    private var noticed: [String]?
     private var projectTask: Task<Void, Never>?
 
     init(store: FileStore, device: DeviceID) {
@@ -62,6 +65,7 @@ final class NotebookModel {
         reload()
         restoreDraft()
         takeInbox()
+        Taps.shared.onDone = { [weak self] entry in self?.markDone(entry) }
         Pushes.shared.onToken = { [weak self] token in self?.savePushAddress(token) }
         if let token = Pushes.shared.token { savePushAddress(token) }
         watcher = FolderWatcher(directory: store.eventsDirectory) { [weak self] in
@@ -85,7 +89,7 @@ final class NotebookModel {
         #endif
         do {
             try store.savePushAddress(PushAddress(device: device, token: token, environment: environment,
-                                                 topic: Bundle.main.bundleIdentifier ?? "", updatedAt: Date()))
+                                                 topic: Bundle.main.bundleIdentifier ?? "", updatedAt: Date(), scheduled: noticed))
         } catch {
             NSLog("push address failed: \(error)")
         }
@@ -174,8 +178,25 @@ final class NotebookModel {
             inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: calendar)
             taken = Core.Inbox.taken(files: files, notebook: notebook)
             unreadable = read.reduce(0) { $0 + $1.unreadable.count }
+            setNotices()
         } catch {
             NSLog("reload failed: \(error)")
+        }
+    }
+
+    /// The phone's own notices for what is coming, set again from the notebook as it now
+    /// reads. The moments it has covered are written beside its address, so the Mac sends
+    /// no push of its own for them.
+    private func setNotices() {
+        let wanted = notebook.notices(after: Date(), calendar: calendar)
+        let open = Set(notebook.entries.filter { $0.done == nil }.map(\.id))
+        noticeTask?.cancel()
+        noticeTask = Task { [weak self, calendar] in
+            guard await Notices.sync(wanted, open: open, calendar: calendar), !Task.isCancelled, let self else { return }
+            let keys = Array(Set(wanted.map(\.key))).sorted()
+            guard keys != noticed else { return }
+            noticed = keys
+            if let token = Pushes.shared.token { savePushAddress(token) }
         }
     }
 
@@ -376,6 +397,22 @@ final class NotebookModel {
     /// Your own word that a line is finished.
     func markDone(_ entry: ULID) {
         record(.done(.init(entry: entry)))
+    }
+
+    /// The mark on a todo, tapped: finished if it was open, open again if it was finished.
+    func toggleDone(_ entry: Entry) {
+        if entry.done == nil { markDone(entry.id) } else { undone(entry.id) }
+    }
+
+    /// Your own word that a line is something to do, or is not. Saying it is not takes the
+    /// word off whoever put it there; that is a correction, and the line stays as written.
+    func setTodo(_ entry: Entry, _ on: Bool) {
+        if on {
+            guard entry.todo == nil else { return }
+            record(.factSet(.init(on: entry.id, key: "todo", value: .words("open"))))
+        } else {
+            for fact in entry.facts("todo") { removeFact(fact) }
+        }
     }
 
     // MARK: - Loops

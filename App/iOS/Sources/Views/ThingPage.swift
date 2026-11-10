@@ -97,10 +97,7 @@ struct ThingPage: View {
                             .font(Theme.mono)
                             .foregroundStyle(Theme.faint)
                         ForEach(day.entries) { entry in
-                            NavigationLink(value: entry.id) {
-                                row(entry)
-                            }
-                            .buttonStyle(.plain)
+                            row(entry)
                         }
                     }
                 }
@@ -170,21 +167,29 @@ struct ThingPage: View {
         .contentShape(Rectangle())
     }
 
+    /// A line as its day draws it: the time, its mark under the time when it is something
+    /// to do, and its words, struck through once it is finished.
     private func row(_ entry: Entry) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(Format.time(entry.startedAt, calendar: model.calendar))
-                .font(Theme.mono)
-                .foregroundStyle(Theme.muted)
-                .frame(width: 44, alignment: .leading)
-                .monospacedDigit()
-                .padding(.top, 4)
-            Text(entry.text.isEmpty ? "a photo" : entry.text)
-                .font(Theme.serif)
-                .foregroundStyle(entry.text.isEmpty ? Theme.faint : Theme.foreground)
-                .lineSpacing(4)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Format.time(entry.startedAt, calendar: model.calendar))
+                    .font(Theme.mono)
+                    .foregroundStyle(Theme.muted)
+                    .monospacedDigit()
+                if entry.todo != nil {
+                    TodoMark(entry: entry, model: model)
+                }
+            }
+            .frame(width: 44, alignment: .leading)
+            .padding(.top, 4)
+            NavigationLink(value: entry.id) {
+                LineWords(entry: entry)
+                    .accessibilityIdentifier("line")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 }
 

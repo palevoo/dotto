@@ -10,7 +10,7 @@ struct MarksBlock: View {
 
     /// Whether there is anything to show at all.
     static func has(_ entry: Entry) -> Bool {
-        !entry.belongsTo.isEmpty || entry.done != nil || !entry.facts.isEmpty
+        !entry.belongsTo.isEmpty || entry.done != nil || !entry.standingFacts.isEmpty
     }
 
     /// The links to things made by someone, and the links to tags, apart.
@@ -25,8 +25,8 @@ struct MarksBlock: View {
             if let done = entry.done {
                 doneRow(done)
             }
-            if !entry.facts.isEmpty {
-                FactList(facts: entry.facts, model: model)
+            if !entry.standingFacts.isEmpty {
+                FactList(facts: entry.standingFacts, model: model)
             }
             if !tagLinks.isEmpty {
                 tags
@@ -128,5 +128,50 @@ struct MarksBlock: View {
                 }
             }
         }
+    }
+}
+
+/// The mark on a line that is something to do, the same wherever the line is drawn: a ring
+/// in the one colour while it is open, filled and quiet once it is done. Tap it to finish
+/// the line where it stands; tap it again to open it. Nothing else on the page moves.
+struct TodoMark: View {
+    let entry: Entry
+    @Bindable var model: NotebookModel
+    var size: CGFloat = 15
+
+    var body: some View {
+        let done = entry.done != nil
+        Button {
+            withAnimation(Motion.settle) { model.toggleDone(entry) }
+        } label: {
+            ZStack {
+                Circle().strokeBorder(done ? Theme.faint : Theme.accent, lineWidth: 1.5)
+                Circle().fill(Theme.faint).padding(3.5).opacity(done ? 1 : 0)
+            }
+            .frame(width: size, height: size)
+            // A thumb's worth of room around a small mark.
+            .frame(width: 36, height: 30, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .sensoryFeedback(.impact(flexibility: .soft), trigger: done)
+        .accessibilityIdentifier("todo-mark")
+        .accessibilityLabel(done ? "Done" : "To do")
+        .accessibilityHint(done ? "Opens it again" : "Marks it done")
+    }
+}
+
+/// A line's words as every list of lines draws them: in the serif, struck through and quiet
+/// when the line is finished, "a photo" when it has none.
+struct LineWords: View {
+    let entry: Entry
+
+    var body: some View {
+        let done = entry.done != nil
+        Text(entry.text.isEmpty ? "a photo" : entry.text)
+            .font(Theme.serif)
+            .foregroundStyle(done ? Theme.muted : entry.text.isEmpty ? Theme.faint : Theme.foreground)
+            .strikethrough(done && !entry.text.isEmpty, color: Theme.muted)
+            .lineSpacing(4)
     }
 }

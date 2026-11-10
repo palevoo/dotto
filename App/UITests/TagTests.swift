@@ -26,8 +26,9 @@ final class TagTests: XCTestCase {
         XCTAssertTrue(name.waitForExistence(timeout: 5), "the tag's page opened")
         XCTAssertEqual(name.label, "#book")
         XCTAssertTrue(app.staticTexts["a tag"].exists, "made by nobody")
-        XCTAssertTrue(app.staticTexts[seededWords].waitForExistence(timeout: 5), "the tagged line is under it")
-        let others = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Typed one key'"))
+        // A line on a thing's page is a row to tap, so its words are the row's name.
+        XCTAssertTrue(app.buttons[seededWords].waitForExistence(timeout: 5), "the tagged line is under it")
+        let others = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Typed one key'"))
         XCTAssertEqual(others.count, 0, "lines without the tag are not")
 
         // Back to the page, and the same tag from the calendar sheet.

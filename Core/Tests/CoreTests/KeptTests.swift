@@ -27,6 +27,25 @@ final class KeptTests: XCTestCase {
         return id
     }
 
+    /// A link the owner writes in a reply is pointed at as much as one in a line: it is kept
+    /// beside the line the reply is under. A link in someone else's reply is never opened.
+    func testALinkInTheOwnersReplyIsKeptBesideItsLine() throws {
+        let chat = try line("A chat we had, behind a login")
+        let now = Date()
+        func reply(_ text: String, by author: Author) throws {
+            let id = ids.next(at: now)
+            try store.append(Event(id: id, author: author, device: "phone", at: now,
+                                   payload: .entryCreate(.init(entry: id, text: text, startedAt: now, under: chat))))
+        }
+        try reply("Share the public link and it lands whole: https://evil.example/not-this", by: .dotto)
+        try reply("here is a link anyone can read now https://claude.ai/share/6d43683a", by: owner)
+
+        let notebook = try store.load()
+        let wanted = notebook.unopened(since: now.addingTimeInterval(-3600))
+        XCTAssertEqual(wanted.map(\.url.absoluteString), ["https://claude.ai/share/6d43683a"])
+        XCTAssertEqual(wanted.first?.entry, chat, "kept beside the line the reply is under")
+    }
+
     func testTheLinksInALine() {
         XCTAssertEqual(Web.links(in: "https://arxiv.org/html/2610.14162v1 explain me this plz").map(\.absoluteString),
                        ["https://arxiv.org/html/2610.14162v1"])

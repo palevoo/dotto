@@ -11,8 +11,10 @@ struct CalendarSheet: View {
     let tags: [Thing]
     /// The kinds of things there are, with how many of each.
     let kinds: [(kind: String?, count: Int)]
-    /// How many lines are still to do.
-    let todos: Int
+    /// The moments still ahead: events and what is due.
+    let coming: [Date]
+    /// How many lines are still to do; nil when the todos page would be empty.
+    let todos: Int?
     /// The latest read, as who and one line. Nil until someone has been.
     let lastVisit: (author: Author, text: String)?
     /// Everyone else who has left anything, each with a page of their own.
@@ -27,16 +29,17 @@ struct CalendarSheet: View {
     let onLog: () -> Void
     let onSetup: () -> Void
     let onTodos: () -> Void
+    let onComing: () -> Void
     let onKind: (String?) -> Void
     let onAuthor: (Author) -> Void
 
     @State private var month: DateComponents
     @State private var height: CGFloat = 480
 
-    init(days: [Day], today: DayKey, calendar: Calendar, tags: [Thing], kinds: [(kind: String?, count: Int)], todos: Int,
+    init(days: [Day], today: DayKey, calendar: Calendar, tags: [Thing], kinds: [(kind: String?, count: Int)], coming: [Date] = [], todos: Int?,
          lastVisit: (author: Author, text: String)?, others: [Author], unread: Int, model: NotebookModel,
          onPick: @escaping (DayKey) -> Void, onTag: @escaping (ULID) -> Void, onInbox: @escaping () -> Void,
-         onSearch: @escaping () -> Void, onLog: @escaping () -> Void, onSetup: @escaping () -> Void, onTodos: @escaping () -> Void,
+         onSearch: @escaping () -> Void, onLog: @escaping () -> Void, onSetup: @escaping () -> Void, onTodos: @escaping () -> Void, onComing: @escaping () -> Void = {},
          onKind: @escaping (String?) -> Void, onAuthor: @escaping (Author) -> Void) {
         self.days = days
         self.today = today
@@ -44,6 +47,8 @@ struct CalendarSheet: View {
         self.tags = tags
         self.kinds = kinds
         self.todos = todos
+        self.coming = coming
+        self.onComing = onComing
         self.lastVisit = lastVisit
         self.others = others
         self.unread = unread
@@ -61,6 +66,8 @@ struct CalendarSheet: View {
     }
 
     private var withEntries: Set<DayKey> { Set(days.map(\.key)) }
+    /// The days something is coming on.
+    private var ahead: Set<DayKey> { Set(coming.map { DayKey($0, calendar: calendar) }) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -98,9 +105,12 @@ struct CalendarSheet: View {
                                     .foregroundStyle(isToday ? Theme.background : (future ? Theme.faint : Theme.foreground))
                                     .frame(width: 30, height: 30)
                                     .background(Theme.square(30).fill(isToday ? Theme.foreground : .clear))
-                                Circle()
-                                    .fill(has ? Theme.accent : .clear)
-                                    .frame(width: 4, height: 4)
+                                // A dot under a day with lines; a ring under one with something coming.
+                                ZStack {
+                                    Circle().fill(has ? Theme.accent : .clear)
+                                    Circle().strokeBorder(ahead.contains(key) && !has ? Theme.accent : .clear, lineWidth: 1)
+                                }
+                                .frame(width: has ? 4 : 5, height: has ? 4 : 5)
                             }
                             .frame(maxWidth: .infinity, minHeight: 44)
                         }
@@ -113,11 +123,15 @@ struct CalendarSheet: View {
             }
 
             // The shapes: what is to do, and the things by kind, each a page. Then the tags.
-            if todos > 0 || !kinds.isEmpty {
+            if todos != nil || !kinds.isEmpty || !coming.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        if todos > 0 {
-                            ShapeChip(title: "todos", count: todos, accent: true) { onTodos() }
+                        if !coming.isEmpty {
+                            ShapeChip(title: "coming", count: coming.count) { onComing() }
+                                .accessibilityIdentifier("coming")
+                        }
+                        if let todos {
+                            ShapeChip(title: "todos", count: todos, accent: todos > 0) { onTodos() }
                                 .accessibilityIdentifier("todos")
                         }
                         ForEach(Array(kinds.enumerated()), id: \.offset) { _, kind in

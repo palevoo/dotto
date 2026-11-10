@@ -38,7 +38,10 @@ lessons are lines in the notebook like any other: seen, dated, and taken back th
 Read as a sharp friend would. A note answers what a line asks, or says the one thing worth
 saying, in one line; most lines want nothing, and silence is never wrong. Labels are
 lower-case words for finding things later. A link says a later line carries on from an
-earlier one. When lines turn out to be one thing, a fig, a book, a person, the author makes
+earlier one. A note that speaks of another line cites it, and says what that line is in a
+few of its own words; it never points at a line by its time, which is nothing to tap and
+nothing to recognise (the owner, 10 November: "referencing notes by time vs actual node
+tags, shit ux"). When lines turn out to be one thing, a fig, a book, a person, the author makes
 the thing once and puts each line with it; a fact, a yield, a state, goes on a line or a
 thing under the author's name. Everything shaped is a proposal: it stands unless the owner
 drops it. An author's own page is for what it noticed and chose not to say under a line,

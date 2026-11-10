@@ -255,6 +255,78 @@ final class ShapeTests: XCTestCase {
         XCTAssertEqual(notebook.kinds.map { "\($0.kind ?? "-") \($0.count)" }, ["book 1", "plant 1", "- 1"])
     }
 
+    /// An event happens at its moment and is never to do; something due wants the owner at
+    /// its moment. Both are what is coming. The phone says an event the evening before and
+    /// an hour before, and something due once, when it is due; never for a moment gone by.
+    func testWhatIsComingAndWhatIsSaidOfIt() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        // clock is Monday 2 November 2026, 10:00 UTC.
+        let visa = ULID(timestamp: clock), seeds = ULID(timestamp: clock.addingTimeInterval(60)), soon = ULID(timestamp: clock.addingTimeInterval(120))
+        let friday = clock.addingTimeInterval(4 * 86_400 + 3600)        // Friday 11:00
+        let march = clock.addingTimeInterval(100 * 86_400)
+        let today = clock.addingTimeInterval(1800)                        // today 10:30
+        var notebook = Notebook(owner: me, events: [
+            event(.entryCreate(.init(entry: visa, text: "Visa appointment", startedAt: clock)), at: clock),
+            event(.entryCreate(.init(entry: seeds, text: "Plant the seeds", startedAt: clock)), at: clock),
+            event(.entryCreate(.init(entry: soon, text: "Dentist", startedAt: clock)), at: clock),
+            event(.factSet(.init(on: visa, key: "at", value: .moment(friday))), author: .weeju, at: clock),
+            event(.factSet(.init(on: seeds, key: "todo", value: .words("open"))), author: .weeju, at: clock),
+            event(.factSet(.init(on: seeds, key: "due", value: .moment(march))), author: .weeju, at: clock),
+            event(.factSet(.init(on: soon, key: "at", value: .moment(today))), author: .weeju, at: clock),
+        ])
+        XCTAssertNil(notebook.entry(visa)?.todo, "an appointment is not to do")
+        XCTAssertEqual(notebook.entry(visa)?.moment, friday)
+        XCTAssertEqual(notebook.coming(after: clock).map(\.text), ["Dentist", "Visa appointment", "Plant the seeds"])
+        XCTAssertEqual(notebook.todos.map(\.text), ["Plant the seeds"], "and is not among the todos")
+
+        let said = notebook.notices(after: clock, calendar: calendar)
+        XCTAssertEqual(said.map(\.title), ["Tomorrow at 11:00", "In an hour, at 11:00", "Due now"],
+                       "an event twice ahead, something due once; the dentist in half an hour is too near for either")
+        XCTAssertEqual(said[0].fire, clock.addingTimeInterval(3 * 86_400 + 10 * 3600), "Thursday at eight in the evening")
+        XCTAssertEqual(said[1].fire, friday.addingTimeInterval(-3600))
+        XCTAssertEqual(said[2].fire, march)
+        XCTAssertEqual(said.map(\.todo), [false, false, true])
+        XCTAssertEqual(said[0].key, Notice.key(entry: visa, moment: friday))
+
+        // Moved, the notices are others; done, there are none; past, it is no longer coming.
+        notebook.apply(event(.factSet(.init(on: visa, key: "at", value: .moment(friday.addingTimeInterval(86_400)))), author: .weeju, at: clock.addingTimeInterval(1)))
+        XCTAssertNotEqual(notebook.notices(after: clock, calendar: calendar).first?.id, said[0].id, "a moment moved is another notice")
+        notebook.apply(event(.done(.init(entry: seeds)), at: clock.addingTimeInterval(2)))
+        XCTAssertEqual(notebook.notices(after: clock, calendar: calendar).map(\.body), ["Visa appointment", "Visa appointment"])
+        XCTAssertEqual(notebook.coming(after: friday.addingTimeInterval(2 * 86_400)), [], "an event passes by itself")
+    }
+
+    /// A todo ends: done closes it and nothing is left saying open. On its page it keeps its
+    /// place for the day it was finished; one with no moment that waited three weeks steps back.
+    func testATodoEndsAndWaits() {
+        let calendar = Calendar(identifier: .gregorian)
+        let old = ULID(timestamp: clock.addingTimeInterval(-30 * 86_400)), tv = ULID(timestamp: clock), tyres = ULID(timestamp: clock.addingTimeInterval(60))
+        var notebook = Notebook(owner: me, events: [
+            event(.entryCreate(.init(entry: old, text: "Gooseberry", startedAt: clock.addingTimeInterval(-30 * 86_400)))),
+            event(.entryCreate(.init(entry: tv, text: "Sell the TV", startedAt: clock))),
+            event(.entryCreate(.init(entry: tyres, text: "Tyres", startedAt: clock.addingTimeInterval(60)))),
+            event(.factSet(.init(on: old, key: "todo", value: .words("open"))), author: .weeju),
+            event(.factSet(.init(on: tv, key: "todo", value: .words("open"))), author: .weeju),
+            event(.factSet(.init(on: tyres, key: "todo", value: .words("open")))),
+        ])
+        let later = clock.addingTimeInterval(3600)
+        XCTAssertEqual(notebook.todos(at: later, calendar: calendar).now.map(\.text), ["Tyres", "Sell the TV"])
+        XCTAssertEqual(notebook.todos(at: later, calendar: calendar).someday.map(\.text), ["Gooseberry"], "three weeks with no moment: someday")
+        XCTAssertEqual(notebook.entry(tyres)?.todo, .open, "the owner's own word makes a todo too")
+
+        notebook.apply(event(.done(.init(entry: tv)), at: later))
+        let entry = notebook.entry(tv)!
+        XCTAssertEqual(entry.todo, .done)
+        XCTAssertEqual(entry.standingFacts, [], "done closes it; nothing is left saying open")
+        XCTAssertEqual(entry.facts.map(\.key), ["todo"], "the word stays in the record")
+        XCTAssertEqual(notebook.todos(at: later, calendar: calendar).now.map(\.text), ["Tyres", "Sell the TV"], "finished today, it keeps its place")
+        XCTAssertEqual(notebook.todos(at: later.addingTimeInterval(86_400), calendar: calendar).now.map(\.text), ["Tyres"], "and is gone the day after")
+
+        notebook.apply(event(.undone(.init(entry: tv)), at: later.addingTimeInterval(60)))
+        XCTAssertEqual(notebook.entry(tv)?.todo, .open, "opened again, it is to do again")
+    }
+
     private var now: Date { clock }
 
     func testTheDayPageNamesBelongingAndFacts() {

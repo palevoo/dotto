@@ -16,8 +16,8 @@ final class ShapeTests: XCTestCase {
         let shapes = app.staticTexts.matching(identifier: "shapes")
         let fact = shapes.matching(NSPredicate(format: "label == %@", "pages 2 · #book")).firstMatch
         XCTAssertTrue(fact.waitForExistence(timeout: 15), "the first line wears its fact, then its tag")
-        // The second line is with the fig and, since the seed also marks it, a todo with a due moment.
-        let belongs = shapes.matching(NSPredicate(format: "label BEGINSWITH %@", "the fig · todo · due")).firstMatch
+        // The second line is with the fig and, since the seed also marks it to do, due at a moment.
+        let belongs = shapes.matching(NSPredicate(format: "label BEGINSWITH %@", "the fig · due")).firstMatch
         XCTAssertTrue(belongs.exists, "the second line wears the thing it belongs to and its facts")
 
         app.staticTexts["Meaning comes later, says the second page"].tap()
@@ -43,12 +43,20 @@ final class ShapeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["thing-name"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["plant"].exists, "and its kind")
         XCTAssertTrue(app.otherElements["fact-state"].exists || app.staticTexts["potted"].exists, "its state is a fact on it")
-        XCTAssertTrue(app.staticTexts["Meaning comes later, says the second page"].exists, "the line belongs to it")
+        // The line is a row to tap, so its words are the row's name.
+        XCTAssertTrue(app.buttons["Meaning comes later, says the second page"].exists, "the line belongs to it")
     }
 
     /// Read, and nothing said: a line the seed took in and left nothing under wears a mark
     /// under its time; a line written since, which nobody has got to, does not.
+    ///
+    /// Run on a page with a day before it. A page shorter than the screen and taller than
+    /// the room above the keyboard stops answering when the keyboard comes up: found on 10
+    /// November, there before, not solved. It goes away when the page no longer tracks its
+    /// top row (`scrollTargetLayout`), which the pinned date and the calendar need.
     func testALineReadWithNothingSaidWearsAMark() {
+        app.terminate()
+        app = .onAFreshNotebook(seeded: true, yesterday: 40)
         let liveLine = app.textViews["live-line"]
         XCTAssertTrue(liveLine.waitForExistence(timeout: 15))
         XCTAssertTrue(app.otherElements["read-mark"].firstMatch.waitForExistence(timeout: 10), "a line that was read and not answered says so")
@@ -60,5 +68,46 @@ final class ShapeTests: XCTestCase {
         liveLine.typeText(words + "\n")
         XCTAssertTrue(app.staticTexts[words].waitForExistence(timeout: 5))
         XCTAssertEqual(app.otherElements.matching(identifier: "read-mark").count, before, "the new line has no mark")
+    }
+
+    /// A todo ends where it stands. The seeded line that is to do wears its mark under its
+    /// time; a tap finishes it on the day page, and on the todos page it keeps its place,
+    /// finished, where a second tap opens it again.
+    func testATodoIsFinishedWhereItStands() {
+        let mark = app.buttons["todo-mark"].firstMatch
+        XCTAssertTrue(mark.waitForExistence(timeout: 15), "the line to do wears its mark")
+        XCTAssertEqual(mark.label, "To do")
+        mark.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == %@ AND label == %@", "todo-mark", "Done")).firstMatch.waitForExistence(timeout: 5),
+                      "one tap and it is done, on its day")
+        let shapes = app.staticTexts.matching(identifier: "shapes")
+        XCTAssertTrue(shapes.matching(NSPredicate(format: "label BEGINSWITH %@", "the fig · kept")).firstMatch.waitForExistence(timeout: 5),
+                      "and it no longer says when it was due")
+
+        app.buttons["date"].firstMatch.tap()
+        let todos = app.buttons["todos"]
+        XCTAssertTrue(todos.waitForExistence(timeout: 5), "the todos page is still offered on the day something was finished")
+        todos.tap()
+        XCTAssertTrue(app.staticTexts["Todos"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Meaning comes later, says the second page"].exists, "finished today, it keeps its place")
+        let there = app.buttons["todo-mark"].firstMatch
+        XCTAssertEqual(there.label, "Done")
+        there.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == %@ AND label == %@", "todo-mark", "To do")).firstMatch.waitForExistence(timeout: 5),
+                      "a second tap opens it again")
+    }
+
+    /// What is coming has a page: the seeded event and the seeded todo that is due, each on
+    /// its day. The event is not to do and wears no mark; the todo wears its own.
+    func testWhatIsComingHasAPage() {
+        XCTAssertTrue(app.buttons["date"].waitForExistence(timeout: 15))
+        app.buttons["date"].tap()
+        let coming = app.buttons["coming"]
+        XCTAssertTrue(coming.waitForExistence(timeout: 5), "the sheet offers what is coming")
+        coming.tap()
+        XCTAssertTrue(app.staticTexts["Coming"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["A quiet afternoon"].exists, "the event is coming")
+        XCTAssertTrue(app.buttons["Meaning comes later, says the second page"].exists, "and so is what is due")
+        XCTAssertEqual(app.buttons.matching(identifier: "todo-mark").count, 1, "only what is to do wears the mark")
     }
 }

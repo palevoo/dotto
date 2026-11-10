@@ -40,10 +40,16 @@ struct LineView: View {
                     Text(Format.day(DayKey(entry.startedAt, calendar: model.calendar), calendar: model.calendar))
                         .font(Theme.mono)
                         .foregroundStyle(Theme.muted)
-                    Text(Format.time(entry.startedAt, calendar: model.calendar))
-                        .font(Theme.title)
-                        .foregroundStyle(Theme.foreground)
-                        .monospacedDigit()
+                    HStack(alignment: .center, spacing: 12) {
+                        Text(Format.time(entry.startedAt, calendar: model.calendar))
+                            .font(Theme.title)
+                            .foregroundStyle(Theme.foreground)
+                            .monospacedDigit()
+                        // Something to do is finished here as on its day, with the same mark.
+                        if entry.todo != nil {
+                            TodoMark(entry: entry, model: model, size: 17)
+                        }
+                    }
                     if let place = entry.location {
                         // Where, as the line knows it. A name for it comes later, through the door.
                         Text(Format.place(place))
@@ -89,7 +95,7 @@ struct LineView: View {
                 } else if !entry.text.isEmpty {
                     Text(entry.text)
                         .font(.system(size: 20, design: .serif))
-                        .foregroundStyle(Theme.foreground)
+                        .foregroundStyle(entry.done != nil ? Theme.muted : Theme.foreground)
                         .strikethrough(entry.done != nil, color: Theme.muted)
                         .lineSpacing(5)
                         .textSelection(.enabled)
