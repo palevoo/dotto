@@ -30,6 +30,8 @@ final class NotebookModel {
     /// Whether a line may keep where it was written, as the phone has it now.
     private(set) var locationStatus: CLAuthorizationStatus
     let walks = Walks()
+    /// Photos taken here kept in Photos too, once switched on in Setup.
+    let photos = PhotoKeeper()
     private var watcher: FolderWatcher?
     private var cloudWatcher: CloudWatcher?
     /// Where photos and voice notes stand with iCloud. Nil when the folder is not in iCloud
@@ -231,6 +233,12 @@ final class NotebookModel {
         }
     }
 
+    /// A photo the camera just made goes into Photos too, when Setup says so, as the camera
+    /// made it and where the phone is.
+    func keepInPhotos(_ data: Data) {
+        photos.keep(data, at: Date(), location: location.last)
+    }
+
     /// A photo from the library, with what it knows about itself: the original file through
     /// PhotoKit when the library allows, else the picker's copy and whatever is left in it.
     func importPhoto(_ data: Data, takenAt: Date?, location: Location?) async {
@@ -282,10 +290,14 @@ final class NotebookModel {
     /// Stores the live line as one entry. Returns its id, or nil if there was nothing to store.
     @discardableResult
     func commitDraft() -> ULID? {
-        defer { draft = Draft() }
         guard let stored = draft.stored(by: store.manifest.owner, on: device, here: location.last, ids: generator,
-                                        now: Date(), calendar: calendar) else { return nil }
-        record(stored.events)
+                                        now: Date(), calendar: calendar) else {
+            draft = Draft()
+            return nil
+        }
+        // Words that could not be written stay in the line.
+        guard record(stored.events) else { return nil }
+        draft = Draft()
         return stored.id
     }
 
@@ -400,17 +412,20 @@ final class NotebookModel {
         record([Event(id: generator.next(at: at), author: store.manifest.owner, device: device, at: at, payload: payload)])
     }
 
-    private func record(_ events: [Event]) {
+    /// False when the events could not be written to the folder; nothing is shown then.
+    @discardableResult
+    private func record(_ events: [Event]) -> Bool {
         do {
             try store.append(events)
         } catch {
             NSLog("append failed: \(error)")
-            return
+            return false
         }
         for event in events { notebook.apply(event) }
         days = notebook.days(calendar: calendar)
         refreshInbox()
         projectSoon()
+        return true
     }
 
     /// Keeps `days/*.md` current a moment after the last change.

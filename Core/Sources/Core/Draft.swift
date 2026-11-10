@@ -140,3 +140,29 @@ public struct Draft: Equatable, Codable, Sendable {
         }
     }
 }
+
+/// Words as a line keeps them.
+public enum Words {
+    /// A passage with line breaks in it, a paste, dictation, a drop, as one line: every run
+    /// of breaks, with the spaces around it, becomes one space.
+    public static func flattened(_ passage: String) -> String {
+        var out = ""
+        var pendingSpace = false
+        var sawBreak = false
+        for scalar in passage.unicodeScalars {
+            if CharacterSet.newlines.contains(scalar) {
+                if !sawBreak { while out.hasSuffix(" ") { out.removeLast() } }
+                sawBreak = true
+                pendingSpace = true
+            } else if sawBreak, scalar == " " {
+                pendingSpace = true
+            } else {
+                if pendingSpace, !out.isEmpty, !out.hasSuffix(" ") { out.append(" ") }
+                pendingSpace = false
+                sawBreak = false
+                out.unicodeScalars.append(scalar)
+            }
+        }
+        return out
+    }
+}

@@ -1,3 +1,4 @@
+import Core
 import SwiftUI
 import UIKit
 
@@ -142,7 +143,7 @@ private struct WordsTextView: UIViewRepresentable {
             // A passage with breaks in it arrives whole: a paste, dictation, a drop. Each
             // break becomes one space and the passage lands where the cursor is.
             guard replacement.rangeOfCharacter(from: .newlines) != nil else { return true }
-            let flat = Self.flattened(replacement)
+            let flat = Words.flattened(replacement)
             view.textStorage.replaceCharacters(in: range, with: NSAttributedString(string: flat, attributes: parent.attributes))
             view.selectedRange = NSRange(location: range.location + (flat as NSString).length, length: 0)
             textViewDidChange(view)
@@ -160,27 +161,6 @@ private struct WordsTextView: UIViewRepresentable {
 
         func textViewDidEndEditing(_ view: UITextView) {
             if parent.focused { parent.focused = false }
-        }
-
-        /// Every run of line breaks, with the spaces around it, becomes one space.
-        static func flattened(_ passage: String) -> String {
-            var out = ""
-            var pendingSpace = false
-            var sawBreak = false
-            for scalar in passage.unicodeScalars {
-                if CharacterSet.newlines.contains(scalar) {
-                    sawBreak = true
-                    pendingSpace = true
-                } else if sawBreak, scalar == " " {
-                    pendingSpace = true
-                } else {
-                    if pendingSpace, !out.isEmpty, !out.hasSuffix(" ") { out.append(" ") }
-                    pendingSpace = false
-                    sawBreak = false
-                    out.unicodeScalars.append(scalar)
-                }
-            }
-            return out
         }
     }
 }

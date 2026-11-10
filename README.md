@@ -29,7 +29,7 @@ session with a grant; it has no name until it chooses one.
     App/iOS/                iPhone app; Shared/ is compiled into the controls too, Common/ into the share sheet too
     App/Controls/           Write and Photo controls: Action button, Control Center, lock screen
     App/Share/              the share sheet; keeps lines in the app group until the app takes them
-    App/Mac/                Mac app
+    App/Mac/                Mac app: the home's window, and the live line from anywhere
     App/Design/icon.swift   draws the app icon into the asset catalog
     mock/                   the web prototype the app was modelled on
 
@@ -51,6 +51,24 @@ against `git log` to know whether what is running is what the repository has.
 The icon: `swift App/Design/icon.swift App/iOS/Sources/Assets.xcassets/AppIcon.appiconset`, two dots on a sheet,
 dotto's eyes. The palette and type of 9 November are in `App/iOS/Common/Theme.swift`, `App/Mac/Sources/MacTheme.swift`
 and the top of `site/index.html`: a cool near-white ground, black ink, nothing coloured but the dot.
+
+## Ways in
+
+On the phone: the live line, the camera, the mic, the library, the share sheet, the controls
+and Siri, and Health. A photo taken with dotto's camera is kept in Photos too once you say so
+in Setup, "Keep photos in Photos": the camera's own bytes at full size, with their moment and
+place. It is asked for as add-only, so dotto puts photos in and reads nothing through it.
+
+On the Mac the live line is a small panel over whatever you are in: `⌥⇧Space`, or a click on
+the two dots in the menu bar. It takes the keys without taking the app you were in away from
+you. Return keeps the line, as yours, from this Mac; Esc puts it away with the words waiting;
+a click elsewhere puts an empty line away and leaves a begun one where it is. Paste words, a
+link or a picture into it; drag a picture, a screenshot's floating thumbnail, a link or words
+onto the dots or onto the line; or select words in any app and choose Services · Keep in
+dotto. A link lands as its address; a picture is kept as the phone keeps one. Other files are
+named as left out, for now. The clipboard is read when you paste and a drop when you drop
+it; nothing is watched, and none of it needs a permission. The dots are persimmon while the
+door is open. What a paste or a drop becomes is decided in Core (`Arrival.swift`), under test.
 
 ## The folder
 

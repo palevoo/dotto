@@ -182,6 +182,7 @@ struct PageView: View {
                 CameraView(picked: $picked) { shot in
                     showCamera = false
                     guard let shot else { return }
+                    model.keepInPhotos(shot.data)
                     Task {
                         await model.addPhoto(shot.data)
                         if let quote = shot.quote { model.addQuote(quote) }

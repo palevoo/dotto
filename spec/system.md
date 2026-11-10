@@ -41,7 +41,11 @@ audience. The owner never files.
 
 Today: lines with time, place and history; photos and voice by hash; ways in through the
 live line, the camera, the mic, the library, the share sheet, the controls and Siri, and
-Health. Missing: video, a drop from the laptop, mail and orders arriving on their own.
+Health. Since 10 November the laptop is a way in: the live line as a panel on the Mac, by a
+hotkey or the dots in the menu bar, taking words, links and pictures by paste, by drop and
+through Services; and a photo taken on the phone is kept in Photos too when the owner says
+so. Missing: video, files other than pictures from the laptop, the share menu on the Mac,
+mail and orders arriving on their own.
 
 ### Originators
 

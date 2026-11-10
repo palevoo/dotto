@@ -23,6 +23,7 @@ struct SetupView: View {
                 you
                 notebook
                 cloud
+                photos
                 location
                 notifications
                 walks
@@ -105,6 +106,34 @@ struct SetupView: View {
         if cloud.leaving > 0 { parts.append("\(cloud.leaving) of \(cloud.media) \(things) still on this phone") }
         if cloud.arriving > 0 { parts.append("\(cloud.arriving)\(parts.isEmpty ? " of \(cloud.media) \(things)" : "") on their way here") }
         return parts.joined(separator: " · ")
+    }
+
+    /// A photo taken here can live in Photos too, so it is where every other photo is whatever
+    /// becomes of this app. Asked for as add-only: dotto puts photos in and reads nothing.
+    private var photos: some View {
+        let keeper = model.photos
+        return Step("Keep photos in Photos", done: keeper.keeps) {
+            switch keeper.status {
+            case .denied, .restricted:
+                Status("Refused. Photos taken here stay in the notebook only")
+                Action("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                }
+            default:
+                if keeper.keeps {
+                    Status("Each photo taken here is also saved to Photos, at full size")
+                    Action("Stop") { keeper.turnOff() }
+                } else {
+                    Status("A photo taken here could also be saved to Photos")
+                    Action("Keep photos in Photos too") { Task { await keeper.turnOn() } }
+                }
+            }
+            if let trouble = keeper.trouble {
+                // Photos' refusal, in its words, where it can be read and reported.
+                Status("Photos: \(trouble)")
+            }
+        }
+        .task { keeper.refresh() }
     }
 
     private var location: some View {

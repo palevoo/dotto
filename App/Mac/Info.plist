@@ -26,5 +26,29 @@
 	<string>$(DEVELOPMENT_TEAM)</string>
 	<key>NSHumanReadableCopyright</key>
 	<string></string>
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Keep in dotto</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>keepInDotto</string>
+			<key>NSPortName</key>
+			<string>dotto</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.image</string>
+			</array>
+			<key>NSSendTypes</key>
+			<array>
+				<string>NSStringPboardType</string>
+				<string>NSURLPboardType</string>
+				<string>NSTIFFPboardType</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

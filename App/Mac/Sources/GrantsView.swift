@@ -5,6 +5,8 @@ import SwiftUI
 /// The window: where the notebook is, whether the door is open, and who holds a key.
 struct GrantsView: View {
     @Bindable var model: MacModel
+    /// The ways in, as the app has them now.
+    let ways: Ways
     @State private var newName = "Claude Code"
     /// Who the new key is for: nil for a new author.
     @State private var newAuthor: Author?
@@ -17,6 +19,7 @@ struct GrantsView: View {
             VStack(alignment: .leading, spacing: 30) {
                 header
                 notebookSection
+                waysInSection
                 doorSection
                 grantsSection
                 readerSection
@@ -82,6 +85,35 @@ struct GrantsView: View {
                     .foregroundStyle(MacTheme.recording)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    /// How a line gets written from this Mac, each with where it is.
+    private var waysInSection: some View {
+        Section("Ways in") {
+            switch ways.hotKey {
+            case .registered(let keys):
+                way(keys, "opens the line over whatever you are in. Return keeps it, Esc puts it away.")
+            case .refused:
+                way("Hotkey", "the system would not register \(HotKey.words); another app may hold it.")
+            case .asking:
+                EmptyView()
+            }
+            way("The two dots in the menu bar", "click for the line; drag a picture, a screenshot's thumbnail, a link or words onto them.")
+            way("Paste", "into the line: words, a link, or a picture. The clipboard is read only when you paste.")
+            way("Services", "select words in any app, then its menu · Services · Keep in dotto.")
+        }
+    }
+
+    private func way(_ name: String, _ how: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(name)
+                .font(MacTheme.mono)
+                .foregroundStyle(MacTheme.foreground)
+            Text(how)
+                .font(MacTheme.mono)
+                .foregroundStyle(MacTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

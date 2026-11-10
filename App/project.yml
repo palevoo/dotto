@@ -56,6 +56,7 @@ targets:
         NSSpeechRecognitionUsageDescription: To turn a voice note into words, on this device.
         NSLocationWhenInUseUsageDescription: To remember where a line was written. Named later, never asked.
         NSPhotoLibraryUsageDescription: To bring older photos onto the page, on the day they were taken.
+        NSPhotoLibraryAddUsageDescription: To keep the photos you take here in Photos too.
         NSHealthShareUsageDescription: To put a walk on the page as a line, with its distance and time.
     postBuildScripts:
       - name: Stamp Build
@@ -145,6 +146,7 @@ targets:
       groups: [signing]
       base:
         PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook.uitests
+        GENERATE_INFOPLIST_FILE: true
         TARGETED_DEVICE_FAMILY: "1"
         TEST_TARGET_NAME: Margin
 
@@ -164,6 +166,18 @@ targets:
         NSHumanReadableCopyright: ""
         # The team the push key belongs to, for the claim Apple checks.
         MarginTeamID: $(DEVELOPMENT_TEAM)
+        # What is selected in another app, sent to the live line from that app's Services menu.
+        NSServices:
+          - NSMenuItem:
+              default: Keep in dotto
+            NSMessage: keepInDotto
+            NSPortName: dotto
+            NSSendTypes:
+              - NSStringPboardType
+              - NSURLPboardType
+              - NSTIFFPboardType
+            NSSendFileTypes:
+              - public.image
     # No sandbox: the app runs the claude command for the reader, which a sandboxed app may
     # not. It still touches only the folder you picked; that is the code's promise now.
     postBuildScripts:

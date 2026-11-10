@@ -263,6 +263,41 @@ final class MacModel {
         }
     }
 
+    // MARK: - Lines written here
+
+    /// A picture that landed in the live line on this Mac, kept in the notebook's media by
+    /// its hash. Nil when there is no notebook or it could not be written.
+    func keepPicture(_ picture: Core.Picture.Processed) -> String? {
+        try? store?.storeMedia(picture.jpeg, fileExtension: "jpg")
+    }
+
+    /// Where a kept picture is, for the live line to show it again after a relaunch.
+    func mediaURL(hash: String) -> URL? {
+        store?.mediaURL(hash: hash, fileExtension: "jpg")
+    }
+
+    /// Return, on the Mac: the live line stored as one line of yours, from this Mac, in the
+    /// owner's file for it. The Mac keeps no place. Nil when there was nothing to store or it
+    /// could not be written.
+    func keep(_ draft: Draft) -> ULID? {
+        guard let store, let stored = draft.stored(by: store.manifest.owner, on: device, here: nil, ids: generator,
+                                                   now: Date(), calendar: .current) else { return nil }
+        do {
+            try store.append(stored.events)
+            refreshSummary()
+            return stored.id
+        } catch {
+            problem = "Could not write to the notebook: \(error)"
+            return nil
+        }
+    }
+
+    /// The loop that is running right now, by name, if one is.
+    var runningLoop: String? {
+        _ = readerTick
+        return loops.first { runners[$0.id]?.status.state == .running }?.name
+    }
+
     // MARK: - Grants
 
     private var supportDirectory: URL {

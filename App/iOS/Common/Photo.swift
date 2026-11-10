@@ -6,27 +6,15 @@ import UniformTypeIdentifiers
 
 /// Photos, decoded and encoded off the main thread, never at full sensor size.
 enum Photo {
-    struct Processed {
-        let jpeg: Data
-        let width: Int
-        let height: Int
-        let thumbnail: Data
-    }
+    typealias Processed = Picture.Processed
 
-    static let storedSide = 2048
-    static let thumbnailSide = 480
+    static let storedSide = Picture.storedSide
+    static let thumbnailSide = Picture.thumbnailSide
 
-    /// The original as a JPEG no larger than `storedSide`, plus a thumbnail. Orientation is baked in.
+    /// The original as a JPEG no larger than `storedSide`, plus a thumbnail. Orientation is
+    /// baked in. The work is Core's, shared with the Mac; here it is taken off the main thread.
     static func process(_ data: Data) async -> Processed? {
-        await Task.detached(priority: .userInitiated) {
-            guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-                  let big = downsample(source, maxSide: storedSide),
-                  let small = downsample(source, maxSide: thumbnailSide),
-                  let jpeg = encode(big, quality: 0.86),
-                  let thumbnail = encode(small, quality: 0.8)
-            else { return nil }
-            return Processed(jpeg: jpeg, width: big.width, height: big.height, thumbnail: thumbnail)
-        }.value
+        await Task.detached(priority: .userInitiated) { Picture.process(data) }.value
     }
 
     /// What a photo file knows about itself: when it was taken and where.
@@ -86,21 +74,11 @@ enum Photo {
         }.value
     }
 
-    /// Decodes only as many pixels as needed. Cheap even for a 48-megapixel source.
     static func downsample(_ source: CGImageSource, maxSide: Int) -> CGImage? {
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxSide,
-        ]
-        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        Picture.downsample(source, maxSide: maxSide)
     }
 
     static func encode(_ image: CGImage, quality: CGFloat) -> Data? {
-        let data = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
-        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
-        return CGImageDestinationFinalize(destination) ? data as Data : nil
+        Picture.encode(image, quality: quality)
     }
 }
