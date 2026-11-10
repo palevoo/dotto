@@ -73,6 +73,8 @@ struct EntryRow: View {
                     .onChange(of: editingRow) { _, row in
                         if row != entry.id { finishEditing() }
                     }
+                    // A row that leaves the page mid-edit keeps what was typed.
+                    .onDisappear { finishEditing() }
                 } else if !entry.text.isEmpty {
                     // A finished line is struck through, and that is all the page says of it.
                     let done = entry.done != nil

@@ -10,9 +10,10 @@ struct PageView: View {
     let onRelocate: (URL) -> Void
     @State private var path = NavigationPath()
     /// Where the page is: read for the pinned date, set to move it. The page opens at the
-    /// bottom. A move set here is made when the page next lays out, so a day that is only
-    /// just being added is found.
+    /// bottom.
     @State private var position = ScrollPosition(edge: .bottom)
+    /// A line just stored, which the page goes to once its row is on the page.
+    @State private var landed: Landing?
     @State private var atBottom = true
     @State private var showCalendar = false
     /// What the calendar sheet asked for, done once it has gone: a page is pushed on a
@@ -49,7 +50,60 @@ struct PageView: View {
                 set: { id in if let id { keyboard = .row(id) } else if case .row = keyboard { keyboard = .none } })
     }
 
-    private var visibleDay: DayKey { position.viewID(type: DayKey.self) ?? model.today }
+    /// The day of whatever row is at the top of the page.
+    private var visibleDay: DayKey {
+        switch position.viewID(type: Row.ID.self) {
+        case .day(let key): key
+        case .line(let id): model.notebook.entry(id).map { DayKey($0.startedAt, calendar: model.calendar) } ?? model.today
+        case nil: model.today
+        }
+    }
+
+    /// One row of the page: a day's rule with its date, or a line. The rows, not the days,
+    /// are what the page lays out lazily and what it scrolls to. A whole day as one child
+    /// has no height the page knows until it has been drawn, so the bottom of the page was
+    /// worked out without a day only just begun and the first line of a day was never
+    /// reached; a row is small, the last one is always drawn, and a line stored is gone to
+    /// by its own id.
+    private struct Row: Identifiable {
+        enum ID: Hashable {
+            case day(DayKey)
+            case line(ULID)
+        }
+        let id: ID
+        /// The line, for a line's row.
+        var entry: Entry?
+        /// Space above: between days, and above today, which has no rule of its own.
+        var gap: CGFloat = 0
+    }
+
+    private var rows: [Row] {
+        var rows: [Row] = []
+        for (index, day) in days.enumerated() {
+            let follows: CGFloat = index == 0 ? 0 : 18
+            if day.key == model.today {
+                for (place, entry) in day.entries.enumerated() {
+                    rows.append(Row(id: .line(entry.id), entry: entry, gap: place == 0 ? follows : 0))
+                }
+            } else {
+                rows.append(Row(id: .day(day.key), gap: follows))
+                rows += day.entries.map { Row(id: .line($0.id), entry: $0) }
+            }
+        }
+        return rows
+    }
+
+    /// The row a day begins with: its rule, or, for today, its first line.
+    private func start(of day: DayKey) -> Row.ID? {
+        guard day == model.today else { return .day(day) }
+        return days.last { $0.key == day }?.entries.first.map { .line($0.id) }
+    }
+
+    /// A line just stored and where on the screen it should come to rest.
+    private struct Landing: Equatable {
+        let line: ULID
+        let anchor: UnitPoint
+    }
     private var awaitedArrived: Bool { awaitedLine.map { model.notebook.entry($0) != nil } ?? false }
 
     private var days: [Day] { model.days }
@@ -59,18 +113,24 @@ struct PageView: View {
             VStack(spacing: 0) {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(days) { day in
-                            DaySection(
-                                day: day,
-                                model: model,
-                                isToday: day.key == model.today,
-                                revealed: revealed,
-                                editingRow: editingRow,
-                                onOpen: { id in open { path.append(id) } },
-                                onOpenPhoto: { opening in open { viewing = opening } },
-                                zoom: zoom
-                            )
-                            .id(day.key)
+                        ForEach(rows) { row in
+                            Group {
+                                if let entry = row.entry {
+                                    EntryRow(
+                                        entry: entry,
+                                        model: model,
+                                        revealed: revealed == entry.id,
+                                        editingRow: editingRow,
+                                        onOpen: { open { path.append(entry.id) } },
+                                        onOpenPhoto: { opening in open { viewing = opening } },
+                                        zoom: zoom
+                                    )
+                                } else if case .day(let key) = row.id {
+                                    DayDivider(day: key, calendar: model.calendar)
+                                }
+                            }
+                            .padding(.top, row.gap)
+                            .id(row.id)
                         }
                         if days.isEmpty {
                             Text("Nothing yet. The line below is yours.")
@@ -80,12 +140,19 @@ struct PageView: View {
                         }
                     }
                     .scrollTargetLayout()
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 20)
                     .contentShape(Rectangle())
                     .onTapGesture { putKeyboardAway() }
                 }
                 .scrollPosition($position, anchor: .top)
                 .defaultScrollAnchor(.bottom)
+                // Asked for here, after the page has been given the new row, not in the same
+                // breath as the line being stored.
+                .onChange(of: landed) { _, landing in
+                    guard let landing else { return }
+                    landed = nil
+                    withAnimation(Motion.settle) { position.scrollTo(id: Row.ID.line(landing.line), anchor: landing.anchor) }
+                }
                 .scrollDismissesKeyboard(.interactively)
                 .onScrollGeometryChange(for: Bool.self) { geometry in
                     geometry.contentOffset.y + geometry.containerSize.height >= geometry.contentSize.height - 2
@@ -141,7 +208,8 @@ struct PageView: View {
                     model: model,
                     onPick: { key in
                         showCalendar = false
-                        withAnimation(Motion.settle) { position.scrollTo(id: key, anchor: .top) }
+                        guard let start = start(of: key) else { return }
+                        withAnimation(Motion.settle) { position.scrollTo(id: start, anchor: .top) }
                     },
                     onTag: { tag in
                         afterCalendar = .thing(tag)
@@ -289,21 +357,17 @@ struct PageView: View {
         Haptic.store()
         let day = model.notebook.entry(stored).map { DayKey($0.startedAt, calendar: model.calendar) } ?? model.today
         if day == model.today {
-            // The end of today, by the day's own id: a section the lazy stack has only just
-            // been given has no measured height yet, so a move to the page's bottom edge
-            // lands past the end of it, on nothing. The day is found once it is laid out.
-            withAnimation(Motion.settle) { position.scrollTo(id: day, anchor: .bottom) }
+            // Today's line comes to rest at the foot of the page, above the live line.
+            landed = Landing(line: stored, anchor: .bottom)
         } else {
-            reveal(stored, on: day)
+            reveal(stored)
         }
     }
 
-    /// The page goes to the day in one motion and marks the line for a moment.
-    private func reveal(_ id: ULID, on day: DayKey) {
-        withAnimation(Motion.settle) {
-            position.scrollTo(id: day, anchor: .top)
-            revealed = id
-        }
+    /// The page goes to the line itself, wherever its day is, and marks it for a moment.
+    private func reveal(_ id: ULID) {
+        landed = Landing(line: id, anchor: .center)
+        withAnimation(Motion.settle) { revealed = id }
         Task {
             try? await Task.sleep(for: .seconds(2))
             withAnimation(.easeOut(duration: 0.8)) {
@@ -430,39 +494,6 @@ struct PinnedHeader: View {
         case 14...60: return "\(days / 7) weeks ago"
         default: return "\(days) days ago"
         }
-    }
-}
-
-/// One day and its lines.
-struct DaySection: View {
-    let day: Day
-    @Bindable var model: NotebookModel
-    let isToday: Bool
-    let revealed: ULID?
-    @Binding var editingRow: ULID?
-    let onOpen: (ULID) -> Void
-    let onOpenPhoto: (PhotoOpening) -> Void
-    let zoom: Namespace.ID
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if !isToday {
-                DayDivider(day: day.key, calendar: model.calendar)
-            }
-            ForEach(day.entries) { entry in
-                EntryRow(
-                    entry: entry,
-                    model: model,
-                    revealed: revealed == entry.id,
-                    editingRow: $editingRow,
-                    onOpen: { onOpen(entry.id) },
-                    onOpenPhoto: onOpenPhoto,
-                    zoom: zoom
-                )
-                .id(entry.id)
-            }
-        }
-        .padding(.bottom, isToday ? 8 : 18)
     }
 }
 
