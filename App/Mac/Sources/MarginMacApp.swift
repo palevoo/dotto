@@ -10,7 +10,7 @@ struct MarginMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {
-        Window("dotto", id: AppDelegate.windowID) {
+        Window(Identity.name, id: AppDelegate.windowID) {
             MainWindow(delegate: delegate)
         }
         .windowResizability(.contentSize)

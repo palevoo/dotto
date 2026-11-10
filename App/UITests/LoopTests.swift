@@ -7,11 +7,7 @@ final class LoopTests: XCTestCase {
 
     override func setUp() {
         continueAfterFailure = false
-        app = XCUIApplication()
-        app.launchArguments = ["-uitest-seed-photos"]
-        app.launch()
-        let keep = app.buttons["Keep it on this phone for now"]
-        if keep.waitForExistence(timeout: 2) { keep.tap() }
+        app = .onAFreshNotebook(seeded: true)
     }
 
     /// Through the date to Setup, to Loops. The seed's proposal waits; Set it, and it runs.

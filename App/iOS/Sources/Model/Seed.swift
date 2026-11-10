@@ -14,6 +14,7 @@ enum Seed {
     ]
 
     static func runIfAsked(_ model: NotebookModel) async {
+        seedYesterdayIfAsked(model)
         guard ProcessInfo.processInfo.arguments.contains("-uitest-seed-photos") else { return }
         let line: ULID
         if let existing = model.notebook.entries.first(where: { $0.text == words }) {
@@ -92,6 +93,30 @@ enum Seed {
         }
         model.reload()
     }
+
+    /// `-uitest-seed-yesterday <n>`: n lines of the owner's on the day before today, enough to
+    /// make that day taller than the screen, so the page can be tried on the first line of a
+    /// new day. Made once per notebook.
+    static func seedYesterdayIfAsked(_ model: NotebookModel) {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-uitest-seed-yesterday"), arguments.indices.contains(flag + 1),
+              let count = Int(arguments[flag + 1]), count > 0,
+              !model.notebook.entries.contains(where: { $0.text == yesterdayLine(1) }),
+              let morning = model.calendar.date(byAdding: .day, value: -1, to: model.calendar.startOfDay(for: Date()))?.addingTimeInterval(9 * 3600)
+        else { return }
+        let ids = ULIDGenerator()
+        let owner = model.store.manifest.owner
+        let events = (1...count).map { number -> Event in
+            let at = morning.addingTimeInterval(Double(number) * 60)
+            let id = ids.next(at: at)
+            return Event(id: id, author: owner, device: model.device, at: at,
+                         payload: .entryCreate(.init(entry: id, text: yesterdayLine(number), startedAt: at)))
+        }
+        try? model.store.append(events)
+        model.reload()
+    }
+
+    static func yesterdayLine(_ number: Int) -> String { "A line from yesterday, number \(number)" }
 
     static let walk = "Walk, 3.1 km, 41 min"
     static let thing = "the fig"

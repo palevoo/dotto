@@ -8,10 +8,7 @@ final class EditInPlaceTests: XCTestCase {
 
     override func setUp() {
         continueAfterFailure = false
-        app = XCUIApplication()
-        app.launch()
-        let keep = app.buttons["Keep it on this phone for now"]
-        if keep.waitForExistence(timeout: 2) { keep.tap() }
+        app = .onAFreshNotebook()
     }
 
     private var liveLine: XCUIElement { app.textViews["live-line"] }

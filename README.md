@@ -43,6 +43,19 @@ Identity canvas: https://claude.ai/artifact/21R7emDXUxPL4GJcizqLdn
     xcodebuild test -project App/Margin.xcodeproj -scheme Margin -destination 'id=<booted simulator>'
                                                # the live line driven as a thumb would, in App/UITests
 
+Every UI test launches the phone app on a notebook of its own, new and empty, under the
+simulator's temporary directory (`-uitest-notebook <name>`, debug builds only; see
+`App/UITests/Launch.swift`), so no test meets what another wrote and the day they run on does
+not matter. `-uitest-seed-photos` adds the lines the tests read; `-uitest-seed-yesterday <n>`
+adds n lines on the day before.
+
+dotto dev is the Mac app under another identity, for trying a change without touching the
+home or its notebook: its own bundle id, settings and keychain entries, the door on 27831,
+`⌃⌥⇧Space`, plum dots in the menu bar, and no loops ever (`App/Mac/Sources/Identity.swift`).
+
+    xcodebuild build -project App/Margin.xcodeproj -scheme MarginMacDev -derivedDataPath App/build/dev
+    open -n "App/build/dev/Build/Products/Debug/dotto dev.app" --args -dotto-folder /tmp/some-notebook
+
 The Xcode project file is generated. Change `App/project.yml`, then regenerate.
 Every build stamps the commit it was made from into the app (`App/Scripts/stamp.sh`):
 the phone shows it at the foot of Setup, the Mac in its window header, and the door says

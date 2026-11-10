@@ -44,7 +44,8 @@ final class Dot: NSObject, NSWindowDelegate, NSDraggingDestination {
     private func render(open: Bool, door: MacModel.Door, running: String?) {
         guard let button = item.button else { return }
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
-            (open ? NSColor(MacTheme.accent) : NSColor.black).setFill()
+            // dotto dev wears another colour, so it is never taken for the home.
+            (open ? NSColor(Identity.isDevelopment ? MacTheme.agent : MacTheme.accent) : NSColor.black).setFill()
             let side: CGFloat = 5.5
             let gap: CGFloat = 3
             let left = (18 - side * 2 - gap) / 2
@@ -58,9 +59,9 @@ final class Dot: NSObject, NSWindowDelegate, NSDraggingDestination {
         button.image = image
         var words: String
         switch door {
-        case .open: words = "dotto · the door is open"
-        case .closed: words = "dotto · the door is closed"
-        case .failed(let why): words = "dotto · \(why)"
+        case .open: words = "\(Identity.name) · the door is open"
+        case .closed: words = "\(Identity.name) · the door is closed"
+        case .failed(let why): words = "\(Identity.name) · \(why)"
         }
         if let running { words += " · \(running) is running" }
         button.toolTip = words
@@ -70,11 +71,11 @@ final class Dot: NSObject, NSWindowDelegate, NSDraggingDestination {
         let event = NSApp.currentEvent
         if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
             let menu = NSMenu()
-            let open = NSMenuItem(title: "Open dotto", action: #selector(openApp), keyEquivalent: "")
+            let open = NSMenuItem(title: "Open \(Identity.name)", action: #selector(openApp), keyEquivalent: "")
             open.target = self
             menu.addItem(open)
             menu.addItem(.separator())
-            menu.addItem(NSMenuItem(title: "Quit dotto", action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "Quit \(Identity.name)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: ""))
             // Shown once, from here, so the plain click stays the line's.
             item.menu = menu
             item.button?.performClick(nil)
@@ -118,8 +119,9 @@ final class Dot: NSObject, NSWindowDelegate, NSDraggingDestination {
 /// do. It needs no permission: the system tells us this one combination was pressed and
 /// nothing else about the keyboard.
 final class HotKey {
-    /// Option, Shift and Space.
-    static let words = "⌥⇧Space"
+    /// Option, Shift and Space; dotto dev adds Control, so the two can run side by side.
+    static let words = Identity.isDevelopment ? "⌃⌥⇧Space" : "⌥⇧Space"
+    private static let modifiers = UInt32(Identity.isDevelopment ? optionKey | shiftKey | controlKey : optionKey | shiftKey)
 
     private var key: EventHotKeyRef?
     private var handler: EventHandlerRef?
@@ -137,7 +139,7 @@ final class HotKey {
         }, 1, &spec, me, &handler)
         guard installed == noErr else { return nil }
         let id = EventHotKeyID(signature: OSType(0x646F_7474), id: 1)   // "dott"
-        let registered = RegisterEventHotKey(UInt32(kVK_Space), UInt32(optionKey | shiftKey), id, GetApplicationEventTarget(), 0, &key)
+        let registered = RegisterEventHotKey(UInt32(kVK_Space), Self.modifiers, id, GetApplicationEventTarget(), 0, &key)
         guard registered == noErr else {
             if let handler { RemoveEventHandler(handler) }
             handler = nil

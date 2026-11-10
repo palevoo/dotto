@@ -4,7 +4,7 @@ import SwiftUI
 @main
 struct NotebookApp: App {
     @UIApplicationDelegateAdaptor(PushDelegate.self) private var pushDelegate
-    @State private var model: NotebookModel? = Library.openRememberedNotebook()
+    @State private var model: NotebookModel? = Library.openAtLaunch()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {

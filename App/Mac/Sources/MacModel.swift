@@ -16,7 +16,7 @@ import Observation
 @MainActor
 @Observable
 final class MacModel {
-    static let defaultPort: UInt16 = 27830
+    static var defaultPort: UInt16 { Identity.port }
 
     private(set) var folderURL: URL?
     private(set) var store: FileStore?
@@ -73,7 +73,7 @@ final class MacModel {
     private var summaryTask: Task<Void, Never>?
 
     init() {
-        carryOverFromSandbox()
+        if Identity.carriesOver { carryOverFromSandbox() }
         restoreFolder()
         Task {
             await pusher.use(pushKey)
@@ -150,6 +150,11 @@ final class MacModel {
     }
 
     private func restoreFolder() {
+        // dotto dev, told its folder on the command line: used for this launch, not remembered.
+        if let named = Identity.folderArgument {
+            adopt(named, remember: false)
+            return
+        }
         guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return }
         var stale = false
         // A bookmark made while the app was sandboxed carries a security scope; it still resolves.
@@ -175,7 +180,7 @@ final class MacModel {
             self.store = store
             problem = nil
             shared.update(store: store)
-            if let notebook = try? store.load() { carryOverGrantsFiles(store, notebook) }
+            if Identity.carriesOver, let notebook = try? store.load() { carryOverGrantsFiles(store, notebook) }
             keepFresh(store)
             refreshSummary()
         } catch {
@@ -308,7 +313,7 @@ final class MacModel {
 
     private var supportDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Margin", isDirectory: true)
+            .appendingPathComponent(Identity.supportFolder, isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
     }
@@ -395,7 +400,7 @@ final class MacModel {
     /// Nil when this Mac does not hold the key.
     func connectCommand(for grant: Grant) -> String? {
         guard !grant.key.isEmpty else { return nil }
-        return "claude mcp add --transport http dotto http://127.0.0.1:\(port ?? Self.defaultPort)/mcp --header \"Authorization: Bearer \(grant.key)\""
+        return "claude mcp add --transport http \(Identity.serverName) http://127.0.0.1:\(port ?? Self.defaultPort)/mcp --header \"Authorization: Bearer \(grant.key)\""
     }
 
     // MARK: - Pushes
@@ -591,6 +596,7 @@ final class MacModel {
     /// set again, gone when it is stopped. A loop whose grant has no key on this Mac waits,
     /// and the window says so.
     private func syncLoops(_ store: FileStore, _ notebook: Notebook) {
+        guard Identity.runsLoops else { return }
         carryOverReaderSettings(store, notebook)
         let wanted = Dictionary(uniqueKeysWithValues: notebook.loops.map { ($0.id, $0) })
         for id in runners.keys where wanted[id] == nil || wanted[id]?.setBy != runners[id]?.loop.setBy {
@@ -670,7 +676,7 @@ final class DoorState: @unchecked Sendable {
 
 /// The keys this Mac holds, one per grant, in the keychain. The notebook has only hashes.
 enum GrantKeys {
-    private static let service = "social.interface.margin.mac.grant-keys"
+    private static let service = Identity.keychainService("grant-keys")
 
     static func key(for grant: ULID) -> String? {
         let query: [String: Any] = [

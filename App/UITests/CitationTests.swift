@@ -10,11 +10,7 @@ final class CitationTests: XCTestCase {
 
     override func setUp() {
         continueAfterFailure = false
-        app = XCUIApplication()
-        app.launchArguments = ["-uitest-seed-photos"]
-        app.launch()
-        let keep = app.buttons["Keep it on this phone for now"]
-        if keep.waitForExistence(timeout: 2) { keep.tap() }
+        app = .onAFreshNotebook(seeded: true)
     }
 
     /// Under the note, the cited line stands by its day and first words. Tap it and its own

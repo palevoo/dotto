@@ -194,7 +194,47 @@ targets:
         ENABLE_HARDENED_RUNTIME: false
         ENABLE_USER_SCRIPT_SANDBOXING: false
 
+  # dotto dev: the same Mac app under another identity, for trying a change without touching
+  # the home or its notebook. Its own bundle id, so its own settings and keychain entries;
+  # in code, Mac/Sources/Identity.swift gives it its own port, records folder and hotkey,
+  # and keeps it from running loops. Signed to run on this Mac only, so building it from a
+  # terminal asks for no certificate. Run it with `-dotto-folder <path>` to name its notebook.
+  MarginMacDev:
+    type: application
+    platform: macOS
+    sources:
+      - path: Mac/Sources
+    dependencies:
+      - package: Core
+        product: Core
+    info:
+      path: Mac/Info-Dev.plist
+      properties:
+        CFBundleDisplayName: dotto dev
+        LSApplicationCategoryType: public.app-category.productivity
+        NSHumanReadableCopyright: ""
+    postBuildScripts:
+      - name: Stamp Build
+        path: Scripts/stamp.sh
+    settings:
+      base:
+        SWIFT_VERSION: "5.0"
+        PRODUCT_NAME: dotto dev
+        PRODUCT_BUNDLE_IDENTIFIER: social.interface.margin.mac.dev
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        ENABLE_HARDENED_RUNTIME: false
+        ENABLE_USER_SCRIPT_SANDBOXING: false
+
 schemes:
+  # dotto dev from a terminal: xcodebuild build -scheme MarginMacDev
+  MarginMacDev:
+    build:
+      targets:
+        MarginMacDev: all
+    run:
+      config: Debug
   Margin:
     build:
       targets:

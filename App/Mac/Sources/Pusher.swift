@@ -53,7 +53,7 @@ actor Pusher {
 
 /// The push key on this Mac: the `.p8` text in the keychain, its id and the team beside it.
 enum PushKeyStore {
-    private static let service = "social.interface.margin.mac.push-key"
+    private static let service = Identity.keychainService("push-key")
     private static let keyIDKey = "margin.push.keyID"
     private static let teamIDKey = "margin.push.teamID"
 

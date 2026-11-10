@@ -9,6 +9,44 @@ enum Library {
     private static let ownerKey = "notebook.owner"
     private static let deviceKey = "notebook.device"
 
+    /// The notebook the app starts on: the folder picked last time, or, in a debug build
+    /// asked by a UI test, a notebook of that test's own.
+    static func openAtLaunch() -> NotebookModel? {
+        #if DEBUG
+        if let model = openTestNotebook() { return model }
+        #endif
+        return openRememberedNotebook()
+    }
+
+    #if DEBUG
+    /// For the UI tests: `-uitest-notebook <name>` opens a notebook of that name under the
+    /// temporary directory, made new and empty the first time it is named, so a test starts
+    /// from nothing and what it does is not there for the next one. The same name on a
+    /// relaunch within a test finds the same notebook. The folder remembered for ordinary
+    /// launches is neither read nor changed. Debug builds only.
+    private static func openTestNotebook() -> NotebookModel? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-uitest-notebook"), arguments.indices.contains(flag + 1) else { return nil }
+        let fm = FileManager.default
+        let name = "uitest-" + arguments[flag + 1].filter { $0.isLetter || $0.isNumber || $0 == "-" }
+        let root = fm.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
+        do {
+            if fm.fileExists(atPath: root.appendingPathComponent(FileStore.manifestName).path) {
+                return NotebookModel(store: try FileStore.open(root), device: device)
+            }
+            // A new test: earlier tests' notebooks go, and so does a line left half written.
+            for old in (try? fm.contentsOfDirectory(atPath: fm.temporaryDirectory.path)) ?? [] where old.hasPrefix("uitest-") {
+                try? fm.removeItem(at: fm.temporaryDirectory.appendingPathComponent(old))
+            }
+            UserDefaults.standard.removeObject(forKey: "notebook.draft")
+            return NotebookModel(store: try FileStore.create(at: root, owner: owner), device: device)
+        } catch {
+            NSLog("could not open the test notebook at \(root.path): \(error)")
+            return nil
+        }
+    }
+    #endif
+
     /// The folder picked last time, if it can still be reached.
     static func openRememberedNotebook() -> NotebookModel? {
         guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }

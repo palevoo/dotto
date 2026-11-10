@@ -7,11 +7,7 @@ final class TagTests: XCTestCase {
 
     override func setUp() {
         continueAfterFailure = false
-        app = XCUIApplication()
-        app.launchArguments = ["-uitest-seed-photos"]
-        app.launch()
-        let keep = app.buttons["Keep it on this phone for now"]
-        if keep.waitForExistence(timeout: 2) { keep.tap() }
+        app = .onAFreshNotebook(seeded: true)
     }
 
     /// A tag is a thing with a page: tapping it on a line's page opens the tag's page, headed

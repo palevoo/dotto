@@ -39,7 +39,7 @@ struct GrantsView: View {
                 Circle().fill(MacTheme.accent).frame(width: 9, height: 9)
             }
             .accessibilityLabel("dotto")
-            Text("dotto")
+            Text(Identity.name)
                 .font(.system(size: 30, weight: .medium, design: .serif))
                 .foregroundStyle(MacTheme.foreground)
             Spacer()
