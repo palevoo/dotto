@@ -8,8 +8,13 @@ public struct Media: Hashable, Sendable, Identifiable {
     public var height: Int?
     public var duration: Double?
     public var at: Date
+    /// For a page kept beside the line: what it is called, and the address it came from.
+    public var title: String? = nil
+    public var source: String? = nil
 
     public var id: String { hash }
+    /// Words kept from what the line pointed at, not a photo or a voice.
+    public var isKept: Bool { mime.hasPrefix("text") }
 }
 
 /// A line under an entry, by anyone: a reply.
@@ -1294,10 +1299,11 @@ public struct Notebook: Sendable {
 
         case .mediaAttach(let p):
             guard !entry.media.contains(where: { $0.hash == p.hash }) else { return }
-            entry.media.append(Media(hash: p.hash, mime: p.mime, width: p.width, height: p.height, duration: p.duration, at: event.at))
+            entry.media.append(Media(hash: p.hash, mime: p.mime, width: p.width, height: p.height, duration: p.duration, at: event.at,
+                                     title: p.title, source: p.source))
             entry.media.sort { ($0.at, $0.hash) < ($1.at, $1.hash) }
             if event.id > entry.id {
-                note(&entry, event, p.mime.hasPrefix("audio") ? "added a voice note" : "added a photo")
+                note(&entry, event, p.mime.hasPrefix("audio") ? "added a voice note" : p.mime.hasPrefix("text") ? "kept what it points at" : "added a photo")
             }
 
         case .noteAdd(let p):

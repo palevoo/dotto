@@ -242,6 +242,7 @@ final class MacModel {
         for runner in runners.values { runner.wake(store) }
         pushAddresses = (try? store.pushAddresses()) ?? []
         scheduleDuePushes(notebook)
+        openWhatLinesPointAt(store, notebook)
         let days = notebook.days(calendar: .current)
         var text = "\(notebook.entries.count) lines over \(days.count) days"
         if let last = days.last?.key { text += " · last \(last)" }
@@ -281,6 +282,31 @@ final class MacModel {
             refreshSummary()
         } catch {
             problem = "Could not write to the notebook: \(error)"
+        }
+    }
+
+    // MARK: - What the owner's lines point at
+
+    /// What has been tried since the app opened, so an address that would not open is not
+    /// asked for again and again.
+    private var opened: Set<String> = []
+
+    /// The owner wrote a line with a link in it: this Mac, the owner's own, opens exactly
+    /// that address and keeps its words beside the line, as the owner's event from here.
+    /// Only the owner's own lines, only the last day's, each address once. What is kept
+    /// wakes the reading like anything that lands, and it reads the page as part of the line.
+    private func openWhatLinesPointAt(_ store: FileStore, _ notebook: Notebook) {
+        for (entry, url) in notebook.unopened(since: Date().addingTimeInterval(-86_400)) {
+            guard opened.insert("\(entry)|\(url.absoluteString)").inserted else { continue }
+            Task { [weak self] in
+                guard let page = await Opener.open(url), let self, self.store?.root == store.root else { return }
+                do {
+                    let hash = try store.storeMedia(Data(page.kept(from: url).utf8), fileExtension: "md")
+                    self.write(.mediaAttach(.init(entry: entry, hash: hash, mime: "text/markdown", title: page.title, source: url.absoluteString)))
+                } catch {
+                    self.problem = "Could not keep \(url.absoluteString): \(error)"
+                }
+            }
         }
     }
 

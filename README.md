@@ -83,6 +83,12 @@ named as left out, for now. The clipboard is read when you paste and a drop when
 it; nothing is watched, and none of it needs a permission. The dots are persimmon while the
 door is open. What a paste or a drop becomes is decided in Core (`Arrival.swift`), under test.
 
+A line of yours with a link in it points at something. The Mac opens exactly that address
+and keeps its words beside the line, like a photo: a web page or a PDF, with its title and
+where it came from. Only links in your own lines, only addresses out on the web, nothing of
+yours sent. Whoever reads the line then reads what it pointed at, through `read_kept`, and
+nobody who reads has to reach outside. The row on the phone says `kept:` and its title.
+
 ## The folder
 
     <notebook>/

@@ -356,7 +356,8 @@ public enum Inbox {
                 changed.append("\(p.entry) is gone")
             case .mediaAttach(let p):
                 guard notebook.entry(p.entry) != nil else { continue }
-                let kind = p.mime.hasPrefix("image") ? "a photo" : p.mime.hasPrefix("audio") ? "a voice note" : p.mime.hasPrefix("video") ? "a video" : "a file"
+                let kind = p.mime.hasPrefix("image") ? "a photo" : p.mime.hasPrefix("audio") ? "a voice note" : p.mime.hasPrefix("video") ? "a video"
+                    : p.mime.hasPrefix("text") ? "what it points at, kept beside it (\(p.title ?? p.source ?? "a page"); read_kept to read it)" : "a file"
                 changed.append("\(p.entry) got \(kind): \(words(p.entry))")
             case .noteRemove(let p):
                 let whose = noteAuthors[p.note] == me ? "your note" : "a note"

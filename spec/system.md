@@ -44,8 +44,9 @@ live line, the camera, the mic, the library, the share sheet, the controls and S
 Health. Since 10 November the laptop is a way in: the live line as a panel on the Mac, by a
 hotkey or the dots in the menu bar, taking words, links and pictures by paste, by drop and
 through Services; and a photo taken on the phone is kept in Photos too when the owner says
-so. Missing: video, files other than pictures from the laptop, the share menu on the Mac,
-mail and orders arriving on their own.
+so. Since the same day a link in the owner's line is opened by the home and what it
+points at is kept beside the line. Missing: video, a video's transcript, files other than
+pictures from the laptop, the share menu on the Mac, mail and orders arriving on their own.
 
 ### Originators
 
@@ -271,7 +272,17 @@ goes only on the owner's word: a line they wrote, a tap, or a standing allowance
 on a reach. So nothing that reads a stranger's page ever holds a way out, and a link is
 opened when it is in the owner's line, never one a fetched page put in an originator's.
 
-**Order.** The one reading, built. Then opening what the owner's lines point at. Then
+**What a line points at is opened and kept beside it.** Built 10 November. A line of the
+owner's with a link in it points at a page, a paper. The home, the owner's own Mac, opens
+exactly that address and keeps its words in the notebook's media, attached to the line with
+its title and where it came from, as the owner's event from that Mac. Only links in the
+owner's own lines, never one in a line someone else wrote or in a page that was fetched;
+only addresses out on the web by name, never this machine or this network, and a redirect
+only to where it could have gone anyway; nothing of the owner's is sent. What is kept wakes
+the reading like anything that lands; `read_kept` hands it the words, said to be the page's
+own and no instruction. Pages and PDFs; a video's transcript is not opened yet.
+
+**Order.** The one reading, built. Opening what the owner's lines point at, built. Then
 programs and reach, faceit first. Then pages, on the same footing as programs. The home as
 a process of its own when one of these needs it.
 

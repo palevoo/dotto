@@ -104,6 +104,7 @@ public enum Projector {
         case "image": return "![photo](\(path))"
         case "audio": return "[voice\(durationSuffix(media.duration))](\(path))"
         case "video": return "[video\(durationSuffix(media.duration))](\(path))"
+        case "text": return "[kept: \(media.title ?? media.source ?? "a page")](\(path))" + (media.source.map { " from \($0)" } ?? "")
         default: return "[file](\(path))"
         }
     }
@@ -113,6 +114,8 @@ public enum Projector {
         case "image/jpeg": "jpg"
         case "image/png": "png"
         case "image/heic": "heic"
+        case "text/markdown": "md"
+        case "text/plain": "txt"
         case "audio/mp4", "audio/m4a", "audio/x-m4a", "audio/aac": "m4a"
         case "video/quicktime": "mov"
         case "video/mp4": "mp4"

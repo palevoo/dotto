@@ -158,7 +158,9 @@ struct EntryRow: View {
         for fact in entry.facts where seen.insert(fact.key).inserted {
             facts.append("\(fact.key) \(fact.value.words(calendar: model.calendar))")
         }
-        let parts = things + facts + entry.labels.map { "#\($0)" }
+        // What the line points at, once the home has opened it and kept it beside the line.
+        let kept = entry.media.filter(\.isKept).map { "kept: \($0.title ?? $0.source ?? "a page")" }
+        let parts = kept + things + facts + entry.labels.map { "#\($0)" }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 

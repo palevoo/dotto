@@ -663,18 +663,25 @@ public enum Payload: Hashable, Sendable {
         public var width: Int?
         public var height: Int?
         public var duration: Double?
+        /// For a page kept beside the line: what it is called, and the address it came from.
+        /// Since 10 November 2026.
+        public var title: String?
+        public var source: String?
 
-        public init(entry: ULID, hash: String, mime: String, width: Int? = nil, height: Int? = nil, duration: Double? = nil) {
+        public init(entry: ULID, hash: String, mime: String, width: Int? = nil, height: Int? = nil, duration: Double? = nil,
+                    title: String? = nil, source: String? = nil) {
             self.entry = entry
             self.hash = hash
             self.mime = mime
             self.width = width
             self.height = height
             self.duration = duration
+            self.title = title
+            self.source = source
         }
 
         enum CodingKeys: String, CodingKey {
-            case entry, hash, mime
+            case entry, hash, mime, title, source
             case width = "w"
             case height = "h"
             case duration = "dur"
