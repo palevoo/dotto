@@ -100,7 +100,7 @@ struct GrantsView: View {
             case .asking:
                 EmptyView()
             }
-            way("The two dots in the menu bar", "click for the line; drag a picture, a screenshot's thumbnail, a link or words onto them.")
+            way("The dot in the menu bar", "click for the line; drag a picture, a screenshot's thumbnail, a link or words onto it. It takes colour only while dotto is working.")
             way("Paste", "into the line: words, a link, or a picture. The clipboard is read only when you paste.")
             way("Services", "select words in any app, then its menu · Services · Keep in dotto.")
         }

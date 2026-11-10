@@ -75,15 +75,15 @@ in Setup, "Keep photos in Photos": the camera's own bytes at full size, with the
 place. It is asked for as add-only, so dotto puts photos in and reads nothing through it.
 
 On the Mac the live line is a small panel over whatever you are in: `⌥⇧Space`, or a click on
-the two dots in the menu bar. It takes the keys without taking the app you were in away from
+the dot in the menu bar. It takes the keys without taking the app you were in away from
 you. Return keeps the line, as yours, from this Mac; Esc puts it away with the words waiting;
 a click elsewhere puts an empty line away and leaves a begun one where it is. Paste words, a
 link or a picture into it; drag a picture, a screenshot's floating thumbnail, a link or words
-onto the dots or onto the line; or select words in any app and choose Services · Keep in
+onto the dot or onto the line; or select words in any app and choose Services · Keep in
 dotto. A link lands as its address; a picture is kept as the phone keeps one. Other files are
 named as left out, for now. The clipboard is read when you paste and a drop when you drop
-it; nothing is watched, and none of it needs a permission. The dots are persimmon while the
-door is open. What a paste or a drop becomes is decided in Core (`Arrival.swift`), under test.
+it; nothing is watched, and none of it needs a permission. The mark in the menu bar is one dot: the menu bar's own colour at rest,
+persimmon only while dotto is working, hollow when the door is closed. What a paste or a drop becomes is decided in Core (`Arrival.swift`), under test.
 
 A line of yours with a link in it points at something. The Mac opens exactly that address
 and keeps its words beside the line, like a photo: a web page or a PDF, with its title and
