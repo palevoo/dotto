@@ -36,6 +36,7 @@ struct NotebookApp: App {
                     model?.takeInbox()
                     Pushes.shared.refresh()
                     model?.photos.refresh()
+                    model?.refreshPlace()
                 // The live line keeps its words across a switch away; it is saved as it is typed.
                 case .background, .inactive: break
                 @unknown default: break

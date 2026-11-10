@@ -162,4 +162,36 @@ final class DamagedFileTests: XCTestCase {
         XCTAssertEqual(read.unreadable, [])
         XCTAssertEqual(JSONLines.read(Data()).events, [])
     }
+
+    /// A notebook moved into a folder that holds an older copy of the same file: what was
+    /// written since is brought over, nothing twice.
+    func testMovingOntoAnOlderCopyBringsWhatWasWrittenSince() throws {
+        let store = try FileStore.create(at: root, owner: owner)
+        let first = line("before the folder went away")
+        try store.append(first)
+        let file = store.eventFile(author: owner, device: "phone")
+        // The older copy, as the folder had it.
+        let older = root.appendingPathComponent("older.jsonl")
+        try FileManager.default.copyItem(at: file, to: older)
+        try store.append(line("a week on the phone"))
+        try store.append(line("and another line"))
+
+        XCTAssertEqual(try FileStore.mergeEvents(from: file, into: older), 2)
+        XCTAssertEqual(JSONLines.read(try Data(contentsOf: older)).events.map(\.id),
+                       JSONLines.read(try Data(contentsOf: file)).events.map(\.id))
+        XCTAssertEqual(try FileStore.mergeEvents(from: file, into: older), 0, "a second time brings nothing")
+    }
+
+    func testAFactValueOfAKindNotKnownHereIsCarried() throws {
+        let fact = ULID()
+        let raw = #"{"at":"2026-11-10T10:00:00.000Z","author":"moss","device":"mac","id":"\#(fact.string)","kind":"fact.set","payload":{"key":"mood","on":"\#(ULID().string)","value":{"scale":{"of":5,"at":4}}}}"#
+        let read = JSONLines.read(Data(raw.utf8))
+        XCTAssertEqual(read.unreadable, [], "the line reads")
+        let event = try XCTUnwrap(read.events.first)
+        guard case .factSet(let set) = event.payload, case .unknown = set.value else { return XCTFail("the value is carried as it was") }
+        // And writes back with the same value.
+        let again = try JSONLines.decode(try JSONLines.encode(event))
+        XCTAssertEqual(again, event)
+        XCTAssertEqual(set.value.words(calendar: .current), "a value a newer build wrote")
+    }
 }

@@ -681,7 +681,10 @@ public struct Door: Sendable {
                 guard let when = ISO8601.date(from: raw) else { throw Failure.badDay(raw) }
                 startedAt = when
             }
-            let id = generator.next(at: startedAt)
+            // The line's moment may be ahead, a booking, a class on Saturday. Its id is never
+            // ahead of now: an id is the order things were written in, and a change to the
+            // line written tomorrow has to come after it.
+            let id = generator.next(at: min(startedAt, now))
             try write(Event(id: id, author: grant.author, device: grant.device, at: now,
                             payload: .entryCreate(.init(entry: id, text: text, startedAt: startedAt, page: notebook.owner))))
             return .text("Added to the owner's page as \(id), under your name.")

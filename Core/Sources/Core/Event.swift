@@ -60,6 +60,9 @@ public enum FactValue: Hashable, Sendable, Codable {
     case moment(Date)
     case span(TimeInterval)
     case place(Location)
+    /// A kind of value this build does not know, kept as it was written, so a fact set by a
+    /// newer build reads, counts and writes back unchanged here, and never costs the file.
+    case unknown(JSONValue)
 
     enum CodingKeys: String, CodingKey {
         case number, unit, words, moment, span, place
@@ -78,13 +81,20 @@ public enum FactValue: Hashable, Sendable, Codable {
         } else if let place = try container.decodeIfPresent(Location.self, forKey: .place) {
             self = .place(place)
         } else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "A fact value names its kind: number, words, moment, span or place."))
+            // The vocabulary grows by addition here too: what is not one of the five is carried.
+            self = .unknown(try JSONValue(from: decoder))
         }
     }
 
     public func encode(to encoder: Encoder) throws {
+        if case .unknown(let value) = self {
+            try value.encode(to: encoder)
+            return
+        }
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
+        case .unknown:
+            break
         case .number(let number, let unit):
             try container.encode(number, forKey: .number)
             try container.encodeIfPresent(unit, forKey: .unit)
@@ -116,6 +126,8 @@ public enum FactValue: Hashable, Sendable, Codable {
             return "\(total / 86_400) d"
         case .place(let place):
             return String(format: "%.2f, %.2f", place.latitude, place.longitude)
+        case .unknown:
+            return "a value a newer build wrote"
         }
     }
 }

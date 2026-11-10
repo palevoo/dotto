@@ -121,6 +121,33 @@ public struct FileStore: Sendable {
         }
     }
 
+    /// Brings the events of one event file into another of the same author and device: every
+    /// event the target does not have yet, by id, appended in the order written. For a
+    /// notebook moved into a folder that already holds an older copy of the same file, where
+    /// skipping the file would lose what was written since. Returns how many were brought.
+    @discardableResult
+    public static func mergeEvents(from source: URL, into target: URL, rewriting rewrite: (Event) -> Event = { $0 }) throws -> Int {
+        let have = Set(JSONLines.read(try Data(contentsOf: target)).events.map(\.id))
+        let missing = JSONLines.read(try Data(contentsOf: source)).events.map(rewrite).filter { !have.contains($0.id) }
+        guard !missing.isEmpty else { return 0 }
+        var bytes = Data()
+        let handle = try FileHandle(forUpdating: target)
+        defer { try? handle.close() }
+        let end = try handle.seekToEnd()
+        if end > 0 {
+            try handle.seek(toOffset: end - 1)
+            if try handle.read(upToCount: 1) != Data([UInt8(ascii: "\n")]) { bytes.append(UInt8(ascii: "\n")) }
+            try handle.seekToEnd()
+        }
+        for event in missing {
+            bytes.append(Data(try JSONLines.encode(event).utf8))
+            bytes.append(UInt8(ascii: "\n"))
+        }
+        try handle.write(contentsOf: bytes)
+        try handle.synchronize()
+        return missing.count
+    }
+
     /// Every event in every file, sorted by id.
     public func loadEvents() throws -> [Event] {
         try loadEventsByFile().flatMap(\.events).sorted { $0.id < $1.id }

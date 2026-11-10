@@ -20,7 +20,8 @@ final class NotebookModel {
     private(set) var draft = Draft() {
         didSet {
             persistDraft()
-            if oldValue.begun == nil, draft.begun != nil { location.ask() }
+            // Never a prompt while writing: a fix is asked for only where the phone already allows it.
+            if oldValue.begun == nil, draft.begun != nil { location.refresh() }
         }
     }
     private static let draftKey = "notebook.draft"
@@ -88,8 +89,15 @@ final class NotebookModel {
     }
 
     /// Asks the phone, once, whether lines may keep their place. Refused, the answer lives in Settings.
+    /// Only Setup asks.
     func allowLocation() {
         location.ask()
+    }
+
+    /// The app came to the front: where the phone is now is found out, so the next line has
+    /// it by the time Return is pressed. Nothing is asked of the person.
+    func refreshPlace() {
+        location.refresh()
     }
 
     /// Walks from Health, switched on from Setup. From then on each one is a line.
@@ -240,7 +248,7 @@ final class NotebookModel {
     /// A photo the camera just made goes into Photos too, when Setup says so, as the camera
     /// made it and where the phone is.
     func keepInPhotos(_ data: Data) {
-        photos.keep(data, at: Date(), location: location.last)
+        photos.keep(data, at: Date(), location: location.place(at: Date()))
     }
 
     /// A photo from the library, with what it knows about itself: the original file through
@@ -276,25 +284,44 @@ final class NotebookModel {
                       payload: .noteAdd(.init(entry: entry, note: id, text: words)))])
     }
 
-    /// A voice note lands in the live line: its words as text you can fix, the audio behind them.
-    func addVoice(fileURL: URL, duration: TimeInterval, transcript: String, startedAt: Date) {
+    /// A voice note lands in the live line the moment it ends: the audio is kept in the
+    /// notebook and waits in the line, before any words are made from it, so a take is never
+    /// only a temporary file. Returns where the audio is kept, to be listened to for its
+    /// words, or nil if it could not be kept, in which case the recording is left where it was.
+    func addVoice(fileURL: URL, duration: TimeInterval, startedAt: Date) -> (hash: String, url: URL)? {
         do {
             let data = try Data(contentsOf: fileURL)
             let hash = try store.storeMedia(data, fileExtension: "m4a")
             try? FileManager.default.removeItem(at: fileURL)
-            let now = Date()
             draft.add(DraftMedia(hash: hash, mime: "audio/mp4", duration: duration, at: startedAt),
-                      beginning: startedAt, now: now, calendar: calendar)
-            draft.append(transcript, now: now)
+                      beginning: startedAt, now: Date(), calendar: calendar)
+            return (hash, store.mediaURL(hash: hash, fileExtension: "m4a"))
         } catch {
             NSLog("voice failed: \(error)")
+            return nil
+        }
+    }
+
+    /// The words of a voice note, once they have been made. They join the live line if the
+    /// note is still waiting there. If Return came first, they become the words of the line
+    /// it was stored as, when that line has none. Otherwise the note was taken out, and the
+    /// words go with it.
+    func addWords(_ words: String, ofVoice hash: String) {
+        let said = words.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !said.isEmpty else { return }
+        if draft.media.contains(where: { $0.hash == hash }) {
+            draft.append(said, now: Date())
+        } else if let line = notebook.entries.last(where: { entry in
+            entry.author == store.manifest.owner && entry.text.isEmpty && entry.media.contains { $0.hash == hash }
+        }) {
+            edit(line.id, text: said)
         }
     }
 
     /// Stores the live line as one entry. Returns its id, or nil if there was nothing to store.
     @discardableResult
     func commitDraft() -> ULID? {
-        guard let stored = draft.stored(by: store.manifest.owner, on: device, here: location.last, ids: generator,
+        guard let stored = draft.stored(by: store.manifest.owner, on: device, here: draft.begun.flatMap { location.place(at: $0) }, ids: generator,
                                         now: Date(), calendar: calendar) else {
             draft = Draft()
             return nil
@@ -450,7 +477,18 @@ final class NotebookModel {
 /// Coordinates, captured once with permission, named later through the door. Never a prompt while writing.
 final class LocationSpy: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
-    private(set) var last: Location?
+    private var last: (place: Location, at: Date)?
+    /// How old a fix may be and still be where a line was written.
+    private static let fresh: TimeInterval = 120
+
+    /// Where the phone was at a moment: the last fix, if it was found out no earlier than
+    /// two minutes before that moment. A line long in the writing keeps the place it began
+    /// in. An older fix is where the phone was before, at home before the drive, and a line
+    /// would rather keep no place than the wrong one.
+    func place(at moment: Date) -> Location? {
+        guard let last, last.at >= moment.addingTimeInterval(-Self.fresh) else { return nil }
+        return last.place
+    }
     var onChange: ((CLAuthorizationStatus) -> Void)?
 
     override init() {
@@ -461,12 +499,19 @@ final class LocationSpy: NSObject, CLLocationManagerDelegate {
 
     var status: CLAuthorizationStatus { manager.authorizationStatus }
 
+    /// From Setup: asks the phone for permission if it has not been asked, else for a fix.
     func ask() {
         switch manager.authorizationStatus {
         case .notDetermined: manager.requestWhenInUseAuthorization()
         case .authorizedWhenInUse, .authorizedAlways: manager.requestLocation()
         default: break
         }
+    }
+
+    /// A fix, where the phone already allows it. Never a prompt.
+    func refresh() {
+        let status = manager.authorizationStatus
+        if status == .authorizedWhenInUse || status == .authorizedAlways { manager.requestLocation() }
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -479,7 +524,7 @@ final class LocationSpy: NSObject, CLLocationManagerDelegate {
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let fix = locations.last else { return }
-        last = Location(latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude, accuracy: fix.horizontalAccuracy)
+        last = (Location(latitude: fix.coordinate.latitude, longitude: fix.coordinate.longitude, accuracy: fix.horizontalAccuracy), fix.timestamp)
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}

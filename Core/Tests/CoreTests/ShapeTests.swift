@@ -165,7 +165,11 @@ final class ShapeTests: XCTestCase {
             XCTAssertEqual(String(decoding: data, as: UTF8.self), json)
             XCTAssertEqual(try JSONLines.decoder().decode(FactValue.self, from: data), value)
         }
-        XCTAssertThrowsError(try JSONLines.decoder().decode(FactValue.self, from: Data(#"{"colour":"red"}"#.utf8)))
+        // A kind of value not known here is carried as it was, and written back the same.
+        let newer = Data(#"{"colour":"red"}"#.utf8)
+        let carried = try JSONLines.decoder().decode(FactValue.self, from: newer)
+        XCTAssertEqual(carried, .unknown(.object(["colour": .string("red")])))
+        XCTAssertEqual(try JSONLines.encoder().encode(carried), newer)
     }
 
     func testTheInboxShowsThingsAndFactsAsProposals() {

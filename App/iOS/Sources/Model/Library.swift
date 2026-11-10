@@ -95,7 +95,20 @@ enum Library {
                 for name in (try? fm.contentsOfDirectory(atPath: sourceDir.path)) ?? [] {
                     let source = sourceDir.appendingPathComponent(name)
                     let target = targetDir.appendingPathComponent(name)
-                    if fm.fileExists(atPath: target.path) { continue }
+                    if fm.fileExists(atPath: target.path) {
+                        // An event file of the same name is already there: an older copy of
+                        // this one, from before the notebook was kept on the phone for a
+                        // while. What was written since is brought into it; skipping it
+                        // would lose those lines when the folder here is removed. Photos
+                        // and day pages of the same name are the same thing already.
+                        if relative == "events" {
+                            let old = store.manifest.owner
+                            try FileStore.mergeEvents(from: source, into: target) { event in
+                                newOwner.map { reauthored(event, from: old, to: $0) } ?? event
+                            }
+                        }
+                        continue
+                    }
                     if relative == "events", let newOwner, newOwner != store.manifest.owner {
                         let events = try JSONLines.decodeAll(try String(contentsOf: source, encoding: .utf8))
                         let text = try events

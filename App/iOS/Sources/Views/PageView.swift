@@ -387,10 +387,12 @@ struct PageView: View {
     private func finishVoice() {
         guard let take = recorder.stop() else { return }
         Haptic.touch()
+        // The audio is in the line before its words are made; the words follow.
+        guard let kept = model.addVoice(fileURL: take.fileURL, duration: take.duration, startedAt: take.startedAt) else { return }
+        keyboard = .liveLine
         Task {
-            let transcript = await Voice.transcribe(take.fileURL)
-            model.addVoice(fileURL: take.fileURL, duration: take.duration, transcript: transcript, startedAt: take.startedAt)
-            keyboard = .liveLine
+            let transcript = await Voice.transcribe(kept.url)
+            model.addWords(transcript, ofVoice: kept.hash)
         }
     }
 

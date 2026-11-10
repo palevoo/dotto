@@ -144,10 +144,13 @@ enum Transcriber {
         let status = await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { continuation.resume(returning: $0) }
         }
-        guard status == .authorized, let recognizer = SFSpeechRecognizer(locale: .current), recognizer.isAvailable else { return "" }
+        // Only on this device, as the phone was told when it was asked. A language the phone
+        // cannot hear by itself gets no words; the voice note is kept all the same.
+        guard status == .authorized, let recognizer = SFSpeechRecognizer(locale: .current), recognizer.isAvailable,
+              recognizer.supportsOnDeviceRecognition else { return "" }
         let request = SFSpeechURLRecognitionRequest(url: url)
         request.shouldReportPartialResults = false
-        request.requiresOnDeviceRecognition = recognizer.supportsOnDeviceRecognition
+        request.requiresOnDeviceRecognition = true
         return await withCheckedContinuation { continuation in
             var finished = false
             recognizer.recognitionTask(with: request) { result, error in

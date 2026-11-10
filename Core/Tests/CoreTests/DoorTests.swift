@@ -325,6 +325,20 @@ final class DoorTests: XCTestCase {
         XCTAssertTrue(bad.contains("Not a day"))
     }
 
+    /// A line whose moment is ahead, a class on Saturday, can still be changed today: its id
+    /// is of when it was written, so the change comes after it on every device.
+    func testALineDatedAheadCanStillBeChanged() throws {
+        let ahead = ISO8601.string(from: Date().addingTimeInterval(10 * 86_400))
+        let reply = text(try rpc("tools/call", ["name": "add_line", "arguments": ["text": "Aula at nine", "at": ahead]]))
+        let id = try XCTUnwrap(reply.split(separator: " ").compactMap { ULID(String($0).trimmingCharacters(in: .punctuationCharacters)) }.first)
+        XCTAssertLessThanOrEqual(id, ULID(), "the id is not ahead of now")
+        XCTAssertEqual(try store.load().entry(id)?.startedAt.timeIntervalSince1970 ?? 0,
+                       ISO8601.date(from: ahead)!.timeIntervalSince1970, accuracy: 0.001, "the moment is")
+
+        _ = try rpc("tools/call", ["name": "edit_line", "arguments": ["entry": id.string, "text": "Aula at half past nine"]])
+        XCTAssertEqual(try store.load().entry(id)?.text, "Aula at half past nine")
+    }
+
     func testANoteCitesTheLinesItSpeaksOf() throws {
         let olives = try store.load().entries.first { $0.text == "Olives in" }!
         let reply = text(try rpc("tools/call", ["name": "add_note", "arguments": ["entry": wall.string, "text": "Same as the olives.", "cites": [olives.id.string]]]))
