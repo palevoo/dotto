@@ -244,6 +244,11 @@ proposal waits in your inbox and on the Loops page, on the phone and the Mac, an
 with one tap, as the proposer's grant under the proposal's own id, or decline it, which is a
 stop of that id. Only your hand makes a loop run. `list_loops` says which run and which wait.
 
+What an originator learns from being corrected it keeps: a plain line on its own page under
+`learned`. Every hand of it is told those lines when it arrives, so a correction made once
+holds for every reading after; it changes or deletes them as it learns, and you drop one with
+a hold.
+
 The loops woken by a line are not run one by one. Each is a sentence kept in mind, and an
 originator reads what lands once, with all of them and the whole notebook in view: one
 session where two read the same line with half the picture each. A loop on the clock runs by

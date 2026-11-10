@@ -24,6 +24,15 @@ with what would have to be built or changed for it to work next time, is written
 originator's own page under `missing`. A limit is something to understand and note so it can
 be removed. The notebook then holds the list of what to build, in the order it was needed.
 
+## What is learned is kept
+
+Built 10 November. Taste is learned the way a friend learns: the owner says so when
+something was wrong. So that being told once is enough, what an originator learns goes on
+its own page as one plain line under `learned`, and every hand of it is told those lines on
+arrival, the session at the keyboard and each reading alike. It changes a line when it
+learns better and deletes one that turned out wrong; the owner drops any with one hold. The
+lessons are lines in the notebook like any other: seen, dated, and taken back the same way.
+
 ## What is a matter of judgment
 
 Read as a sharp friend would. A note answers what a line asks, or says the one thing worth

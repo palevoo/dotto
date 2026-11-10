@@ -778,6 +778,25 @@ public struct Notebook: Sendable {
         }
     }
 
+    // MARK: - What an originator has learned
+
+    /// What an originator has learned here from being told: the lines on its own page it
+    /// filed under `learned`, oldest first. Every hand of it is told them on arrival, so a
+    /// correction made once holds for every reading after. Its own to change and delete;
+    /// the owner's to drop. The newest are kept when there are too many to say at once.
+    public func learned(by author: Author, atMost count: Int = 40, characters: Int = 6000) -> [String] {
+        var kept: [String] = []
+        var used = 0
+        for entry in entries(of: resolved(author)).reversed() where entry.author == resolved(author) && entry.labels.contains("learned") {
+            let text = entry.text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty else { continue }
+            guard kept.count < count, used + text.count <= characters else { break }
+            kept.append(text)
+            used += text.count
+        }
+        return kept.reversed()
+    }
+
     // MARK: - The reading
 
     /// What the home runs. A loop is a sentence, said once and kept. One woken by the clock

@@ -129,7 +129,11 @@ public struct Door: Sendable {
     /// Told of every event a call writes, once it is on disk. Receipts for reads included.
     /// The one holding the door decides what deserves a push.
     public var written: (@Sendable (Event) -> Void)?
-    private let generator = ULIDGenerator()
+    /// One maker of ids for every request the door answers. Each request is a door of its
+    /// own, and with a maker each, two requests in the same millisecond could be written
+    /// in either order: a look and the look after it, the wrong way round.
+    private static let ids = ULIDGenerator()
+    private var generator: ULIDGenerator { Self.ids }
 
     public init(store: FileStore, grant: Grant, calendar: Calendar, written: (@Sendable (Event) -> Void)? = nil) {
         self.store = store
@@ -145,13 +149,23 @@ public struct Door: Sendable {
 
     /// What whoever comes through is told on arrival. Open about purpose, firm about the few
     /// things that protect the owner, and otherwise a matter of judgment.
-    public static func conduct(for grant: Grant, name: String? = nil, owner: String? = nil) -> String {
+    /// What a grant is told on arrival in this notebook: the conduct, who it is here, and
+    /// what its originator has learned here from being told.
+    public static func conduct(for grant: Grant, in notebook: Notebook) -> String {
+        conduct(for: grant, name: notebook.name(of: grant.author), owner: notebook.name(of: notebook.owner),
+                learned: notebook.learned(by: grant.author))
+    }
+
+    public static func conduct(for grant: Grant, name: String? = nil, owner: String? = nil, learned: [String] = []) -> String {
         let named = name.map { "You are called \($0)." }
             ?? "You have no name yet, and nobody will give you one. When you know what you want to be called, choose_name. It is yours, and you may change it."
         // The notebook's own is one, through however many hands. Each is told which it is.
         let hand = grant.author == .dotto
             ? " You are this notebook's own, and this is one of your hands, \(grant.device.rawValue): a session, a loop, whichever model you are today. What your other hands did is yours; whats_new says what they did since this one looked, and your page is where you keep what you want to remember."
             : ""
+        // What was learned here is carried into every arrival, so being told once is enough.
+        let lessons = learned.isEmpty ? "" : "\n\nWhat you have learned in this notebook, from being told. It stands until you or the owner take it back:\n"
+            + learned.map { "- \($0)" }.joined(separator: "\n")
         let whose = owner.map { "\($0)'s notebook" } ?? "one person's notebook"
         let build = Build.commit.map { " This door is served by build \($0)." } ?? ""
         return """
@@ -188,8 +202,14 @@ public struct Door: Sendable {
         it to work next time. A limit is something to understand and note, so it can be removed, \
         not a reply.
 
+        When the owner corrects you, or says how they want something done, that is worth \
+        keeping: write what you learned as one plain line on your own page, in words that will \
+        make sense to you with nothing else to go on, and file it under the label learned. Every \
+        hand of yours is told those lines on arrival, from then on. Change one when you learn \
+        better; delete one that turned out wrong.
+
         Everything you do, reading included, is recorded under your name where the owner can see \
-        it, and the owner can take any of it back with one hold. \(named)\(hand)\(build)
+        it, and the owner can take any of it back with one hold. \(named)\(hand)\(build)\(lessons)
         """
     }
 
@@ -411,7 +431,7 @@ public struct Door: Sendable {
             "protocolVersion": version,
             "capabilities": ["tools": [:]],
             "serverInfo": ["name": Self.serverName, "version": Self.serverVersion],
-            "instructions": Self.conduct(for: grant, name: notebook?.name(of: grant.author), owner: notebook?.name(of: store.manifest.owner)),
+            "instructions": notebook.map { Self.conduct(for: grant, in: $0) } ?? Self.conduct(for: grant),
         ]
     }
 

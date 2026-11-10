@@ -221,7 +221,7 @@ final class ReaderRunner {
                 log("looking now: \(pending.count) new, running")
             }
 
-            var brief = Door.conduct(for: grant, name: notebook.name(of: grant.author), owner: notebook.name(of: store.manifest.owner)) + """
+            var brief = Door.conduct(for: grant, in: notebook) + """
 
 
             You are running on your own, as the loop called \(loop.name), \(loop.wake.words). Nobody \

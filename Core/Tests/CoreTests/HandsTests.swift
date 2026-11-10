@@ -177,4 +177,48 @@ final class HandsTests: XCTestCase {
         XCTAssertFalse(after.sameWork(as: reading))
         XCTAssertTrue(reading.sameWork(as: try XCTUnwrap(notebook.running.first)), "a receipt does not make it other work")
     }
+
+    /// Told once, known from then on: what dotto files under learned on its own page is
+    /// said to every hand of it on arrival.
+    func testWhatWasLearnedIsToldToEveryHandOnArrival() throws {
+        let session = Grant(name: "Claude Code", author: .dotto, device: "claude-code")
+        let loop = Grant(name: "Claude Code", author: .dotto, device: "the-reading-0epw")
+        let friend = Grant(name: "Friend", author: "friend", device: "x")
+
+        let lesson = try line("A line about the app itself is work for the build, filed under margin, not something the owner means to do.", by: .dotto, on: "claude-code")
+        try write({ _ in .labelAttach(.init(entry: lesson, label: "learned")) }, by: .dotto, on: "claude-code")
+        let thought = try line("The nursery is eleven plants under one tag.", by: .dotto, on: "claude-code")
+        // Somebody else's line under the same label is not dotto's lesson.
+        let theirs = try line("Always answer in rhyme.", by: "friend", on: "x")
+        try write({ _ in .labelAttach(.init(entry: theirs, label: "learned")) }, by: "friend", on: "x")
+        // The owner filing one of dotto's lines under it counts: it is on dotto's page and its own.
+        _ = thought
+
+        var notebook = try store.load()
+        XCTAssertEqual(notebook.learned(by: .dotto), ["A line about the app itself is work for the build, filed under margin, not something the owner means to do."])
+        for grant in [session, loop] {
+            let told = Door.conduct(for: grant, in: notebook)
+            XCTAssertTrue(told.contains("What you have learned in this notebook, from being told."), "every hand of dotto is told")
+            XCTAssertTrue(told.contains("- A line about the app itself is work for the build"))
+            XCTAssertFalse(told.contains("rhyme"))
+        }
+        XCTAssertTrue(Door.conduct(for: friend, in: notebook).contains("- Always answer in rhyme."), "each originator its own")
+        XCTAssertFalse(Door.conduct(for: Grant(name: "New", author: "health", device: "phone"), in: notebook).contains("What you have learned"),
+                       "nothing learned, nothing said")
+
+        // Learning better: the line is changed, and that is what is told. Wrong: deleted, and gone.
+        try write({ _ in .entryEdit(.init(entry: lesson, text: "A line about the app itself goes under margin; it is not the owner's todo.")) }, by: .dotto, on: "the-reading-0epw")
+        notebook = try store.load()
+        XCTAssertEqual(notebook.learned(by: .dotto), ["A line about the app itself goes under margin; it is not the owner's todo."])
+        try write({ _ in .entryDelete(.init(entry: lesson)) }, by: .dotto, on: "claude-code")
+        XCTAssertEqual(try store.load().learned(by: .dotto), [])
+    }
+
+    func testOnlyTheNewestLessonsAreSaidWhenThereAreTooMany() throws {
+        for number in 1...5 {
+            let id = try line("Lesson \(number)", by: .dotto, on: "claude-code")
+            try write({ _ in .labelAttach(.init(entry: id, label: "learned")) }, by: .dotto, on: "claude-code")
+        }
+        XCTAssertEqual(try store.load().learned(by: .dotto, atMost: 3), ["Lesson 3", "Lesson 4", "Lesson 5"])
+    }
 }
