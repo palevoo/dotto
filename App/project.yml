@@ -155,6 +155,7 @@ targets:
     platform: macOS
     sources:
       - path: Mac/Sources
+      - path: Mac/Assets.xcassets
     dependencies:
       - package: Core
         product: Core
@@ -191,6 +192,7 @@ targets:
         # migration of the keychain and the folder choice is written, since a new id is a new app.
         PRODUCT_NAME: dotto
         PRODUCT_BUNDLE_IDENTIFIER: social.interface.margin.mac
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: false
         ENABLE_USER_SCRIPT_SANDBOXING: false
 
@@ -204,6 +206,7 @@ targets:
     platform: macOS
     sources:
       - path: Mac/Sources
+      - path: Mac/Assets.xcassets
     dependencies:
       - package: Core
         product: Core
@@ -221,6 +224,7 @@ targets:
         SWIFT_VERSION: "5.0"
         PRODUCT_NAME: dotto dev
         PRODUCT_BUNDLE_IDENTIFIER: social.interface.margin.mac.dev
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIconDev
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""

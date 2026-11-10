@@ -62,7 +62,9 @@ the phone shows it at the foot of Setup, the Mac in its window header, and the d
 it on arrival. A `+` after the commit means uncommitted changes were in the tree. Hold it
 against `git log` to know whether what is running is what the repository has.
 The icon: `swift App/Design/icon.swift App/iOS/Sources/Assets.xcassets/AppIcon.appiconset`, two dots on a sheet,
-dotto's eyes. The palette and type of 9 November are in `App/iOS/Common/Theme.swift`, `App/Mac/Sources/MacTheme.swift`
+dotto's eyes. The Mac's is the same sheet as a rounded square, drawn at each size the Mac asks for:
+`swift App/Design/icon.swift --mac App/Mac/Assets.xcassets/AppIcon.appiconset`, and with `--dev` into
+`AppIconDev.appiconset` for dotto dev, whose eyes are plum. The palette and type of 9 November are in `App/iOS/Common/Theme.swift`, `App/Mac/Sources/MacTheme.swift`
 and the top of `site/index.html`: a cool near-white ground, black ink, nothing coloured but the dot.
 
 ## Ways in
