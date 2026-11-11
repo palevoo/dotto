@@ -25,6 +25,7 @@ struct SetupView: View {
                 cloud
                 photos
                 location
+                weather
                 notifications
                 walks
                 loops
@@ -155,6 +156,43 @@ struct SetupView: View {
                 Action("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                 }
+            }
+        }
+    }
+
+    /// The weather where and when a line was written, found out afterwards from its place
+    /// and its hour. Off until switched on, since asking sends a rounded place out.
+    private var weather: some View {
+        let keeper = model.weather
+        let status = model.locationStatus
+        let placed = status == .authorizedWhenInUse || status == .authorizedAlways
+        return Step("Weather", done: keeper.isOn) {
+            if keeper.isOn {
+                Status("Each line with a place keeps the weather of its hour")
+                let waiting = keeper.waiting(in: model.notebook)
+                if waiting > 0 {
+                    Status("\(waiting) line\(waiting == 1 ? "" : "s") wait\(waiting == 1 ? "s" : "") for the weather, until the phone is online", pending: true)
+                }
+                if let trouble = keeper.trouble {
+                    // The source's refusal, in its words, where it can be read and reported.
+                    Status("Open-Meteo: \(trouble)")
+                }
+                Button { openURL(Weather.creditLink) } label: {
+                    Text(Weather.credit)
+                        .font(Theme.mono)
+                        .foregroundStyle(Theme.muted)
+                        .underline(color: Theme.faint)
+                }
+                .buttonStyle(.plain)
+                Action("Stop") { keeper.turnOff() }
+            } else {
+                Status("A line could keep the weather where and when it was written")
+                Status("Its place, rounded to a kilometre, and its day are sent to Open-Meteo. Nothing else")
+                if !placed {
+                    Status("Lines keep no place yet, so there is nothing to ask about. See Location")
+                }
+                Action("Keep the weather") { keeper.turnOn(); keeper.fill() }
+                    .accessibilityIdentifier("weather-on")
             }
         }
     }

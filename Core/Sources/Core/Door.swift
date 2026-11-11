@@ -215,6 +215,11 @@ public struct Door: Sendable {
         It is also simply yours: what you got wrong, what you don't follow, what you think, about \
         the notebook or not. Under your own lines it is a conversation; say what it takes.
 
+        A line written on the phone may say where it was written, to about a kilometre, and \
+        the weather there at that hour and over the day before it. The weather is the \
+        forecast model's value for that square of land, not a measurement on it: lean on it \
+        for what a plant, a harvest or a walk has been through, and say about, not exactly.
+
         Never answer a line with what you cannot do. When a line asks for something this door \
         does not let you do, do the part you can, and write on your own page, under the label \
         missing, exactly what stood in the way and what would have to be built or changed for \
@@ -885,6 +890,7 @@ public struct Door: Sendable {
         if let done = entry.done { tail.append(done.by.map { "[done by \($0)]" } ?? "[done]") }
         tail.append(contentsOf: entry.belongsTo.compactMap { link in notebook.thing(link.to).flatMap { $0.isTag ? nil : "[with \($0.name)]" } })
         tail.append(contentsOf: entry.standingFacts.map { "[\($0.key) \($0.value.words(calendar: calendar))]" })
+        if let conditions = entry.conditions, !conditions.brief.isEmpty { tail.append("[weather \(conditions.brief)]") }
         tail.append(contentsOf: entry.labels.map { "#\($0)" })
         let day = DayKey(entry.startedAt, calendar: calendar)
         return "\(entry.id)  \(day) \(Projector.time(entry.startedAt, calendar: calendar))  \(text)\(tail.isEmpty ? "" : "  " + tail.joined(separator: " "))"

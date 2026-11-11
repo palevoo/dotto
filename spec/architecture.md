@@ -72,6 +72,10 @@ Kinds, as built:
                     hash, may}                       notebook keeps the key's SHA-256, never the key
     grant.revoke   {grant}                           the key stops opening the door
 
+Added since, by addition only: links, done, things, facts, shapes, loops, and
+`conditions.set {entry, source, temperature, sky, …}`, what it was like where and when a
+line was written, with `conditions.remove {entry}`. spec/system.md has each design.
+
 Grants are the owner's events, so every device holding the folder knows the same grants and
 any of them can serve the door. The author is the identity; a grant is one key for it, and
 an author may hold several over time. Only the owner's grant events count; the fold drops

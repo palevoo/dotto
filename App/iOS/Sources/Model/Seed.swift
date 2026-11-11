@@ -14,6 +14,12 @@ enum Seed {
     ]
 
     static func runIfAsked(_ model: NotebookModel) async {
+        // A test's notebook is new, and so is what Setup has switched on: the weather is off
+        // until a test says otherwise, and no test ever asks the real source.
+        if ProcessInfo.processInfo.arguments.contains("-uitest-notebook") {
+            model.weather.turnOff()
+            model.weather.ask = { try Weather.Hours(data: answer(to: $0)) }
+        }
         seedYesterdayIfAsked(model)
         guard ProcessInfo.processInfo.arguments.contains("-uitest-seed-photos") else { return }
         let line: ULID
@@ -123,6 +129,19 @@ enum Seed {
                       payload: .factSet(.init(on: quiet.id, key: "break", value: .moment(Date().addingTimeInterval(-86_400))))),
             ])
         }
+        // A line with a place and nothing said about its weather yet: what Setup's switch fills.
+        if !model.notebook.entries.contains(where: { $0.text == placed }) {
+            let at = Date().addingTimeInterval(-600)
+            let id = ULID(timestamp: at)
+            try? model.store.append(Event(id: id, author: model.store.manifest.owner, device: model.device, at: at,
+                                          payload: .entryCreate(.init(entry: id, text: placed, startedAt: at,
+                                                                      location: Location(latitude: 39.4712, longitude: -8.1987, accuracy: 20)))))
+        }
+        // The weather where and when the quiet line was written, as the source would say it.
+        if let quiet = model.notebook.entries.first(where: { $0.text == plain }), quiet.conditions == nil {
+            try? model.store.append(Event(id: ULID(), author: .weather, device: model.device, at: Date(),
+                                          payload: .conditionsSet(.init(entry: quiet.id, conditions: weather))))
+        }
         // The seed has looked: everything written so far is taken in, so the lines it left
         // nothing under are read with nothing said.
         if !model.notebook.visits.contains(where: { $0.author == seed && $0.read.what == .inbox }),
@@ -164,6 +183,25 @@ enum Seed {
     static let streak = "no sugar"
     static let keptTitle = "Rooting fig cuttings"
     static let keptWords = "Take a cutting in late summer. Keep it in water until roots show, then pot it."
+
+    static let weather = Conditions(source: Weather.source, temperature: 14.2, sky: 61, daylight: true, humidity: 82, wind: 12, windFrom: 310,
+                                    rain: 0.4, rainBefore: 3.1, low: 9, high: 17.4)
+    static let placed = "Olives under the nets"
+
+    /// What the source would send for a question: every hour from the day before the first
+    /// line to the hour after the last, overcast and still, with a little rain each hour.
+    static func answer(to ask: Weather.Ask) -> Data {
+        let first = (ask.lines.map(\.at).min() ?? Date()).addingTimeInterval(-26 * 3600)
+        let last = (ask.lines.map(\.at).max() ?? Date()).addingTimeInterval(2 * 3600)
+        let start = (first.timeIntervalSince1970 / 3600).rounded(.down) * 3600
+        let count = Int((last.timeIntervalSince1970 - start) / 3600) + 1
+        func row(_ value: String) -> String { "[" + Array(repeating: value, count: count).joined(separator: ",") + "]" }
+        let times = (0..<count).map { String(Int(start) + $0 * 3600) }.joined(separator: ",")
+        return Data("""
+        {"hourly":{"time":[\(times)],"temperature_2m":\(row("11.0")),"relative_humidity_2m":\(row("90")),"precipitation":\(row("0.1")),\
+        "weather_code":\(row("3")),"wind_speed_10m":\(row("4")),"wind_direction_10m":\(row("180")),"is_day":\(row("1"))}}
+        """.utf8)
+    }
 
     static let walk = "Walk, 3.1 km, 41 min"
     static let thing = "the fig"

@@ -57,6 +57,13 @@ struct LineView: View {
                             .foregroundStyle(Theme.faint)
                             .padding(.top, 2)
                     }
+                    if let conditions = entry.conditions {
+                        // What it was like there at that hour. One quiet line; the rest on a tap.
+                        WeatherRow(conditions: conditions, calendar: model.calendar) {
+                            withAnimation(Motion.settle) { model.removeConditions(entry.id) }
+                        }
+                        .padding(.top, 2)
+                    }
                 }
 
                 ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in

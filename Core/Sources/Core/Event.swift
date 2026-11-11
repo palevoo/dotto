@@ -172,6 +172,8 @@ public enum Kind: String, Codable, Sendable, CaseIterable {
     case same = "same"
     case shapeSet = "shape.set"
     case shapeRemove = "shape.remove"
+    case conditionsSet = "conditions.set"
+    case conditionsRemove = "conditions.remove"
 }
 
 /// What happened. One case per kind, each with a fixed shape.
@@ -207,6 +209,9 @@ public enum Payload: Hashable, Sendable {
     /// What the things of a kind have: the newest word for a kind stands.
     case shapeSet(KindShape)
     case shapeRemove(ShapeRemove)
+    /// What it was like where and when a line was written, said afterwards by a source.
+    case conditionsSet(ConditionsSet)
+    case conditionsRemove(ConditionsRemove)
     /// A kind this build does not know, from a device on a newer one. Carried as it was,
     /// counted, written back unchanged, and nothing else: the vocabulary grows by addition,
     /// so an older reader passes over what it cannot read yet.
@@ -245,6 +250,8 @@ public enum Payload: Hashable, Sendable {
         case .same: .same
         case .shapeSet: .shapeSet
         case .shapeRemove: .shapeRemove
+        case .conditionsSet: .conditionsSet
+        case .conditionsRemove: .conditionsRemove
         case .unknown: nil
         }
     }
@@ -814,6 +821,8 @@ extension Event: Codable {
         case .same: .same(try container.decode(Payload.Same.self, forKey: .payload))
         case .shapeSet: .shapeSet(try container.decode(KindShape.self, forKey: .payload))
         case .shapeRemove: .shapeRemove(try container.decode(Payload.ShapeRemove.self, forKey: .payload))
+        case .conditionsSet: .conditionsSet(try container.decode(Payload.ConditionsSet.self, forKey: .payload))
+        case .conditionsRemove: .conditionsRemove(try container.decode(Payload.ConditionsRemove.self, forKey: .payload))
         }
     }
 
@@ -856,6 +865,8 @@ extension Event: Codable {
         case .same(let p): try container.encode(p, forKey: .payload)
         case .shapeSet(let p): try container.encode(p, forKey: .payload)
         case .shapeRemove(let p): try container.encode(p, forKey: .payload)
+        case .conditionsSet(let p): try container.encode(p, forKey: .payload)
+        case .conditionsRemove(let p): try container.encode(p, forKey: .payload)
         }
     }
 }

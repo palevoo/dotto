@@ -45,7 +45,8 @@ Health. Since 10 November the laptop is a way in: the live line as a panel on th
 hotkey or the dots in the menu bar, taking words, links and pictures by paste, by drop and
 through Services; and a photo taken on the phone is kept in Photos too when the owner says
 so. Since the same day a link in the owner's line is opened by the home and what it
-points at is kept beside the line. Missing: video, a video's transcript, files other than
+points at is kept beside the line. Since 11 November a line with a place says the weather
+there at its hour; see the design below. Missing: video, a video's transcript, files other than
 pictures from the laptop, the share menu on the Mac, mail and orders arriving on their own.
 
 ### Originators
@@ -400,6 +401,60 @@ are redrawn when it is.
 
 **Not done, on purpose.** The screen for talking to a thing, which comes with pages.
 
+## The weather of a line, the design
+
+Decided and built 11 November. From the notebook: the owner's line of 4 November, weather
+and other conditions at the time of a line, not only location; weather among the
+integrations wanted; a fig that lost its leaves, answered from the season because nothing
+said how cold the nights had been.
+
+**The weather follows from when and where, and a line already has both.** So nothing new
+is captured and writing costs what it did. It is found out afterwards and said once per
+line. With no signal it is said when the phone is back, and the answer is the same; a line
+from June gets it like a line from today.
+
+**It is not a mark on the line.** A fact is a word someone put on a line, a proposal the
+owner may drop, told of in the inbox. The weather is what the line's own stamp comes to,
+and every line gets one, so it is an event of its own, `conditions.set`: the line beside
+the values, one per line, the newest word standing. It makes no inbox row, is no news,
+wakes no reading, and is not in Logs; the line's History says it once. The owner takes it
+off a line with one hold, `conditions.remove`, and that is final. The same family as
+naming a place, which is still to come.
+
+**What is said**: at the line's hour, the temperature, the sky, the wind and where it came
+from, the humidity, the rain; and over the day before it, the 24 hours up to that hour, how
+much fell, the coldest and the warmest, which is what a plant or a harvest has just been
+through. Kept metric; a page says it in the reader's units. A value not known is left out.
+
+**It is the weather model's value for that square of land, not a measurement on it.** The
+page says so, and the door tells whoever reads to say about, not exactly. A station on the
+land would be another source, under its own name, and its word would stand over the
+model's by being newer.
+
+**The source is Weather, an originator with no page**, called so without being named, as
+dotto is. Its values come from Open-Meteo, whose data may be kept and passed on (CC BY 4.0,
+credited where the weather is shown and in Setup). Apple's weather was the first choice and
+cannot be used: its licence forbids storing the data, keeping it in a database of one's
+own, and fetching the past in bulk (Developer Program License Agreement, attachment 8, 1.5
+and 1.6), and keeping it is the whole point.
+
+**The phone asks, not the home**, so nothing waits on a Mac being awake: when the notebook
+is read, when a line is written, and when the phone becomes reachable again. Lines within
+a kilometre and a few days of each other are one question. What is sent is the place
+rounded to a hundredth of a degree, about a kilometre, and a span of days; no id, no
+cookie, nothing else. Because that goes to someone outside, it is off until switched on in
+Setup, which says what leaves before anything does. Asking and reading the answer are in
+Core, so the home can do the same once it runs by itself.
+
+**How it shows.** On the line's page, under the time and the place, one quiet line:
+"14°C · light rain". A tap opens the rest. Nothing on the day page. The day files and the
+door say where a line was written, to about a kilometre, and the weather in one row.
+
+**Not done, on purpose.** The day's weather on the day header: a day is at no one place
+until places have names. Sunrise, moon and daylight length, which follow from the place
+and the date and need no source. A line written on the Mac, which has no place. Soil,
+and anything else only an instrument on the land knows.
+
 ## The cases, run through
 
 A quote photo: one capture, linked to the work, on the shelf page, a loop fetching the
@@ -419,7 +474,10 @@ the test the parts keep passing.
 - Pages as definitions over shapes.
 - Lines stand somewhere: read and written since 10 November. A reply as a full line on
   the screen, with its photos, facts and todo, is what is left; see above.
-- A named place: a place fact is coordinates; what calls it the nursery is not built.
+- A named place: a place fact is coordinates; what calls it the nursery is not built. The
+  day's weather on the day header and weather for lines from the Mac both wait on it.
+- Open-Meteo is free for use that earns nothing. When dotto is sold, the weather needs
+  their paid plan or their open-source server run by us.
 - Where loops run and pages are served, the home; media leaving the phone. Both parked,
   and both gate loops and pages.
 - The old names: Margin and weeju in code, bundle ids and the conduct note. They stay

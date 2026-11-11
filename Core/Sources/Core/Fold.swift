@@ -231,6 +231,12 @@ public struct Entry: Hashable, Sendable, Identifiable {
     public var done: Done?
     /// Facts on this line, by key then by originator.
     public var facts: [Fact] = []
+    /// What it was like where and when the line was written, once a source has said, and
+    /// who said it. Not a mark on the line: what its own when and where come to.
+    public var conditions: Conditions?
+    public var conditionsFrom: Author?
+    /// Whether the weather is settled: said, or taken off by the owner, which is final.
+    public var conditionsSettled = false
 
     /// The thread back: earlier lines this one carries on from.
     public var carriesOn: [Link] { outgoing.filter { $0.toKind == .line } }
@@ -449,6 +455,15 @@ public struct Notebook: Sendable {
     private var factMarks: [FactKey: Newest<FactMark>] = [:]
     /// The fact keys on each line or thing, so its facts can be read back without a scan.
     private var factsOn: [ULID: Set<FactKey>] = [:]
+    /// Per line, the newest word on what it was like where and when it was written.
+    private var conditionMarks: [ULID: Newest<ConditionsMark>] = [:]
+    /// Lines whose weather the owner took off. Final: a source saying it again changes nothing.
+    private var droppedConditions: Set<ULID> = []
+
+    private struct ConditionsMark: Hashable, Sendable {
+        let conditions: Conditions
+        let author: Author
+    }
 
     private struct FactKey: Hashable, Sendable {
         let on: ULID
@@ -559,7 +574,8 @@ public struct Notebook: Sendable {
         let event = resolved(written)
         // Only the owner opens or closes the door, and only the owner sets or stops a loop.
         if let kind = event.kind, [.grantCreate, .grantRevoke, .loopSet, .loopStop].contains(kind), event.author != owner { return }
-        if event.author != owner, !others.contains(event.author) { others.append(event.author) }
+        // A source that only says the weather writes no lines and has no page to list.
+        if event.author != owner, !others.contains(event.author), event.kind != .conditionsSet { others.append(event.author) }
 
         switch event.payload {
         case .entryCreate(let p):
@@ -606,6 +622,9 @@ public struct Notebook: Sendable {
 
         case .factSet, .factRemove:
             fact(event)
+
+        case .conditionsSet, .conditionsRemove:
+            weather(event)
 
         case .noteRemove(let p):
             removeNote(event, p.note)
@@ -945,13 +964,14 @@ public struct Notebook: Sendable {
     /// but the notebook's own, which is dotto until it is named.
     public func name(of author: Author) -> String? {
         let author = resolved(author)
-        return names[author]?.value ?? (author == .dotto ? "dotto" : nil)
+        return names[author]?.value ?? (author == .dotto ? "dotto" : author == .weather ? "Weather" : nil)
     }
 
     /// Every name, by author id: the chosen ones, and dotto's own once it has done anything.
     public var chosenNames: [Author: String] {
         var all = names.mapValues(\.value)
         if all[.dotto] == nil, others.contains(.dotto) { all[.dotto] = "dotto" }
+        if all[.weather] == nil { all[.weather] = "Weather" }
         return all
     }
 
@@ -1264,6 +1284,45 @@ public struct Notebook: Sendable {
         if things[id] != nil { things[id]!.facts = facts }
     }
 
+    /// What it was like where and when a line was written. The newest word stands, from
+    /// whichever source; the owner takes it off with one hold, and that is final. Said on
+    /// the line's own history and not in the notebook's log: every line gets one, and a
+    /// log of them would be a log of nothing.
+    private mutating func weather(_ event: Event) {
+        let id: ULID
+        switch event.payload {
+        case .conditionsSet(let p):
+            id = p.entry
+            conditionMarks.mark(id, ConditionsMark(conditions: p.conditions, author: event.author), by: event.id)
+        case .conditionsRemove(let p):
+            guard event.author == owner else { return }
+            id = p.entry
+            droppedConditions.insert(id)
+        default:
+            return
+        }
+        guard var entry = table[id] else {
+            // The line has not arrived yet; a reply has no weather of its own.
+            if noteToEntry[id] == nil { waiting[id, default: []].append(event) }
+            return
+        }
+        guard !entry.isDeleted else { return }
+        let dropped = droppedConditions.contains(id)
+        let mark = dropped ? nil : conditionMarks[id]
+        entry.conditions = mark?.conditions
+        entry.conditionsFrom = mark?.author
+        entry.conditionsSettled = dropped || mark != nil
+        if !entry.activity.contains(where: { $0.id == event.id }) {
+            if case .conditionsSet(let p) = event.payload {
+                record(&entry, event, "said what it was like here: \(p.conditions.brief.isEmpty ? p.conditions.words : p.conditions.brief)")
+            } else {
+                record(&entry, event, "took the weather off")
+            }
+        }
+        table[id] = entry
+        if case .conditionsRemove = event.payload { trace(event, "took the weather off", entry: id) }
+    }
+
     /// A line finished, or not after all. The newest word on the line wins; the event waits
     /// for a line not seen yet. `quietly` leaves no record of its own, for the older shape
     /// where the link already recorded it.
@@ -1320,6 +1379,7 @@ public struct Notebook: Sendable {
         case .linkAdd, .linkRemove, .link, .unlink, .done, .undone: return join(event)
         case .labelAttach, .labelDetach: return tag(event)
         case .factSet, .factRemove: return fact(event)
+        case .conditionsSet, .conditionsRemove: return weather(event)
         default: break
         }
 
@@ -1401,7 +1461,8 @@ public struct Notebook: Sendable {
             note(&entry, event, "changed a note", before: before)
 
         case .entryCreate, .noteRemove, .linkAdd, .linkRemove, .link, .unlink, .done, .undone, .visit, .nameSet, .grantCreate, .grantRevoke,
-             .loopSet, .loopStop, .loopRan, .thingSet, .thingRemove, .factSet, .factRemove, .loopPropose, .labelAttach, .labelDetach, .same, .shapeSet, .shapeRemove, .unknown:
+             .loopSet, .loopStop, .loopRan, .thingSet, .thingRemove, .factSet, .factRemove, .loopPropose, .labelAttach, .labelDetach, .same, .shapeSet, .shapeRemove,
+             .conditionsSet, .conditionsRemove, .unknown:
             break
         }
     }

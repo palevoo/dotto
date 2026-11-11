@@ -351,7 +351,9 @@ public enum Inbox {
                         about: nil, asks: false, answered: false, unread: fresh))
 
                 case .entryEdit, .entryDelete, .mediaAttach, .noteEdit, .noteRemove, .labelDetach, .linkRemove, .unlink, .undone,
-                     .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .thingRemove, .factRemove, .same, .shapeRemove, .unknown:
+                     .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .thingRemove, .factRemove, .same, .shapeRemove,
+                     .conditionsSet, .conditionsRemove, .unknown:
+                    // The weather of a line is on the line, and nothing to be told about.
                     continue
                 }
             }
@@ -479,7 +481,8 @@ public enum Inbox {
                 marks.append("\(who(event.author)) said what a \(p.kind) has: \(p.has.map(\.key).joined(separator: ", "))")
             case .shapeRemove(let p):
                 takenBack.append("\(who(event.author)) dropped what a \(p.kind) has")
-            case .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .same, .unknown:
+            case .visit, .grantCreate, .grantRevoke, .loopSet, .loopStop, .loopRan, .same, .conditionsSet, .conditionsRemove, .unknown:
+                // The weather of a line is read with the line; it is not news and wakes nobody.
                 continue
             }
         }

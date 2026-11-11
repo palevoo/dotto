@@ -53,6 +53,14 @@ public enum Projector {
             }
             threads += entry.belongsTo.compactMap { link in things[link.to].map { "with \($0)" } }
             threads += entry.standingFacts.map { "\($0.key) \($0.value.words(calendar: calendar)) · \(names[$0.author] ?? $0.author.rawValue)" }
+            // Where it was written, to about a kilometre, and what it was like there at that hour.
+            if let place = entry.location {
+                threads.append("where \(FactValue.place(place).words(calendar: calendar))")
+            }
+            if let conditions = entry.conditions {
+                let from = entry.conditionsFrom.map { " · \(names[$0] ?? $0.rawValue)" } ?? ""
+                threads.append("weather \(conditions.words)\(from)")
+            }
             if !threads.isEmpty {
                 lines.append("")
                 lines.append(contentsOf: threads.map { "_\($0)_" })

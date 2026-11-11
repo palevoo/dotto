@@ -33,6 +33,8 @@ final class NotebookModel {
     let walks = Walks()
     /// Photos taken here kept in Photos too, once switched on in Setup.
     let photos = PhotoKeeper()
+    /// The weather of each line with a place, once switched on in Setup.
+    let weather: WeatherKeeper
     private var watcher: FolderWatcher?
     private var cloudWatcher: CloudWatcher?
     /// Where photos and voice notes stand with iCloud. Nil when the folder is not in iCloud
@@ -60,7 +62,10 @@ final class NotebookModel {
         calendar.locale = Locale.autoupdatingCurrent
         self.calendar = calendar
         self.notebook = Notebook(owner: store.manifest.owner)
+        weather = WeatherKeeper(device: device)
         locationStatus = location.status
+        weather.notebook = { [weak self] in self?.notebook }
+        weather.write = { [weak self] events in self?.record(events) ?? false }
         location.onChange = { [weak self] status in self?.locationStatus = status }
         reload()
         restoreDraft()
@@ -77,6 +82,7 @@ final class NotebookModel {
             reloadSoon()
         }
         walks.resume { [weak self] walks in self?.add(walks) ?? false }
+        weather.resume()
     }
 
     /// Where this phone can be reached, kept in the folder for whoever holds it and the key.
@@ -105,6 +111,12 @@ final class NotebookModel {
     /// it by the time Return is pressed. Nothing is asked of the person.
     func refreshPlace() {
         location.refresh()
+        weather.fill()
+    }
+
+    /// The weather taken off a line: one hold, and no source says it again.
+    func removeConditions(_ entry: ULID) {
+        record(.conditionsRemove(.init(entry: entry)))
     }
 
     /// Walks from Health, switched on from Setup. From then on each one is a line.
@@ -179,6 +191,8 @@ final class NotebookModel {
             taken = Core.Inbox.taken(files: files, notebook: notebook)
             unreadable = read.reduce(0) { $0 + $1.unreadable.count }
             setNotices()
+            // Lines that arrived with a place, from here or another device, get their weather.
+            weather.fill()
         } catch {
             NSLog("reload failed: \(error)")
         }
@@ -357,6 +371,7 @@ final class NotebookModel {
         // Words that could not be written stay in the line.
         guard record(stored.events) else { return nil }
         draft = Draft()
+        weather.fill()
         return stored.id
     }
 
