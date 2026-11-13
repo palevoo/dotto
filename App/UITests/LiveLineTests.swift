@@ -1,7 +1,7 @@
 import XCTest
 
 /// The live line, driven as a thumb would: tap it, type, paste, press Return. Runs on a
-/// booted simulator with `xcodebuild test -scheme Margin`. The notebook on that simulator is
+/// booted simulator with `xcodebuild test -scheme Dotto`. The notebook on that simulator is
 /// whatever it has; a fresh one is kept on the phone when asked.
 final class LiveLineTests: XCTestCase {
     private var app: XCUIApplication!

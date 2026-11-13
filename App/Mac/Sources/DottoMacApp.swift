@@ -6,7 +6,7 @@ import SwiftUI
 /// its window. And a way in: the live line, from anywhere, by the hotkey, the two dots in the
 /// menu bar, a drop on them, or a selection sent through Services.
 @main
-struct MarginMacApp: App {
+struct DottoMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
     var body: some Scene {

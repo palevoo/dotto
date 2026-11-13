@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// Margin in the share sheet: what was shared, a place for a word or two, Return keeps it
+/// dotto in the share sheet: what was shared, a place for a word or two, Return keeps it
 /// as a line on today. Nothing to pick, nothing to file.
 final class ShareViewController: UIViewController {
     override func viewDidLoad() {
@@ -134,7 +134,7 @@ final class ShareModel {
     }
 
     func cancel() {
-        context?.cancelRequest(withError: NSError(domain: "social.interface.notebook.share", code: 0))
+        context?.cancelRequest(withError: NSError(domain: "dotto.share", code: 0))
     }
 }
 

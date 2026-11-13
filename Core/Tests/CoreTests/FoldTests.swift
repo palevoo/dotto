@@ -394,6 +394,27 @@ final class FoldTests: XCTestCase {
         XCTAssertEqual(notebook.entries, [])
     }
 
+    /// A source hands the same thing over again to an app put on again. A line an originator
+    /// already said at that moment is known, dropped or not, and another moment is not.
+    func testWhatASourceAlreadySaidIsKnownByItsMoment() {
+        let health: Author = "health"
+        // The moment the walk began. The clock here moves on with every event made.
+        let began = clock
+        let walk = ULID(timestamp: began)
+        var notebook = Notebook(owner: me)
+        XCTAssertFalse(notebook.hasLine(by: health, startedAt: began))
+        notebook.apply(event(.entryCreate(.init(entry: walk, text: "Walk, 4.2 km, 52 min", startedAt: began, page: me)), author: health))
+        XCTAssertTrue(notebook.hasLine(by: health, startedAt: began))
+        XCTAssertTrue(notebook.hasLine(by: health, startedAt: began.addingTimeInterval(0.4)), "the same moment, to the second")
+        XCTAssertFalse(notebook.hasLine(by: health, startedAt: began.addingTimeInterval(90)), "a later walk is another line")
+        XCTAssertFalse(notebook.hasLine(by: me, startedAt: began), "the owner wrote nothing then")
+
+        // Dropped by the owner, it is still known: it does not come back.
+        notebook.apply(event(.entryDelete(.init(entry: walk)), author: me))
+        XCTAssertNil(notebook.entry(walk))
+        XCTAssertTrue(notebook.hasLine(by: health, startedAt: began))
+    }
+
     /// A loop is the owner's event: set, stopped, run with a receipt. Only the owner sets or
     /// stops one; the newest set stands; a receipt shows in the log.
     func testLoopsAreTheOwnersEvents() {

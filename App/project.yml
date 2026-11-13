@@ -1,6 +1,6 @@
-name: Margin
+name: Dotto
 options:
-  bundleIdPrefix: social.interface
+  bundleIdPrefix: works.dotto
   deploymentTarget:
     iOS: "18.0"
     macOS: "14.0"
@@ -11,15 +11,20 @@ packages:
   Core:
     path: ../Core
 
+# Who signs, the prefix every id is made from, and the version: Config/Base.xcconfig, with
+# your own team and prefix in Config/Signing.xcconfig beside it, which git ignores.
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+
 settingGroups:
   signing:
     CODE_SIGN_STYLE: Automatic
-    DEVELOPMENT_TEAM: DX6JVUPRA4
     SWIFT_VERSION: "5.0"
     ENABLE_USER_SCRIPT_SANDBOXING: true
 
 targets:
-  Margin:
+  Dotto:
     type: application
     platform: iOS
     sources:
@@ -29,13 +34,13 @@ targets:
     dependencies:
       - package: Core
         product: Core
-      - target: MarginControls
-      - target: MarginShare
+      - target: DottoControls
+      - target: DottoShare
     entitlements:
-      path: iOS/Margin.entitlements
+      path: iOS/Dotto.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.social.interface.notebook
+          - group.$(BUNDLE_PREFIX)
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.background-delivery: true
         # Pushes. Xcode turns this into production for TestFlight and the store on its own.
@@ -44,6 +49,13 @@ targets:
       path: iOS/Sources/Info.plist
       properties:
         CFBundleDisplayName: dotto
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # The group the app and its share sheet keep things in for each other.
+        DottoAppGroup: group.$(BUNDLE_PREFIX)
+        # Only the system's own encryption is used, for connections and for hashes, so the
+        # export question Apple asks of every upload is answered here once.
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -65,19 +77,16 @@ targets:
     settings:
       groups: [signing]
       base:
-        # The app is called dotto. The bundle id is kept from the first install so the notebook
-        # stored on the phone, the folder choice and the permissions stay; it changes only with a
-        # deliberate migration once the registers are checked.
         PRODUCT_NAME: dotto
-        PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).app
         TARGETED_DEVICE_FAMILY: "1"
         ENABLE_USER_SCRIPT_SANDBOXING: false
         INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
 
-  # Control Center, lock screen and Action button controls. Nothing but two buttons
+  # Control Center, lock screen and Action button controls. Nothing but three buttons
   # that open the app; the intents they press live in iOS/Shared.
-  MarginControls:
+  DottoControls:
     type: app-extension
     platform: iOS
     sources:
@@ -87,18 +96,24 @@ targets:
       path: Controls/Info.plist
       properties:
         CFBundleDisplayName: dotto
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    postBuildScripts:
+      - name: Stamp Build
+        path: Scripts/stamp.sh
     settings:
       groups: [signing]
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook.controls
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).app.controls
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: true
+        ENABLE_USER_SCRIPT_SANDBOXING: false
 
   # The share sheet. Keeps what was shared in the app group; the app takes it into the
   # notebook next time it is open. Theme, photo code and the inbox live in iOS/Common.
-  MarginShare:
+  DottoShare:
     type: app-extension
     platform: iOS
     sources:
@@ -111,6 +126,9 @@ targets:
       path: Share/Info.plist
       properties:
         CFBundleDisplayName: dotto
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        DottoAppGroup: group.$(BUNDLE_PREFIX)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
@@ -121,36 +139,40 @@ targets:
               NSExtensionActivationSupportsWebPageWithMaxCount: 1
               NSExtensionActivationSupportsImageWithMaxCount: 10
     entitlements:
-      path: Share/Margin.entitlements
+      path: Share/Dotto.entitlements
       properties:
         com.apple.security.application-groups:
-          - group.social.interface.notebook
+          - group.$(BUNDLE_PREFIX)
+    postBuildScripts:
+      - name: Stamp Build
+        path: Scripts/stamp.sh
     settings:
       groups: [signing]
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook.share
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).app.share
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: true
+        ENABLE_USER_SCRIPT_SANDBOXING: false
 
   # The phone app driven as a thumb would, on a booted simulator, headless:
-  # xcodebuild test -scheme Margin -destination 'id=<simulator>'. The proof for what a tap,
+  # xcodebuild test -scheme Dotto -destination 'id=<simulator>'. The proof for what a tap,
   # a key and a paste do.
-  MarginUITests:
+  DottoUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
       - path: UITests
     dependencies:
-      - target: Margin
+      - target: Dotto
     settings:
       groups: [signing]
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: social.interface.notebook.uitests
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).app.uitests
         GENERATE_INFOPLIST_FILE: true
         TARGETED_DEVICE_FAMILY: "1"
-        TEST_TARGET_NAME: Margin
+        TEST_TARGET_NAME: Dotto
 
-  MarginMac:
+  DottoMac:
     type: application
     platform: macOS
     sources:
@@ -163,10 +185,12 @@ targets:
       path: Mac/Info.plist
       properties:
         CFBundleDisplayName: dotto
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: ""
         # The team the push key belongs to, for the claim Apple checks.
-        MarginTeamID: $(DEVELOPMENT_TEAM)
+        DottoTeamID: $(DEVELOPMENT_TEAM)
         # What is selected in another app, sent to the live line from that app's Services menu.
         NSServices:
           - NSMenuItem:
@@ -188,10 +212,8 @@ targets:
     settings:
       groups: [signing]
       base:
-        # The app is called dotto; the bundle id stays until the registers are checked and a
-        # migration of the keychain and the folder choice is written, since a new id is a new app.
         PRODUCT_NAME: dotto
-        PRODUCT_BUNDLE_IDENTIFIER: social.interface.margin.mac
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).mac
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: false
         ENABLE_USER_SCRIPT_SANDBOXING: false
@@ -201,7 +223,7 @@ targets:
   # in code, Mac/Sources/Identity.swift gives it its own port, records folder and hotkey,
   # and keeps it from running loops. Signed to run on this Mac only, so building it from a
   # terminal asks for no certificate. Run it with `-dotto-folder <path>` to name its notebook.
-  MarginMacDev:
+  DottoMacDev:
     type: application
     platform: macOS
     sources:
@@ -214,6 +236,8 @@ targets:
       path: Mac/Info-Dev.plist
       properties:
         CFBundleDisplayName: dotto dev
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.productivity
         NSHumanReadableCopyright: ""
     postBuildScripts:
@@ -223,7 +247,7 @@ targets:
       base:
         SWIFT_VERSION: "5.0"
         PRODUCT_NAME: dotto dev
-        PRODUCT_BUNDLE_IDENTIFIER: social.interface.margin.mac.dev
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_PREFIX).mac.dev
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIconDev
         CODE_SIGN_STYLE: Manual
         CODE_SIGN_IDENTITY: "-"
@@ -232,21 +256,33 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: false
 
 schemes:
-  # dotto dev from a terminal: xcodebuild build -scheme MarginMacDev
-  MarginMacDev:
+  # The phone app: run it, test it, archive it for TestFlight.
+  Dotto:
     build:
       targets:
-        MarginMacDev: all
-    run:
-      config: Debug
-  Margin:
-    build:
-      targets:
-        Margin: all
-        MarginUITests: [test]
+        Dotto: all
+        DottoUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
-        - MarginUITests
+        - DottoUITests
+    archive:
+      config: Release
+  # The home: run it from Xcode, archive it for a release.
+  DottoMac:
+    build:
+      targets:
+        DottoMac: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  # dotto dev from a terminal: xcodebuild build -scheme DottoMacDev
+  DottoMacDev:
+    build:
+      targets:
+        DottoMacDev: all
+    run:
+      config: Debug

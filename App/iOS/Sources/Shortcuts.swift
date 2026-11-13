@@ -1,7 +1,7 @@
 import AppIntents
 
 /// The two presses, offered to Siri, Shortcuts and the Action button by name.
-struct MarginShortcuts: AppShortcutsProvider {
+struct DottoShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: WriteIntent(),

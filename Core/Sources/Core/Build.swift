@@ -5,9 +5,9 @@ import Foundation
 /// app on the device is the one in the repository. Nil outside a stamped app.
 public enum Build {
     /// Short commit hash, with a trailing "+" when the tree had uncommitted changes.
-    public static let commit: String? = Bundle.main.infoDictionary?["MarginCommit"] as? String
+    public static let commit: String? = Bundle.main.infoDictionary?["DottoCommit"] as? String
 
-    public static let builtAt: Date? = (Bundle.main.infoDictionary?["MarginBuiltAt"] as? String).flatMap {
+    public static let builtAt: Date? = (Bundle.main.infoDictionary?["DottoBuiltAt"] as? String).flatMap {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: $0)

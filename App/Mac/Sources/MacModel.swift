@@ -42,7 +42,7 @@ final class MacModel {
     }
     private(set) var problem: String?
     /// The push key on this Mac, if one has been chosen.
-    private(set) var pushKey: PushKey? = PushKeyStore.load()
+    private(set) var pushKey: PushKey?
     /// The phones the folder says can be reached.
     private(set) var pushAddresses: [PushAddress] = []
     /// What happened to the last push, in a sentence.
@@ -50,20 +50,18 @@ final class MacModel {
     /// The loops the notebook says run, each running here, by loop id.
     private(set) var runners: [ULID: ReaderRunner] = [:]
     /// The model the reader runs, empty for Claude Code's default.
-    var readerModel = UserDefaults.standard.string(forKey: "margin.reader.model") ?? "" {
+    var readerModel = "" {
         didSet {
-            UserDefaults.standard.set(readerModel, forKey: "margin.reader.model")
+            UserDefaults.standard.set(readerModel, forKey: Identity.Kept.readerModel)
             for runner in runners.values { runner.model = readerModel }
         }
     }
     /// Bumped whenever the reader's status or a run changes, so the window redraws.
     private(set) var readerTick = 0
 
-    private let bookmarkKey = "margin.folder.bookmark"
-    private let ownerKey = "margin.owner"
-    private let deviceKey = "margin.device"
-    private let readerOnKey = "margin.reader.on"
-    private let readerGrantKey = "margin.reader.grant"
+    private let bookmarkKey = Identity.Kept.folder
+    private let ownerKey = Identity.Kept.owner
+    private let deviceKey = Identity.Kept.device
     private let shared = DoorState()
     private let pusher = Pusher()
     private let generator = ULIDGenerator()
@@ -73,75 +71,14 @@ final class MacModel {
     private var summaryTask: Task<Void, Never>?
 
     init() {
-        if Identity.carriesOver { carryOverFromSandbox() }
+        // What the app kept under its earlier id comes over before anything is read.
+        if Identity.carriesOver { CarryOver.run() }
+        pushKey = PushKeyStore.load()
+        readerModel = UserDefaults.standard.string(forKey: Identity.Kept.readerModel) ?? ""
         restoreFolder()
         Task {
             await pusher.use(pushKey)
             await openDoor()
-        }
-    }
-
-    // MARK: - What the sandboxed app kept
-
-    /// The app used to run sandboxed, and kept its folder choice and the reader's records
-    /// inside its container. Without the sandbox it keeps them in the ordinary places, so on
-    /// launch anything still only in the container is brought over: the folder choice and
-    /// names when none is set here; the reader's log and runs when absent. Nothing in the
-    /// container is removed. The grants file it kept is carried into the notebook once the
-    /// folder is open, see `carryOverGrantsFiles`.
-    private func carryOverFromSandbox() {
-        let oldPrefs = Self.container.appendingPathComponent("Library/Preferences/social.interface.margin.mac.plist")
-        for name in [ReaderFiles.log, ReaderFiles.runs] {
-            let from = Self.oldSupport.appendingPathComponent(name)
-            let to = supportDirectory.appendingPathComponent(name)
-            if FileManager.default.fileExists(atPath: from.path), !FileManager.default.fileExists(atPath: to.path) {
-                try? FileManager.default.copyItem(at: from, to: to)
-            }
-        }
-        if let prefs = NSDictionary(contentsOf: oldPrefs) as? [String: Any] {
-            let defaults = UserDefaults.standard
-            for key in [bookmarkKey, ownerKey, "margin.reader.model"] where defaults.object(forKey: key) == nil {
-                if let value = prefs[key] { defaults.set(value, forKey: key) }
-            }
-        }
-    }
-
-    private static var container: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Containers/social.interface.margin.mac/Data", isDirectory: true)
-    }
-
-    private static var oldSupport: URL {
-        container.appendingPathComponent("Library/Application Support/Margin", isDirectory: true)
-    }
-
-    /// Grants used to be rows in a file of this app's own, with the keys in the clear. They
-    /// are the owner's events in the notebook now. Each row the fold does not know becomes a
-    /// `grant.create` with the key's hash, the key goes to the keychain, and the file, which
-    /// holds the keys in the clear, is removed, once everything in it is safely carried; a
-    /// copy set aside by an earlier build is removed too. Both places the file ever lived
-    /// are read.
-    private func carryOverGrantsFiles(_ store: FileStore, _ notebook: Notebook) {
-        let known = Set(notebook.allGrants.map(\.id))
-        for folder in [supportDirectory, Self.oldSupport] {
-            // What an earlier build set aside: the same keys, already carried.
-            try? FileManager.default.removeItem(at: folder.appendingPathComponent("grants.carried.json"))
-            let url = folder.appendingPathComponent("grants.json")
-            guard let data = try? Data(contentsOf: url), let rows = try? JSONLines.decoder().decode([Grant].self, from: data) else { continue }
-            var carried = true
-            for row in rows where row.device != "reader" {
-                var grant = row
-                if grant.device == "mac-door" { grant.device = Grant.device(for: grant.name) }
-                if !grant.key.isEmpty {
-                    do { try GrantKeys.save(grant.key, for: grant.id) } catch { carried = false }
-                }
-                guard !known.contains(grant.id) else { continue }
-                do {
-                    try store.append(Event(id: generator.next(at: grant.createdAt), author: store.manifest.owner, device: device, at: grant.createdAt,
-                                           payload: .grantCreate(grant.create)))
-                } catch { carried = false }
-            }
-            if carried { try? FileManager.default.removeItem(at: url) }
         }
     }
 
@@ -190,7 +127,6 @@ final class MacModel {
             self.store = store
             problem = nil
             shared.update(store: store)
-            if Identity.carriesOver, let notebook = try? store.load() { carryOverGrantsFiles(store, notebook) }
             keepFresh(store)
             refreshSummary()
         } catch {
@@ -462,7 +398,7 @@ final class MacModel {
             pushReport = "The file should be named as Apple named it, AuthKey_<id>.p8, so the key's id is known."
             return
         }
-        guard let teamID = Bundle.main.object(forInfoDictionaryKey: "MarginTeamID") as? String, !teamID.isEmpty else {
+        guard let teamID = Bundle.main.object(forInfoDictionaryKey: "DottoTeamID") as? String, !teamID.isEmpty else {
             pushReport = "This build carries no team id, so the claim could not be signed."
             return
         }
@@ -532,8 +468,13 @@ final class MacModel {
         }
         Task {
             let outcomes = await pusher.send(message, to: addresses)
+            // An address Apple says is no longer that phone's is forgotten: the app was deleted
+            // or put on again, and when it is back it writes a new one.
+            for outcome in outcomes where outcome.gone { try? store?.removePushAddress(of: outcome.device) }
             pushReport = outcomes.map { outcome in
-                outcome.ok ? "Sent to \(outcome.device.rawValue)." : "\(outcome.device.rawValue): \(outcome.reason ?? "refused")."
+                if outcome.ok { return "Sent to \(outcome.device.rawValue)." }
+                if outcome.gone { return "\(outcome.device.rawValue) is no longer reachable; its address is forgotten." }
+                return "\(outcome.device.rawValue): \(outcome.reason ?? "refused")."
             }.joined(separator: " ")
         }
     }
@@ -541,7 +482,7 @@ final class MacModel {
     // MARK: - Due moments
 
     private var dueTimers: [String: DispatchWorkItem] = [:]
-    private let dueSentKey = "margin.due.sent"
+    private let dueSentKey = Identity.Kept.dueSent
 
     /// A fact is silent when it lands; a due moment speaks once, when it comes. For every
     /// line of the owner's with a due moment still ahead and not done, a push at that moment
@@ -664,7 +605,14 @@ final class MacModel {
     /// and the window says so.
     private func syncLoops(_ store: FileStore, _ notebook: Notebook) {
         guard Identity.runsLoops else { return }
-        carryOverReaderSettings(store, notebook)
+        // A loop reads through this app's own door. While that is not open nothing runs:
+        // the port may be another home's, and the lines would be answered twice.
+        guard case .open = door else {
+            for runner in runners.values { runner.stop() }
+            runners = [:]
+            readerTick += 1
+            return
+        }
         // What runs is not the loops one by one: the sentences woken by a line are one reading.
         let running = notebook.running
         let wanted = Dictionary(uniqueKeysWithValues: running.map { ($0.id, $0) })
@@ -690,21 +638,6 @@ final class MacModel {
         readerTick += 1
     }
 
-    /// The reader used to be two settings of this app's own, on and which grant. It is a loop
-    /// in the notebook now: the first time a notebook with no loops is opened on a Mac that had
-    /// the reader on, that loop is written, once, and the settings are set aside.
-    private func carryOverReaderSettings(_ store: FileStore, _ notebook: Notebook) {
-        guard notebook.allLoops.isEmpty, UserDefaults.standard.bool(forKey: readerOnKey),
-              let raw = UserDefaults.standard.string(forKey: readerGrantKey), let grant = grants.first(where: { $0.id.string == raw }) else { return }
-        let now = Date()
-        let id = generator.next(at: now)
-        try? store.append(Event(id: id, author: store.manifest.owner, device: device, at: now,
-                                payload: .loopSet(.init(loop: id, name: "The reader", grant: grant.id, wake: "line"))))
-        UserDefaults.standard.removeObject(forKey: readerOnKey)
-        UserDefaults.standard.removeObject(forKey: readerGrantKey)
-        refreshSummarySoon()
-    }
-
     // MARK: - The door
 
     private func openDoor() async {
@@ -715,10 +648,12 @@ final class MacModel {
             let server = try DoorServer(port: Self.defaultPort) { router.respond($0) }
             self.server = server
             door = .open(try await server.start())
-            // The door is open: the loops may look now.
-            if let store { for runner in runners.values { runner.wake(store) } }
+            // The door is open: the loops start, and look.
+            refreshSummary()
         } catch {
-            door = .failed("The door could not open on port \(Self.defaultPort): \(error)")
+            door = .failed(Identity.carriesOver && CarryOver.earlierIsRunning
+                ? "The earlier dotto is still running on this Mac and holds the door. Quit it, then open this one again."
+                : "The door could not open on port \(Self.defaultPort): \(error)")
         }
     }
 }

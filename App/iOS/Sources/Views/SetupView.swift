@@ -247,6 +247,11 @@ struct SetupView: View {
         let running = model.notebook.loops.count
         let proposed = model.notebook.loopProposals.count
         return Step("Loops", done: running > 0) {
+            // A notebook nobody else holds a key to: said plainly, so silence under a line is
+            // not taken for a fault.
+            if model.notebook.grants.isEmpty {
+                Status("Nothing reads this notebook yet, so nothing answers. That begins in dotto on a Mac", pending: true)
+            }
             Status(running == 0 ? "A sentence said once, kept, run by the Mac, with a receipt each time"
                                : "\(running) loop\(running == 1 ? "" : "s") run\(running == 1 ? "s" : "") on the Mac")
             if proposed > 0 {

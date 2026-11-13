@@ -1,0 +1,9 @@
+// Copy to Signing.xcconfig, which git ignores, and fill in your own.
+//
+// The team is the ten characters under Membership at developer.apple.com. The prefix is a
+// reverse domain of yours: every id the apps use is made from it, the phone app's
+// <prefix>.app, its share sheet and controls, the group they share, and the Mac's <prefix>.mac.
+// An id belongs to one team for good, so works.dotto is taken.
+
+DEVELOPMENT_TEAM = ABCDE12345
+BUNDLE_PREFIX = com.example.dotto

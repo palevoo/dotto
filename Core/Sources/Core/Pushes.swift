@@ -41,6 +41,14 @@ public extension FileStore {
         try encoder.encode(address).write(to: devicesDirectory.appendingPathComponent("\(Self.safe(address.device.rawValue)).json"), options: .atomic)
     }
 
+    /// Forgets a phone's address, once Apple has said it is no longer that phone's. The phone
+    /// writes a new one the next time it is allowed to be reached.
+    func removePushAddress(of device: DeviceID) throws {
+        let url = devicesDirectory.appendingPathComponent("\(Self.safe(device.rawValue)).json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        try FileManager.default.removeItem(at: url)
+    }
+
     /// Every phone that can be reached, as last written.
     func pushAddresses() throws -> [PushAddress] {
         guard FileManager.default.fileExists(atPath: devicesDirectory.path) else { return [] }

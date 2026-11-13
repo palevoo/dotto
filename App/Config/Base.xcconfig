@@ -1,0 +1,15 @@
+// Who signs the apps, and under which ids.
+//
+// As they stand these build for a simulator, and dotto dev for this Mac. To run on a phone,
+// or to sign the Mac app, write your own team and prefix into Signing.xcconfig beside this
+// file, which git ignores. Signing.example.xcconfig shows how.
+
+BUNDLE_PREFIX = works.dotto
+DEVELOPMENT_TEAM =
+
+// The version the apps say. The build number is not kept here: Scripts/stamp.sh writes it
+// into each built app from the commit it was built from.
+MARKETING_VERSION = 0.1.0
+CURRENT_PROJECT_VERSION = 1
+
+#include? "Signing.xcconfig"

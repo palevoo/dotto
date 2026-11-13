@@ -11,8 +11,7 @@ Three things are fixed:
    decided after it is written, and only once it has earned it.
 
 Everything below is where we are now, not what dotto is. It changes as we use it. The six
-parts, the two layers and the links design are in `spec/system.md`. The apps are called dotto;
-the targets, schemes and bundle ids still say Margin until a deliberate rename.
+parts, the two layers and the links design are in `spec/system.md`.
 
 ## Now (November 2026)
 
@@ -25,7 +24,8 @@ session with a grant; it has no name until it chooses one.
     spec/conduct.md         how whoever comes through the door behaves
     spec/system.md          what dotto is: six parts, two layers, the links design; dated 9 November
     Core/                   Swift package: events, fold, file store, projector, the door, CLI, tests
-    App/project.yml         both apps, generated with XcodeGen into App/Margin.xcodeproj
+    App/project.yml         both apps, generated with XcodeGen into App/Dotto.xcodeproj
+    App/Config/             who signs and the prefix every id is made from; your own in Signing.xcconfig
     App/iOS/                iPhone app; Shared/ is compiled into the controls too, Common/ into the share sheet too
     App/Controls/           Write and Photo controls: Action button, Control Center, lock screen
     App/Share/              the share sheet; keeps lines in the app group until the app takes them
@@ -38,10 +38,15 @@ Identity canvas: https://claude.ai/artifact/21R7emDXUxPL4GJcizqLdn
 ## Build
 
     cd Core && swift test                      # the fold and the projector, under test
-    cd App && xcodegen generate                # writes Margin.xcodeproj; do not edit it by hand
-    open App/Margin.xcodeproj                  # pick your phone, run
-    xcodebuild test -project App/Margin.xcodeproj -scheme Margin -destination 'id=<booted simulator>'
+    cd App && xcodegen generate                # writes Dotto.xcodeproj; do not edit it by hand
+    open App/Dotto.xcodeproj                   # pick your phone, run
+    xcodebuild test -project App/Dotto.xcodeproj -scheme Dotto -destination 'id=<booted simulator>'
                                                # the live line driven as a thumb would, in App/UITests
+
+For a simulator and for dotto dev nothing more is needed. To run on a phone, or to sign the
+Mac app, copy `App/Config/Signing.example.xcconfig` to `Signing.xcconfig` beside it and write
+your own team and id prefix there; git ignores that file. The ids are `<prefix>.app` for the
+phone, with `.share` and `.controls`, the group `group.<prefix>`, and `<prefix>.mac`.
 
 Every UI test launches the phone app on a notebook of its own, new and empty, under the
 simulator's temporary directory (`-uitest-notebook <name>`, debug builds only; see
@@ -53,13 +58,17 @@ dotto dev is the Mac app under another identity, for trying a change without tou
 home or its notebook: its own bundle id, settings and keychain entries, the door on 27831,
 `⌃⌥⇧Space`, plum dots in the menu bar, and no loops ever (`App/Mac/Sources/Identity.swift`).
 
-    xcodebuild build -project App/Margin.xcodeproj -scheme MarginMacDev -derivedDataPath App/build/dev
+    xcodebuild build -project App/Dotto.xcodeproj -scheme DottoMacDev -derivedDataPath App/build/dev
     open -n "App/build/dev/Build/Products/Debug/dotto dev.app" --args -dotto-folder /tmp/some-notebook
 
-The Xcode project file is generated. Change `App/project.yml`, then regenerate.
+The Xcode project file is generated. Change `App/project.yml`, or a script under
+`App/Scripts`, which the project carries a copy of, then regenerate.
 Every build stamps the commit it was made from into the app (`App/Scripts/stamp.sh`):
 the phone shows it at the foot of Setup, the Mac in its window header, and the door says
-it on arrival. A `+` after the commit means uncommitted changes were in the tree. Hold it
+it on arrival. A `+` after the commit means uncommitted changes were in the tree. The same
+script writes the build number, the moment of that commit to the minute, so the app and what
+is embedded in it carry one number and a later commit a higher one; an archive, which is what
+is sent out, is not made from a tree with uncommitted changes. Hold it
 against `git log` to know whether what is running is what the repository has.
 The icon: `swift App/Design/icon.swift App/iOS/Sources/Assets.xcassets/AppIcon.appiconset`, two dots on a sheet,
 dotto's eyes. The Mac's is the same sheet as a rounded square, drawn at each size the Mac asks for:

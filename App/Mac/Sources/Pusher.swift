@@ -14,6 +14,9 @@ actor Pusher {
         let ok: Bool
         /// Apple's word for what went wrong, such as BadDeviceToken, or the HTTP status.
         let reason: String?
+        /// Apple says the address is no longer that phone's: the app was deleted or put on
+        /// again since. Nothing sent to it will ever arrive.
+        var gone = false
     }
 
     func use(_ key: PushKey?) {
@@ -33,7 +36,7 @@ actor Pusher {
                     outcomes.append(Outcome(device: address.device, ok: true, reason: nil))
                 } else {
                     let reason = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["reason"] as? String
-                    outcomes.append(Outcome(device: address.device, ok: false, reason: reason ?? "HTTP \(status)"))
+                    outcomes.append(Outcome(device: address.device, ok: false, reason: reason ?? "HTTP \(status)", gone: status == 410))
                 }
             } catch {
                 outcomes.append(Outcome(device: address.device, ok: false, reason: error.localizedDescription))
@@ -54,8 +57,8 @@ actor Pusher {
 /// The push key on this Mac: the `.p8` text in the keychain, its id and the team beside it.
 enum PushKeyStore {
     private static let service = Identity.keychainService("push-key")
-    private static let keyIDKey = "margin.push.keyID"
-    private static let teamIDKey = "margin.push.teamID"
+    private static let keyIDKey = Identity.Kept.pushKeyID
+    private static let teamIDKey = Identity.Kept.pushTeamID
 
     static func load() -> PushKey? {
         guard let keyID = UserDefaults.standard.string(forKey: keyIDKey),

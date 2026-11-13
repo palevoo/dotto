@@ -1,5 +1,8 @@
 # Generated from App/project.yml; run `xcodegen generate` in App/
-App/Margin.xcodeproj/
+App/*.xcodeproj/
+
+# Your own team and id prefix; see App/Config/Signing.example.xcconfig
+App/Config/Signing.xcconfig
 
 # Swift Package Manager
 Core/.build/

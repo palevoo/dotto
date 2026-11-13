@@ -5,7 +5,8 @@ import Foundation
 /// in the app group until the app opens and takes them into the notebook. The share sheet
 /// cannot reach the notebook folder itself; this is the one hand-over.
 enum Inbox {
-    static let group = "group.social.interface.notebook"
+    /// The group the app and the share sheet are both in, as the build named it.
+    static let group = Bundle.main.object(forInfoDictionaryKey: "DottoAppGroup") as? String ?? "group.works.dotto"
     private static let ownerKey = "inbox.owner"
     private static let deviceKey = "inbox.device"
 

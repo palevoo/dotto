@@ -25,7 +25,7 @@ final class CaptureModel {
     /// Pictures still being made small enough to keep.
     private(set) var landing = 0
 
-    private static let draftKey = "dotto.capture.draft"
+    private static let draftKey = Identity.Kept.draft
 
     init(mac: MacModel) {
         self.mac = mac

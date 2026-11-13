@@ -480,5 +480,5 @@ the test the parts keep passing.
   their paid plan or their open-source server run by us.
 - Where loops run and pages are served, the home; media leaving the phone. Both parked,
   and both gate loops and pages.
-- The old names: Margin and weeju in code, bundle ids and the conduct note. They stay
-  until a deliberate rename.
+- The old names. Margin is gone from the targets, schemes, ids and settings since
+  13 November; weeju is still the id of the first originator.

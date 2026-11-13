@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy · dotto</title>
+<style>
+  :root { --ground: #FBFCFD; --ink: #111315; --quiet: #6B7177; --line: #E6E9EC; --dot: #E4572E; }
+  @media (prefers-color-scheme: dark) {
+    :root { --ground: #141618; --ink: #ECEEF0; --quiet: #969CA3; --line: #2A2E32; --dot: #FF6A3D; }
+  }
+  html { background: var(--ground); color: var(--ink); }
+  body { margin: 0 auto; max-width: 38rem; padding: 3rem 1.25rem 5rem; font: 17px/1.6 ui-serif, "New York", Georgia, serif; }
+  h1 { font-size: 1.6rem; font-weight: 500; margin: 0 0 .25rem; }
+  h1 i { display: inline-block; width: .5em; height: .5em; border-radius: 50%; background: var(--dot); margin-right: .45em; }
+  h2 { font: 600 .8rem/1.4 ui-sans-serif, -apple-system, "Helvetica Neue", sans-serif; letter-spacing: .04em; text-transform: uppercase;
+       color: var(--quiet); margin: 2.5rem 0 .5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+  p, li { margin: 0 0 .75rem; }
+  ul { padding-left: 1.1rem; margin: 0; }
+  .dated { color: var(--quiet); font-size: .9rem; margin-bottom: 2rem; }
+  a { color: inherit; }
+</style>
+</head>
+<body>
+
+<h1><i></i>Privacy</h1>
+<p class="dated">As of 13 November 2026. This page changes when the apps do.</p>
+
+<p>dotto has no account and no server. The people who make it never see your notebook, and
+have nowhere to keep it if they did.</p>
+
+<h2>Where your notebook is</h2>
+<p>In a folder of plain files that you pick. On your phone, it stays on your phone. In your
+iCloud Drive, Apple keeps it under your Apple account and Apple's terms, and carries it to
+your other devices.</p>
+
+<h2>What stays on the phone</h2>
+<ul>
+  <li>Photos, voice notes and the words made from them. Voice becomes words on the phone, with Apple's models on the device.</li>
+  <li>Where a line was written, if you allow location.</li>
+  <li>Walks from Health, if you switch them on. Each becomes a line in your notebook and goes nowhere else.</li>
+</ul>
+
+<h2>What leaves the phone</h2>
+<p>Nothing, until you switch it on in Setup.</p>
+<ul>
+  <li><b>Weather.</b> For a line that has a place, that place rounded to about a kilometre and a span of days are sent to
+      <a href="https://open-meteo.com/">Open-Meteo</a>, which answers with the weather. Nothing else is sent. Like any site your phone
+      reaches, Open-Meteo sees the internet address the request came from.</li>
+  <li><b>Notifications.</b> Apple gives the phone an address for notifications, and the app writes it into your notebook folder,
+      so a home that holds the folder can reach the phone through Apple.</li>
+</ul>
+
+<h2>What a home does</h2>
+<p>A home is dotto on a Mac of yours, if you run one. It reads the same folder.</p>
+<ul>
+  <li>It opens the links you write in your own lines and keeps the page's words beside the line. That is a visit to that site from your Mac.</li>
+  <li>It can send a reply to your phone as a notification. The words of the reply pass through Apple's notification service.</li>
+  <li>It runs loops with Claude Code, under your own Anthropic account. What a loop reads of your notebook is sent to Anthropic,
+      under your agreement with them, not ours. No loop runs until you set one.</li>
+</ul>
+
+<h2>What we collect</h2>
+<p>Nothing. No analytics, no advertising, no tracking, and no code in the apps from anyone but us and Apple.</p>
+<p>If you have dotto through TestFlight, Apple shows us crash reports and any feedback you choose to send.</p>
+
+<h2>Questions</h2>
+<p><a href="mailto:hi@dotto.works">hi@dotto.works</a></p>
+
+</body>
+</html>

@@ -5,7 +5,7 @@ import WidgetKit
 /// Two controls for Control Center, the lock screen corners and the Action button:
 /// write, and photo. Each is one press into the app.
 @main
-struct MarginControls: WidgetBundle {
+struct DottoControls: WidgetBundle {
     var body: some Widget {
         WriteControl()
         SpeakControl()
@@ -15,7 +15,7 @@ struct MarginControls: WidgetBundle {
 
 struct SpeakControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: "social.interface.notebook.speak") {
+        StaticControlConfiguration(kind: "works.dotto.control.speak") {
             ControlWidgetButton(action: SpeakIntent()) {
                 Label("Speak", systemImage: "mic")
             }
@@ -27,7 +27,7 @@ struct SpeakControl: ControlWidget {
 
 struct WriteControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: "social.interface.notebook.write") {
+        StaticControlConfiguration(kind: "works.dotto.control.write") {
             ControlWidgetButton(action: WriteIntent()) {
                 Label("Write", systemImage: "pencil.line")
             }
@@ -39,7 +39,7 @@ struct WriteControl: ControlWidget {
 
 struct PhotoControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
-        StaticControlConfiguration(kind: "social.interface.notebook.photo") {
+        StaticControlConfiguration(kind: "works.dotto.control.photo") {
             ControlWidgetButton(action: PhotoIntent()) {
                 Label("Photo", systemImage: "camera")
             }

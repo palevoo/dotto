@@ -10,7 +10,7 @@ import Foundation
 /// notebook from the folder picked in its own window, or from `-dotto-folder <path>` on its
 /// command line, which the home ignores.
 enum Identity {
-    static let bundleID = Bundle.main.bundleIdentifier ?? "social.interface.margin.mac"
+    static let bundleID = Bundle.main.bundleIdentifier ?? "works.dotto.mac"
     static let isDevelopment = bundleID.hasSuffix(".dev")
 
     /// What the app calls itself, in its window, the menu bar and the connect command.
@@ -19,7 +19,7 @@ enum Identity {
     static let serverName = isDevelopment ? "dotto-dev" : "dotto"
     static let port: UInt16 = isDevelopment ? 27831 : 27830
     /// The folder under Application Support for the app's own records.
-    static let supportFolder = isDevelopment ? "Margin Dev" : "Margin"
+    static let supportFolder = isDevelopment ? "dotto dev" : "dotto"
     /// Only the home runs loops: a second runner on the same notebook would run each twice.
     static let runsLoops = !isDevelopment
     /// Only the home has a past to carry over.
@@ -28,6 +28,18 @@ enum Identity {
     /// A keychain service of this build's own: "<bundle id>.grant-keys".
     static func keychainService(_ what: String) -> String {
         "\(bundleID).\(what)"
+    }
+
+    /// The names the app keeps its settings under.
+    enum Kept {
+        static let folder = "dotto.folder.bookmark"
+        static let owner = "dotto.owner"
+        static let device = "dotto.device"
+        static let readerModel = "dotto.reader.model"
+        static let dueSent = "dotto.due.sent"
+        static let pushKeyID = "dotto.push.keyID"
+        static let pushTeamID = "dotto.push.teamID"
+        static let draft = "dotto.capture.draft"
     }
 
     /// The notebook folder named on the command line, for dotto dev only.

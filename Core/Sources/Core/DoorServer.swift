@@ -38,7 +38,7 @@ public final class DoorServer: @unchecked Sendable {
 
     private let listener: NWListener
     private let handler: Handler
-    private let queue = DispatchQueue(label: "margin.door.server")
+    private let queue = DispatchQueue(label: "dotto.door.server")
     private let lock = NSLock()
     private var readyContinuations: [CheckedContinuation<UInt16, Error>] = []
     private var state: State = .idle

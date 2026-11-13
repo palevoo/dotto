@@ -1561,6 +1561,15 @@ public struct Notebook: Sendable {
         return (note, entry)
     }
 
+    /// Whether an originator has already said a line that began at this moment, to the second.
+    /// What comes from a source is handed over again whenever the source is asked afresh, by
+    /// an app put on again or by a second phone of the same owner: the same walk at the same
+    /// moment is the same line and is not said twice. A line that was dropped counts, so what
+    /// the owner dropped does not come back.
+    public func hasLine(by author: Author, startedAt moment: Date) -> Bool {
+        table.values.contains { $0.author == author && abs($0.startedAt.timeIntervalSince(moment)) < 1 }
+    }
+
     /// The owner's live entries, oldest first.
     public var entries: [Entry] {
         entries(of: owner)

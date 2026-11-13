@@ -130,6 +130,9 @@ final class NotebookModel {
 
     /// Each walk is a line on your page at the moment it began, in Health's name.
     private func add(_ walks: [Walks.Walk]) -> Bool {
+        // Health hands its walks over again to an app put on again, and to a second phone of
+        // the same owner. A walk already said, at the moment it began, is not said twice.
+        let walks = walks.filter { !notebook.hasLine(by: Self.health, startedAt: $0.start) }
         guard !walks.isEmpty else { return true }
         var events: [Event] = []
         if notebook.name(of: Self.health) == nil {

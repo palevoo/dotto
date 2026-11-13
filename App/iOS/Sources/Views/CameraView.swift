@@ -339,7 +339,7 @@ final class CameraController: NSObject, AVCapturePhotoCaptureDelegate {
     private(set) var isZooming = false
 
     private let output = AVCapturePhotoOutput()
-    private let queue = DispatchQueue(label: "margin.camera")
+    private let queue = DispatchQueue(label: "dotto.camera")
     private let rig = Rig()
     private var position: AVCaptureDevice.Position = .back
     private var completion: ((Data?) -> Void)?

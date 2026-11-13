@@ -29,9 +29,12 @@ let tinted = Palette(sheet: CGColor(gray: 0, alpha: 0), eyes: CGColor(gray: 1, a
 
 func draw(_ palette: Palette, size: CGFloat, transparentBackground: Bool) -> CGImage {
     let space = CGColorSpaceCreateDeviceRGB()
+    // A sheet filled edge to edge is written with no alpha channel at all: the store refuses
+    // one on an app's main icon, even when every pixel is solid.
+    let alpha: CGImageAlphaInfo = transparentBackground ? .premultipliedLast : .noneSkipLast
     let context = CGContext(
         data: nil, width: Int(size), height: Int(size), bitsPerComponent: 8, bytesPerRow: 0,
-        space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        space: space, bitmapInfo: alpha.rawValue
     )!
     let w = size
 

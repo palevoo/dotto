@@ -17,19 +17,33 @@ final class PushesTests: XCTestCase {
 
     func testAddressesLiveInTheFolderOnePerDevice() throws {
         XCTAssertEqual(try store.pushAddresses(), [])
-        let first = PushAddress(device: "rounded", token: "aa11", environment: "development", topic: "social.interface.notebook",
+        let first = PushAddress(device: "rounded", token: "aa11", environment: "development", topic: "works.dotto.app",
                                 updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
         try store.savePushAddress(first)
-        try store.savePushAddress(PushAddress(device: "flat", token: "bb22", environment: "production", topic: "social.interface.notebook",
+        try store.savePushAddress(PushAddress(device: "flat", token: "bb22", environment: "production", topic: "works.dotto.app",
                                               updatedAt: Date(timeIntervalSince1970: 1_700_000_001)))
         // A new token for the same phone replaces the old one.
-        let renewed = PushAddress(device: "rounded", token: "cc33", environment: "development", topic: "social.interface.notebook",
+        let renewed = PushAddress(device: "rounded", token: "cc33", environment: "development", topic: "works.dotto.app",
                                   updatedAt: Date(timeIntervalSince1970: 1_700_000_002))
         try store.savePushAddress(renewed)
         let addresses = try store.pushAddresses()
         XCTAssertEqual(addresses.count, 2)
         XCTAssertEqual(addresses.first { $0.device == "rounded" }?.token, "cc33")
         XCTAssertTrue(FileManager.default.fileExists(atPath: store.devicesDirectory.appendingPathComponent("rounded.json").path))
+    }
+
+    /// Apple says an address is no longer that phone's: it is forgotten, the others stay, and
+    /// forgetting one that is not there is nothing.
+    func testAnAddressThatIsGoneIsForgotten() throws {
+        try store.savePushAddress(PushAddress(device: "rounded", token: "aa11", environment: "production", topic: "works.dotto.app"))
+        try store.savePushAddress(PushAddress(device: "flat", token: "bb22", environment: "production", topic: "works.dotto.app"))
+        try store.removePushAddress(of: "rounded")
+        XCTAssertEqual(try store.pushAddresses().map(\.device), ["flat"])
+        try store.removePushAddress(of: "rounded")
+        XCTAssertEqual(try store.pushAddresses().map(\.device), ["flat"])
+        // The phone is allowed again: it writes a new address under the same name.
+        try store.savePushAddress(PushAddress(device: "rounded", token: "cc33", environment: "production", topic: "works.dotto.app"))
+        XCTAssertEqual(try store.pushAddresses().first { $0.device == "rounded" }?.token, "cc33")
     }
 
     func testKeyIDComesFromApplesFileName() {
@@ -61,11 +75,11 @@ final class PushesTests: XCTestCase {
         let key = PushKey(keyID: "KEY1234567", teamID: "TEAM123456", pem: P256.Signing.PrivateKey().pemRepresentation)
         let entry = ULID()
         let message = APNS.Message(title: "weeju", body: "Four to six weeks, when roots show.", entry: entry)
-        let sandbox = PushAddress(device: "rounded", token: "aa11", environment: "development", topic: "social.interface.notebook")
+        let sandbox = PushAddress(device: "rounded", token: "aa11", environment: "development", topic: "works.dotto.app")
         let request = try APNS.request(message, to: sandbox, key: key)
         XCTAssertEqual(request.url?.absoluteString, "https://api.sandbox.push.apple.com/3/device/aa11")
         XCTAssertEqual(request.httpMethod, "POST")
-        XCTAssertEqual(request.value(forHTTPHeaderField: "apns-topic"), "social.interface.notebook")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "apns-topic"), "works.dotto.app")
         XCTAssertEqual(request.value(forHTTPHeaderField: "apns-push-type"), "alert")
         XCTAssertTrue(request.value(forHTTPHeaderField: "authorization")?.hasPrefix("bearer ") ?? false)
         let body = try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as? [String: Any]
@@ -73,7 +87,7 @@ final class PushesTests: XCTestCase {
         let aps = body?["aps"] as? [String: Any]
         XCTAssertEqual((aps?["alert"] as? [String: String])?["body"], "Four to six weeks, when roots show.")
 
-        let live = PushAddress(device: "rounded", token: "aa11", environment: "production", topic: "social.interface.notebook")
+        let live = PushAddress(device: "rounded", token: "aa11", environment: "production", topic: "works.dotto.app")
         XCTAssertEqual(APNS.url(for: live).host, "api.push.apple.com")
     }
 
