@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dotto</title>
-<meta name="description" content="Capture anything. Dotto connects the dots and does the rest.">
+<meta name="description" content="Capture anything. Dotto takes it from there.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='22' fill='%23ffffff'/%3E%3Ccircle cx='33' cy='46' r='12' fill='%23e4572e'/%3E%3Ccircle cx='63' cy='46' r='12' fill='%23e4572e'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap">
@@ -104,12 +104,17 @@ h1 {
   margin: 0;
   font-family: var(--words);
   font-weight: 400;
-  font-size: clamp(1.6rem, 9.2cqw, 3.25rem);
+  font-size: clamp(1.5rem, 8.2cqw, 3.1rem);
   line-height: 1.08;
   letter-spacing: -0.018em;
 }
 .ph { display: block; color: var(--unlit); transition: color 0.9s ease; }
 .ph.on { color: var(--ink); }
+
+/* What "from there" is, one word for each thing the field then does. */
+.steps { margin: 0; display: flex; flex-wrap: wrap; gap: 0.3rem 1.15rem; font-size: 0.95rem; font-weight: 500; }
+.steps span { color: var(--unlit); transition: color 0.7s ease; }
+.steps span.on { color: var(--soft); }
 
 /* What a dot says, and what was done about it. */
 .note { min-height: 3.4rem; display: flex; flex-direction: column; gap: 0.3rem; justify-content: flex-end; }
@@ -163,8 +168,13 @@ h1 {
 .field { grid-area: field; position: relative; min-width: 0; min-height: 0; }
 .links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .links line { stroke: var(--rule-strong); stroke-width: 1; vector-effect: non-scaling-stroke; fill: none; }
-.links, .label, .extra { opacity: 0; transition: opacity 0.9s ease 1.1s; }
-.field.things .links, .field.things .label, .field.things .extra { opacity: 1; }
+/* The things show in three steps: their names as they form, what they add up to, what was done. */
+.links, .label, .label .n, .extra { opacity: 0; }
+.links, .label { transition: opacity 0.9s ease 1.1s; }
+.label .n, .extra { transition: opacity 0.8s ease; }
+.field.things .links, .field.things .label { opacity: 1; }
+.field.counted .label .n { opacity: 1; }
+.field.done .extra { opacity: 1; }
 
 .dot {
   position: absolute;
@@ -208,7 +218,7 @@ h1 {
 .fly.dotto { background: var(--dot); }
 
 @media (prefers-reduced-motion: reduce) {
-  .dot, .dot::before, .ph, .links, .label, .extra { transition: none; }
+  .dot, .dot::before, .ph, .steps span, .links, .label, .label .n, .extra { transition: none; }
   .dot.seen::before { animation: none; }
 }
 </style>
@@ -221,9 +231,16 @@ h1 {
   <main class="say">
     <h1>
       <span class="ph on" id="p1">Capture anything.</span>
-      <span class="ph" id="p2">Dotto connects the dots</span>
-      <span class="ph" id="p3">and does the rest.</span>
+      <span class="ph" id="p2">Dotto takes it from there.</span>
     </h1>
+
+    <p class="steps" aria-label="What Dotto does with what you capture">
+      <span id="s1">Observes</span>
+      <span id="s2">Identifies</span>
+      <span id="s3">Organises</span>
+      <span id="s4">Adds up</span>
+      <span id="s5">Completes</span>
+    </p>
 
     <div class="note" id="note" aria-live="polite"></div>
 
@@ -241,7 +258,7 @@ h1 {
   <footer class="foot">
     <p class="three">Writing costs nothing. Your words are yours. Meaning comes later.</p>
     <p>For iPhone, with a Mac at home that does the reading. By invitation for now: <span class="addr">hi@dotto.works</span></p>
-    <p><a href="privacy.html">Privacy</a> · November 2026</p>
+    <p><a href="privacy/">Privacy</a> · November 2026</p>
   </footer>
 </div>
 
@@ -268,11 +285,11 @@ h1 {
 
   // What was done about the lines that turned out to be one thing.
   var DID = {
-    fig: "The fig. Its lines in order, on a page of its own.",
+    fig: "The fig. Three lines in order, on a page of its own.",
     streak: "No scrolling, three days. Worked out from your lines. Nothing to tick.",
     coming: "Thursday 10:30. You are told the evening before, and an hour before.",
     question: "Salt slows the yeast and strengthens the gluten, so the loaf rises evenly.",
-    walks: "Walks. Health wrote these two. You wrote nothing."
+    walks: "Walks, 7.3 km. Health wrote these two. You wrote nothing."
   };
   var NOTHING = "Read, and nothing said. Most lines want nothing.";
   var YOURS = "Read, and nothing said. This line stays on this page.";
@@ -391,8 +408,9 @@ h1 {
     marks.forEach(function (m) { m.remove(); });
     marks = [];
     links.textContent = "";
-    function mark(cls, x, y, text) {
+    function mark(cls, x, y, text, sum) {
       var m = el("span", cls); if (text) m.textContent = text;
+      if (sum) { var n = el("span", "n"); n.textContent = " · " + sum; m.appendChild(n); }
       at(m, x, y); field.appendChild(m); marks.push(m);
     }
     function link(x1, y1, x2, y2) {
@@ -403,16 +421,16 @@ h1 {
     }
     var f = T.fig, s = T.streak, c = T.coming, q = T.question, w = T.walks;
     link(f.x, f.y, f.x, f.y + f.d * 2);
-    mark("label r", f.x, f.y, "The fig");
+    mark("label r", f.x, f.y, "The fig", "3 lines");
     link(s.x, s.y, s.x + s.d * 3, s.y);
     mark("extra today", s.x + s.d * 3, s.y);
-    mark("label b", s.x, s.y, "No scrolling · 3 days");
+    mark("label b", s.x, s.y, "No scrolling", "3 days");
     mark("extra ring", c.x, c.y);
     mark("label r", c.x, c.y, "Thursday 10:30");
     link(q.x, q.y, q.x + q.d, q.y);
     mark("extra answer", q.x + q.d, q.y);
     link(w.x, w.y, w.x + w.d, w.y);
-    mark("label b", w.x, w.y, "Walks · Health");
+    mark("label b", w.x, w.y, "Walks", "7.3 km");
   }
 
   // One thing moving over the page from one point to another.
@@ -454,7 +472,7 @@ h1 {
         var first = i === 0, last = b === null;
         return fly("dotto", here, there, first || last ? 620 : 210, first || last ? null : "cubic-bezier(0.4, 0, 0.3, 1)").then(function (f) {
           here = there;
-          if (b) { b.classList.remove("seen"); void b.offsetWidth; b.classList.add("seen"); }
+          if (b) pulse(b);
           return (b ? wait(70) : Promise.resolve()).then(function () { f.remove(); });
         });
       });
@@ -462,14 +480,28 @@ h1 {
     return chain.then(function () { home.style.visibility = ""; });
   }
 
-  function phase(n) { for (var i = 1; i <= 3; i++) document.getElementById("p" + i).classList.toggle("on", i <= n); }
+  function pulse(b) { b.classList.remove("seen"); void b.offsetWidth; b.classList.add("seen"); }
+  function light(id) { document.getElementById(id).classList.add("on"); }
 
-  // The piece: the last line is written, everything is read, the things form.
+  // What each line is: the lines of one thing answer together, one thing after another.
+  function identify() {
+    var chain = Promise.resolve();
+    ["fig", "streak", "coming", "question", "walks"].forEach(function (thing) {
+      chain = chain.then(function () {
+        LINES.forEach(function (l) { if (l.thing === thing) pulse(dots[l.id]); });
+        return wait(300);
+      });
+    });
+    return chain.then(function () { return wait(300); });
+  }
+
+  // The piece: the last line is written, then Dotto takes it from there, a step at a time.
   function play() {
     var last = dots.a13;
     if (still) {
       last.classList.remove("waiting");
-      gathered = true; settled = true; phase(3); place(); say(null);
+      ["p2", "s1", "s2", "s3", "s4", "s5"].forEach(light);
+      gathered = true; settled = true; place(); field.classList.add("counted", "done"); say(null);
       return Promise.resolve();
     }
     return wait(900)
@@ -484,8 +516,11 @@ h1 {
         return key();
       })
       .then(function () { return wait(500); })
-      .then(function () { phase(2); return read(LINES.map(function (l) { return dots[l.id]; })); })
-      .then(function () { phase(3); gathered = true; place(); return wait(1900); })
+      .then(function () { light("p2"); light("s1"); return read(LINES.map(function (l) { return dots[l.id]; })); })
+      .then(function () { light("s2"); return identify(); })
+      .then(function () { light("s3"); gathered = true; place(); return wait(2200); })
+      .then(function () { light("s4"); field.classList.add("counted"); return wait(1000); })
+      .then(function () { light("s5"); field.classList.add("done"); return wait(1100); })
       .then(function () { settled = true; if (!pinned) say(null); });
   }
 
