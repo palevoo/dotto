@@ -1,0 +1,14 @@
+# What stays here when a copy goes out. `git archive` leaves out every path marked
+# export-ignore, and App/Scripts/publish.sh makes the public repository from that archive,
+# one commit a release. Left out: the mock-ups and the visit brief, which are about one
+# person's land; the studies, which quote one person's notebook; and this list itself.
+/mock                           export-ignore
+/mock/**                        export-ignore
+/visits                         export-ignore
+/visits/**                      export-ignore
+spec/gathering-*.md             export-ignore
+spec/study-*.md                 export-ignore
+spec/pages-*.md                 export-ignore
+spec/review-*.md                export-ignore
+App/Scripts/publish.sh          export-ignore
+.gitattributes                  export-ignore
