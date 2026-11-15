@@ -1,0 +1,2 @@
+{"at":"2026-03-03T08:02:00.000Z","author":"health","device":"phone","id":"01KJSBFQ60CXYNMA24A6CQW34Q","kind":"name.set","payload":{"name":"Health"}}
+{"at":"2026-03-03T08:02:00.000Z","author":"health","device":"phone","id":"01KJSBFQ60CXYNMA24A6CQW34R","kind":"entry.create","payload":{"at":"2026-03-03T07:20:00.000Z","entry":"01KJS92T80630782544N60D2QW","page":"me","text":"Walk, 3.1 km, 41 min"}}

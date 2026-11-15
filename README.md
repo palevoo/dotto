@@ -23,6 +23,8 @@ session with a grant; it has no name until it chooses one.
     spec/architecture.md    §0 is what is built; the rest is a sketch
     spec/conduct.md         how whoever comes through the door behaves
     spec/system.md          what dotto is: six parts, two layers, the links design; dated 9 November
+    spec/format.md          the folder as a format: every kind of event and whose word counts
+    spec/sample/            two invented days as such a folder, with the pages Core reads from them
     Core/                   Swift package: events, fold, file store, projector, the door, CLI, tests
     App/project.yml         both apps, generated with XcodeGen into App/Dotto.xcodeproj
     App/Config/             who signs and the prefix every id is made from; your own in Signing.xcconfig

@@ -73,6 +73,11 @@ targets:
     postBuildScripts:
       - name: Stamp Build
         path: Scripts/stamp.sh
+        # After Xcode has written the Info.plist, on every build: named as what the script
+        # reads, the plist is written first; unnamed, a repeat build wrote it over the stamp.
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        basedOnDependencyAnalysis: false
         # Reads git and writes the built Info.plist, which the script sandbox would refuse.
     settings:
       groups: [signing]
@@ -103,6 +108,11 @@ targets:
     postBuildScripts:
       - name: Stamp Build
         path: Scripts/stamp.sh
+        # After Xcode has written the Info.plist, on every build: named as what the script
+        # reads, the plist is written first; unnamed, a repeat build wrote it over the stamp.
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        basedOnDependencyAnalysis: false
     settings:
       groups: [signing]
       base:
@@ -146,6 +156,11 @@ targets:
     postBuildScripts:
       - name: Stamp Build
         path: Scripts/stamp.sh
+        # After Xcode has written the Info.plist, on every build: named as what the script
+        # reads, the plist is written first; unnamed, a repeat build wrote it over the stamp.
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        basedOnDependencyAnalysis: false
     settings:
       groups: [signing]
       base:
@@ -208,6 +223,11 @@ targets:
     postBuildScripts:
       - name: Stamp Build
         path: Scripts/stamp.sh
+        # After Xcode has written the Info.plist, on every build: named as what the script
+        # reads, the plist is written first; unnamed, a repeat build wrote it over the stamp.
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        basedOnDependencyAnalysis: false
         # Reads git and writes the built Info.plist, which the script sandbox would refuse.
     settings:
       groups: [signing]
@@ -243,6 +263,11 @@ targets:
     postBuildScripts:
       - name: Stamp Build
         path: Scripts/stamp.sh
+        # After Xcode has written the Info.plist, on every build: named as what the script
+        # reads, the plist is written first; unnamed, a repeat build wrote it over the stamp.
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)
+        basedOnDependencyAnalysis: false
     settings:
       base:
         SWIFT_VERSION: "5.0"

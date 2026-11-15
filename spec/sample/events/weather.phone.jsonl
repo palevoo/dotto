@@ -1,0 +1,1 @@
+{"at":"2026-03-02T08:07:00.000Z","author":"weather","device":"phone","id":"01KJPSC550GBBHYTCPHHN6A9F6","kind":"conditions.set","payload":{"daylight":true,"entry":"01KJPS8FZ0AGGZ4BHRQ0QP1STK","high":8.9,"humidity":81,"low":3.1,"rain":0,"rainBefore":2.5,"sky":3,"source":"open-meteo","temperature":6.4,"wind":14,"windFrom":230}}
