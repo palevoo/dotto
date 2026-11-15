@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>dotto</string>
+	<string>Dotto</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -19,7 +19,11 @@
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<string>DOTTO_BUILD</string>
+	<key>DottoChanged</key>
+	<string>DOTTO_CHANGED</string>
+	<key>DottoCommit</key>
+	<string>DOTTO_COMMIT</string>
 	<key>DottoTeamID</key>
 	<string>$(DEVELOPMENT_TEAM)</string>
 	<key>LSApplicationCategoryType</key>
@@ -32,12 +36,12 @@
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
-				<string>Keep in dotto</string>
+				<string>Keep in Dotto</string>
 			</dict>
 			<key>NSMessage</key>
 			<string>keepInDotto</string>
 			<key>NSPortName</key>
-			<string>dotto</string>
+			<string>$(PRODUCT_NAME)</string>
 			<key>NSSendFileTypes</key>
 			<array>
 				<string>public.image</string>

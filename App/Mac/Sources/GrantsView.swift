@@ -29,6 +29,9 @@ struct GrantsView: View {
                 logSection
             }
             .padding(28)
+            // Every word in the window can be selected and copied: a path, a key's command,
+            // what went wrong.
+            .textSelection(.enabled)
         }
     }
 
@@ -158,8 +161,14 @@ struct GrantsView: View {
                     .font(MacTheme.body)
                     .foregroundStyle(MacTheme.muted)
             }
+            if let refused = model.keysRefused {
+                Text(refused)
+                    .font(MacTheme.mono)
+                    .foregroundStyle(MacTheme.recording)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             ForEach(model.grants) { grant in
-                GrantCard(grant: grant, name: model.notebook?.name(of: grant.author), command: model.connectCommand(for: grant), copied: copied == grant.id,
+                GrantCard(grant: grant, name: model.notebook?.name(of: grant.author), command: model.connectCommand(for: grant), refused: model.keysRefused != nil, copied: copied == grant.id,
                           others: model.authors.filter { $0 != grant.author }.map { ($0, model.name(of: $0)) }) {
                     guard let command = model.connectCommand(for: grant) else { return }
                     NSPasteboard.general.clearContents()
@@ -369,6 +378,7 @@ struct GrantsView: View {
         let status = model.status(of: loop)
         let runs = model.runs(of: loop)
         let grant = model.grants.first { $0.id == loop.grant }
+        let doorOpen = model.port != nil
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Circle()
@@ -396,9 +406,32 @@ struct GrantsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if status == nil {
-                Text(grant == nil ? "Its grant is gone; stop this loop." : "Its grant's key is not on this Mac. Issue a new key for \(grant!.name) and the loop runs.")
-                    .font(MacTheme.mono)
-                    .foregroundStyle(MacTheme.recording)
+                // Why it is not running, the first reason that holds.
+                if let grant {
+                    Text(!doorOpen ? "Not running: loops run only while this app's door is open."
+                         : model.keysRefused != nil ? "Not running: its key could not be read from the keychain. See Grants."
+                         : grant.key.isEmpty ? "Its grant's key is not on this Mac. Issue a new key for \(grant.name) and the loop runs."
+                         : "Not running yet.")
+                        .font(MacTheme.mono)
+                        .foregroundStyle(MacTheme.recording)
+                } else {
+                    // The grant it ran under was closed. Any grant that stands can take it as it is.
+                    HStack(spacing: 8) {
+                        Text(model.grants.isEmpty ? "Its grant is gone. Add a grant above, then give this loop to it." : "Its grant is gone.")
+                            .font(MacTheme.mono)
+                            .foregroundStyle(MacTheme.recording)
+                        if !model.grants.isEmpty {
+                            Menu("Run It As…") {
+                                ForEach(model.grants) { other in
+                                    Button(other.name) { model.run(loop, as: other) }
+                                }
+                            }
+                            .menuStyle(.borderlessButton)
+                            .fixedSize()
+                            .font(MacTheme.mono)
+                        }
+                    }
+                }
             } else if let trouble = status?.trouble {
                 Text(trouble)
                     .font(MacTheme.mono)
@@ -621,6 +654,8 @@ struct GrantCard: View {
     let name: String?
     /// The connect command, or nil when this Mac does not hold the key.
     let command: String?
+    /// The keychain would not hand its keys over: the key may well be there, so no new one is offered.
+    let refused: Bool
     let copied: Bool
     /// The other authors this key could be handed to instead, with what they are called.
     let others: [(Author, String)]
@@ -687,6 +722,11 @@ struct GrantCard: View {
                 Text("Run this once in a terminal. Claude Code then reaches your notebook through this door, with this key.")
                     .font(MacTheme.mono)
                     .foregroundStyle(MacTheme.muted)
+            } else if refused {
+                Text("Its key could not be read from the keychain just now. Whoever has the key still gets in.")
+                    .font(MacTheme.mono)
+                    .foregroundStyle(MacTheme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
                 HStack(spacing: 8) {
                     Text("The key is not on this Mac; the notebook holds only its hash. Whoever has the key still gets in.")

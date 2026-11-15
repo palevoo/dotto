@@ -41,6 +41,9 @@ final class MacModel {
         return nil
     }
     private(set) var problem: String?
+    /// Said when the keychain would not let this app read a key it keeps there. The keys are
+    /// still there, so nothing is offered that would replace them.
+    private(set) var keysRefused: String?
     /// The push key on this Mac, if one has been chosen.
     private(set) var pushKey: PushKey?
     /// The phones the folder says can be reached.
@@ -161,16 +164,26 @@ final class MacModel {
             self.notebook = nil
             inbox = []
             grants = []
+            keysRefused = nil
             return
         }
         let files = read.map { (file: $0.name, events: $0.events) }
         let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
         self.notebook = notebook
         inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: .current)
+        var refused: OSStatus?
         grants = notebook.grants.map { grant in
             var held = grant
-            held.key = GrantKeys.key(for: grant.id) ?? ""
+            switch GrantKeys.look(for: grant.id) {
+            case .key(let key): held.key = key
+            case .none: held.key = ""
+            case .refused(let status): held.key = ""; refused = status
+            }
             return held
+        }
+        keysRefused = refused.map { status in
+            let why = SecCopyErrorMessageString(status, nil) as String? ?? "keychain \(status)"
+            return "The keychain would not let this app read its keys: \(why). The keys are still there. Quit \(Identity.name) and open it again; an app built again while it runs is refused like this."
         }
         // The loops as the notebook has them now; then something changed in the folder, so
         // each one woken by lines looks, a moment later.
@@ -210,14 +223,17 @@ final class MacModel {
     }
 
     /// An event of the owner's, from this Mac, into the owner's file for it.
-    private func write(_ payload: Payload) {
-        guard let store else { return }
+    @discardableResult
+    private func write(_ payload: Payload) -> Bool {
+        guard let store else { return false }
         let now = Date()
         do {
             try store.append(Event(id: generator.next(at: now), author: store.manifest.owner, device: device, at: now, payload: payload))
             refreshSummary()
+            return true
         } catch {
             problem = "Could not write to the notebook: \(error)"
+            return false
         }
     }
 
@@ -306,14 +322,21 @@ final class MacModel {
         open(Grant(name: cleanName, author: author ?? .fresh(), device: Grant.device(for: cleanName)))
     }
 
-    private func open(_ grant: Grant) {
+    /// False when the key could not be kept or the grant could not be written: then there
+    /// is no such grant, and nothing may be done that counts on it.
+    @discardableResult
+    private func open(_ grant: Grant) -> Bool {
         do {
             try GrantKeys.save(grant.key, for: grant.id)
         } catch {
             problem = "Could not keep the key in the keychain: \(error.localizedDescription)"
-            return
+            return false
         }
-        write(.grantCreate(grant.create))
+        guard write(.grantCreate(grant.create)) else {
+            GrantKeys.remove(for: grant.id)
+            return false
+        }
+        return true
     }
 
     /// The owner's word that one originator is another: everything it did, and does from now
@@ -341,14 +364,24 @@ final class MacModel {
     private func moveLoops(from old: ULID, to new: ULID?) {
         for loop in loops where loop.grant == old {
             if let new {
-                var at: String?
-                var kind = "line"
-                if case .clock(let hour, let minute) = loop.wake { kind = "clock"; at = String(format: "%02d:%02d", hour, minute) }
-                write(.loopSet(.init(loop: loop.id, name: loop.name, grant: new, wake: kind, at: at, brief: loop.brief, turns: loop.turns, budget: loop.budget)))
+                set(loop, under: new)
             } else {
                 write(.loopStop(.init(loop: loop.id)))
             }
         }
+    }
+
+    /// The same loop, its name, what wakes it and its brief as they are, under another grant.
+    private func set(_ loop: Loop, under grant: ULID) {
+        var at: String?
+        var kind = "line"
+        if case .clock(let hour, let minute) = loop.wake { kind = "clock"; at = String(format: "%02d:%02d", hour, minute) }
+        write(.loopSet(.init(loop: loop.id, name: loop.name, grant: grant, wake: kind, at: at, brief: loop.brief, turns: loop.turns, budget: loop.budget)))
+    }
+
+    /// A loop whose grant is gone is given another, and runs again as it was.
+    func run(_ loop: Loop, as grant: Grant) {
+        set(loop, under: grant.id)
     }
 
     /// The same key, another author: whoever holds it is that author from now on. The old
@@ -367,13 +400,16 @@ final class MacModel {
     }
 
     /// A fresh key for the same author, for when this Mac no longer holds the old one.
+    /// The new key first. Until it is kept and its grant written, the old one stands and
+    /// its loops stay with it: closing the old grant first once left loops under a grant
+    /// that was never made.
     func reissue(_ grant: Grant) {
         let fresh = Grant(name: grant.name, author: grant.author, device: grant.device,
                           writesNotes: grant.writesNotes, writesLabels: grant.writesLabels, writesLinks: grant.writesLinks, writesLines: grant.writesLines)
+        guard open(fresh) else { return }
+        moveLoops(from: grant.id, to: fresh.id)
         write(.grantRevoke(.init(grant: grant.id)))
         GrantKeys.remove(for: grant.id)
-        open(fresh)
-        moveLoops(from: grant.id, to: fresh.id)
     }
 
     /// What the person pastes into a terminal so Claude Code knows the door and the key.
@@ -683,7 +719,15 @@ final class DoorState: @unchecked Sendable {
 enum GrantKeys {
     private static let service = Identity.keychainService("grant-keys")
 
-    static func key(for grant: ULID) -> String? {
+    /// What the keychain says of one grant's key. Not being let in is not the same as there
+    /// being no key: a key that is refused is still there, and is not to be replaced.
+    enum Held {
+        case key(String)
+        case none
+        case refused(OSStatus)
+    }
+
+    static func look(for grant: ULID) -> Held {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -691,9 +735,11 @@ enum GrantKeys {
             kSecReturnData as String: true,
         ]
         var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecItemNotFound { return .none }
+        guard status == errSecSuccess else { return .refused(status) }
+        guard let data = item as? Data, let key = String(data: data, encoding: .utf8) else { return .none }
+        return .key(key)
     }
 
     static func save(_ key: String, for grant: ULID) throws {

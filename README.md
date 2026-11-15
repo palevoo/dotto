@@ -65,12 +65,14 @@ home or its notebook: its own bundle id, settings and keychain entries, the door
 
 The Xcode project file is generated. Change `App/project.yml`, or a script under
 `App/Scripts`, which the project carries a copy of, then regenerate.
-Every build stamps the commit it was made from into the app (`App/Scripts/stamp.sh`):
-the phone shows it at the foot of Setup, the Mac in its window header, and the door says
-it on arrival. A `+` after the commit means uncommitted changes were in the tree. The same
-script writes the build number, the moment of that commit to the minute, so the app and what
-is embedded in it carry one number and a later commit a higher one; an archive, which is what
-is sent out, is not made from a tree with uncommitted changes. Hold it
+Every build says the commit it was made from (`App/Scripts/stamp.sh`): the phone shows it
+at the foot of Setup with when that commit was made, the Mac in its window header, and the
+door says it on arrival. A `+` after the commit means uncommitted changes were in the tree.
+The script writes a small header before the build and Xcode reads it as it makes each
+Info.plist, so the app is signed with the stamp in it and nothing is written into it
+afterwards. The build number comes the same way, the moment of that commit to the minute,
+so the app and what is embedded in it carry one number and a later commit a higher one; an
+archive, which is what is sent out, is not made from a tree with uncommitted changes. Hold it
 against `git log` to know whether what is running is what the repository has.
 The icon: `swift App/Design/icon.swift App/iOS/Sources/Assets.xcassets/AppIcon.appiconset`, two dots on a sheet,
 dotto's eyes. The Mac's is the same sheet as a rounded square, drawn at each size the Mac asks for:

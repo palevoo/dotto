@@ -14,7 +14,7 @@ enum Identity {
     static let isDevelopment = bundleID.hasSuffix(".dev")
 
     /// What the app calls itself, in its window, the menu bar and the connect command.
-    static let name = isDevelopment ? "dotto dev" : "dotto"
+    static let name = isDevelopment ? "dotto dev" : "Dotto"
     /// The name of the door as a server, in the command that connects a session to it.
     static let serverName = isDevelopment ? "dotto-dev" : "dotto"
     static let port: UInt16 = isDevelopment ? 27831 : 27830
