@@ -8,6 +8,10 @@ needs, it can serve others.
 The page exists as a draft in `site/index.html`, written by hand on 6 November as a way to
 check we were headed the same way. We were. Now it has to become true.
 
+On 15 November that draft gave way to one screen: a sentence, a live line, and a field where
+each line written is a dot, read and gathered into things. It is still written by hand, and
+its lines are invented. The earlier page is in the history, at 3742804.
+
 ## What "made by dotto" means
 
 In the owner's words. The page shows actual data from the notebook where it applies: pinned
