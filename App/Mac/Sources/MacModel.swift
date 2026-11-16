@@ -3,12 +3,12 @@ import Core
 import Foundation
 import Observation
 
-/// The Mac's state: which folder, which grants, whether the door is open, and the reader.
+/// The Mac's state: which folder, which grants, whether the door is open, and the loops.
 ///
 /// The app reads the folder the person picked in the open panel, remembered through a
 /// bookmark, and nothing else on the disk. That is a promise the code keeps rather than one
 /// macOS enforces: the app runs without the sandbox so that it can run the claude command
-/// for the reader, which a sandboxed app may not.
+/// for its loops, which a sandboxed app may not.
 ///
 /// Grants are the owner's events in the notebook, written from here into the owner's own
 /// file for this Mac. The notebook keeps each key's hash; the keys themselves stay in this
@@ -51,16 +51,16 @@ final class MacModel {
     /// What happened to the last push, in a sentence.
     private(set) var pushReport: String?
     /// The loops the notebook says run, each running here, by loop id.
-    private(set) var runners: [ULID: ReaderRunner] = [:]
-    /// The model the reader runs, empty for Claude Code's default.
-    var readerModel = "" {
+    private(set) var runners: [ULID: LoopRunner] = [:]
+    /// The model loops run with, empty for Claude Code's default.
+    var loopModel = "" {
         didSet {
-            UserDefaults.standard.set(readerModel, forKey: Identity.Kept.readerModel)
-            for runner in runners.values { runner.model = readerModel }
+            UserDefaults.standard.set(loopModel, forKey: Identity.Kept.loopModel)
+            for runner in runners.values { runner.model = loopModel }
         }
     }
-    /// Bumped whenever the reader's status or a run changes, so the window redraws.
-    private(set) var readerTick = 0
+    /// Bumped whenever a loop's status or a run changes, so the window redraws.
+    private(set) var loopTick = 0
 
     private let bookmarkKey = Identity.Kept.folder
     private let ownerKey = Identity.Kept.owner
@@ -74,14 +74,29 @@ final class MacModel {
     private var summaryTask: Task<Void, Never>?
 
     init() {
-        // What the app kept under its earlier id comes over before anything is read.
-        if Identity.carriesOver { CarryOver.run() }
+        renameWhatWasKept()
         pushKey = PushKeyStore.load()
-        readerModel = UserDefaults.standard.string(forKey: Identity.Kept.readerModel) ?? ""
+        loopModel = UserDefaults.standard.string(forKey: Identity.Kept.loopModel) ?? ""
         restoreFolder()
         Task {
             await pusher.use(pushKey)
             await openDoor()
+        }
+    }
+
+    /// The run records, their log and the model setting had other names until 16 November
+    /// 2026. A Mac that has them under those names keeps them under these. This goes once
+    /// the home has opened once.
+    private func renameWhatWasKept() {
+        let files = FileManager.default
+        for (old, new) in [("reader-runs", RunFiles.runs), ("reader.log", RunFiles.log)] {
+            let from = supportDirectory.appendingPathComponent(old), to = supportDirectory.appendingPathComponent(new)
+            if files.fileExists(atPath: from.path), !files.fileExists(atPath: to.path) { try? files.moveItem(at: from, to: to) }
+        }
+        let settings = UserDefaults.standard
+        if let model = settings.string(forKey: "dotto.reader.model") {
+            if settings.string(forKey: Identity.Kept.loopModel) == nil { settings.set(model, forKey: Identity.Kept.loopModel) }
+            settings.removeObject(forKey: "dotto.reader.model")
         }
     }
 
@@ -107,7 +122,7 @@ final class MacModel {
         }
         guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return }
         var stale = false
-        // A bookmark made while the app was sandboxed carries a security scope; it still resolves.
+        // A bookmark made by a sandboxed build carries a security scope; it still resolves.
         guard let url = (try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale))
             ?? (try? URL(resolvingBookmarkData: data, options: .withSecurityScope, relativeTo: nil, bookmarkDataIsStale: &stale)) else {
             UserDefaults.standard.removeObject(forKey: bookmarkKey)
@@ -293,7 +308,7 @@ final class MacModel {
 
     /// The loop that is running right now, by name, if one is.
     var runningLoop: String? {
-        _ = readerTick
+        _ = loopTick
         return loops.first { runners[$0.id]?.status.state == .running }?.name
     }
 
@@ -386,7 +401,7 @@ final class MacModel {
 
     /// The same key, another author: whoever holds it is that author from now on. The old
     /// grant is closed and a new one opened with the same hash, so nothing has to be pasted
-    /// again. For a key handed out before an author had the page it should have had.
+    /// again. For a key handed out under the wrong author.
     func reassign(_ grant: Grant, to author: Author) {
         guard author != grant.author else { return }
         var moved = Grant(name: grant.name, author: author, device: grant.device, key: grant.key,
@@ -401,8 +416,8 @@ final class MacModel {
 
     /// A fresh key for the same author, for when this Mac no longer holds the old one.
     /// The new key first. Until it is kept and its grant written, the old one stands and
-    /// its loops stay with it: closing the old grant first once left loops under a grant
-    /// that was never made.
+    /// its loops stay with it: with the old grant closed first, a key that cannot be kept
+    /// would leave the loops under a grant that was never made.
     func reissue(_ grant: Grant) {
         let fresh = Grant(name: grant.name, author: grant.author, device: grant.device,
                           writesNotes: grant.writesNotes, writesLabels: grant.writesLabels, writesLinks: grant.writesLinks, writesLines: grant.writesLines)
@@ -564,18 +579,18 @@ final class MacModel {
 
     // MARK: - Loops
 
-    private var readerRunsURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.runs, isDirectory: true) }
-    var readerLogURL: URL { supportDirectory.appendingPathComponent(ReaderFiles.log) }
+    private var runsURL: URL { supportDirectory.appendingPathComponent(RunFiles.runs, isDirectory: true) }
+    var loopLogURL: URL { supportDirectory.appendingPathComponent(RunFiles.log) }
 
     /// The loops the notebook says run today, oldest first.
     var loops: [Loop] { notebook?.loops ?? [] }
 
-    func status(of loop: Loop) -> ReaderStatus? { runner(of: loop)?.status }
-    func runs(of loop: Loop) -> [ReaderRun] { runner(of: loop)?.runs ?? [] }
+    func status(of loop: Loop) -> LoopStatus? { runner(of: loop)?.status }
+    func runs(of loop: Loop) -> [RunRecord] { runner(of: loop)?.runs ?? [] }
     /// What runs a loop. A sentence woken by a line is run by the one reading it is part
     /// of, with the other such sentences; a loop on the clock by itself.
-    func runner(of loop: Loop) -> ReaderRunner? {
-        _ = readerTick
+    func runner(of loop: Loop) -> LoopRunner? {
+        _ = loopTick
         return runners[notebook?.reading(holding: loop)?.id ?? loop.id]
     }
 
@@ -646,7 +661,7 @@ final class MacModel {
         guard case .open = door else {
             for runner in runners.values { runner.stop() }
             runners = [:]
-            readerTick += 1
+            loopTick += 1
             return
         }
         // What runs is not the loops one by one: the sentences woken by a line are one reading.
@@ -658,12 +673,12 @@ final class MacModel {
         }
         for loop in running where runners[loop.id] == nil {
             guard let grant = grants.first(where: { $0.id == loop.grant }), !grant.key.isEmpty else { continue }
-            let runner = ReaderRunner(loop: loop, grant: grant, door: "http://127.0.0.1:\(Self.defaultPort)/mcp", model: readerModel,
-                                      runsDirectory: readerRunsURL, logURL: readerLogURL)
-            runner.onChange = { [weak self] in self?.readerTick += 1 }
+            let runner = LoopRunner(loop: loop, grant: grant, door: "http://127.0.0.1:\(Self.defaultPort)/mcp", model: loopModel,
+                                      runsDirectory: runsURL, logURL: loopLogURL)
+            runner.onChange = { [weak self] in self?.loopTick += 1 }
             runner.onRan = { [weak self, weak runner] run in
                 guard let self, let runner, let endedAt = run.endedAt else { return }
-                // The receipt, in the notebook, under the loop's own originator and the reader's hand.
+                // The receipt, in the notebook, under the loop's own originator and hand.
                 try? store.append(Event(id: self.generator.next(at: endedAt), author: runner.grant.author, device: runner.loop.hand, at: endedAt,
                                         payload: .loopRan(.init(loop: runner.loop.id, run: run.id, ok: run.ok ?? false, turns: run.turns,
                                                                 cost: run.costUSD, summary: run.summary, startedAt: run.startedAt, endedAt: endedAt))))
@@ -671,7 +686,7 @@ final class MacModel {
             runner.remember(store)
             runners[loop.id] = runner
         }
-        readerTick += 1
+        loopTick += 1
     }
 
     // MARK: - The door
@@ -687,9 +702,7 @@ final class MacModel {
             // The door is open: the loops start, and look.
             refreshSummary()
         } catch {
-            door = .failed(Identity.carriesOver && CarryOver.earlierIsRunning
-                ? "The earlier dotto is still running on this Mac and holds the door. Quit it, then open this one again."
-                : "The door could not open on port \(Self.defaultPort): \(error)")
+            door = .failed("The door could not open on port \(Self.defaultPort): \(error)")
         }
     }
 }

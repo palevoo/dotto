@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The live line as a small panel that floats over whatever you are in. It takes the keys
 /// without taking the app away from you: the app you were in stays the active one. Opened by
-/// the hotkey, by a click on the dots in the menu bar, or by something landing. Return keeps
+/// the hotkey, by a click on the dot in the menu bar, or by something landing. Return keeps
 /// the line and the panel goes; Esc puts it away with the words waiting.
 @MainActor
 final class CaptureController: NSObject, NSWindowDelegate {
@@ -13,7 +13,7 @@ final class CaptureController: NSObject, NSWindowDelegate {
     let model: CaptureModel
     /// Opens the app's own window, for when there is no notebook yet.
     var openApp: () -> Void = {}
-    /// Where the dots are in the menu bar, when they are there.
+    /// Where the dot is in the menu bar, when it is there.
     var dots: () -> NSRect? = { nil }
 
     private var panel: CapturePanel?
@@ -26,12 +26,12 @@ final class CaptureController: NSObject, NSWindowDelegate {
 
     var isOpen: Bool { panel?.isVisible == true }
 
-    /// Click on the dots, or the hotkey: open if closed, away if open.
+    /// Click on the dot, or the hotkey: open if closed, away if open.
     func toggle(under anchor: NSRect? = nil) {
         if isOpen { hide() } else { show(under: anchor) }
     }
 
-    /// Opens the line. Under the dots when they were what was touched; otherwise in the upper
+    /// Opens the line. Under the dot when it is what was touched; otherwise in the upper
     /// part of the screen the pointer is on.
     func show(under anchor: NSRect? = nil) {
         let panel = self.panel ?? make()
@@ -109,7 +109,7 @@ final class CaptureController: NSObject, NSWindowDelegate {
         return true
     }
 
-    /// Something dropped, on the line or on the dots: read now, while the drag's pasteboard is
+    /// Something dropped, on the line or on the dot: read now, while the drag's pasteboard is
     /// valid, promised files asked for, and the line opened with it in place.
     func land(_ pasteboard: NSPasteboard, under anchor: NSRect? = nil) {
         var offered = Offered.read(pasteboard)
@@ -131,7 +131,7 @@ final class CaptureController: NSObject, NSWindowDelegate {
     /// A click elsewhere puts an empty line away. A line that has begun waits where it is,
     /// so you can go and fetch what it needs.
     func windowDidResignKey(_ notification: Notification) {
-        // A click on the dots is theirs to answer: it puts the line away, and hiding here
+        // A click on the dot is the dot's to answer: it puts the line away, and hiding here
         // first would have it open again.
         if let dots = dots(), dots.contains(NSEvent.mouseLocation) { return }
         if model.draft.isEmpty, model.landing == 0 { hide() }

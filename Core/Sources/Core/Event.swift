@@ -8,14 +8,10 @@ public struct Author: RawRepresentable, Hashable, Codable, Sendable, Expressible
     public init(stringLiteral value: String) { self.rawValue = value }
     public var description: String { rawValue }
 
-    /// The id the first grant wrote under, before ids were made fresh per grant. Kept so
-    /// the lines it left keep their author.
-    public static let weeju: Author = "weeju"
-
     /// The notebook's own originator. Every notebook has one, without anyone making it, as a
     /// tag is there once a line is under it: the one who reads, answers and shapes, whatever
     /// session, loop or model it comes through as. Those are its hands; it is one. It is
-    /// called dotto until it is named. Since 10 November 2026.
+    /// called dotto until it is named.
     public static let dotto: Author = "dotto"
 
     /// A fresh id for a new author: six characters nobody chose.
@@ -111,7 +107,7 @@ public enum FactValue: Hashable, Sendable, Codable {
         }
     }
 
-    /// The value as the page says it: "10 L", "potted", "2026-11-01 10:00", "41 min", "38.70, -9.10".
+    /// The value as the page says it: "10 L", "potted", "2026-11-01 10:00", "41 min", "54.50, -3.20".
     public func words(calendar: Calendar) -> String {
         switch self {
         case .number(let number, let unit):
@@ -141,7 +137,7 @@ public enum FactValue: Hashable, Sendable, Codable {
 /// The vocabulary. Versioned by addition only; a kind never changes meaning. A build that
 /// meets a kind it does not know carries the event as `Payload.unknown` and passes over it,
 /// so a phone and a Mac on different builds read the same files.
-public enum Kind: String, Codable, Sendable, CaseIterable {
+public enum Kind: String, Codable, Sendable {
     case entryCreate = "entry.create"
     case entryEdit = "entry.edit"
     case entryDelete = "entry.delete"
@@ -214,7 +210,7 @@ public enum Payload: Hashable, Sendable {
     case conditionsRemove(ConditionsRemove)
     /// A kind this build does not know, from a device on a newer one. Carried as it was,
     /// counted, written back unchanged, and nothing else: the vocabulary grows by addition,
-    /// so an older reader passes over what it cannot read yet.
+    /// so an older build passes over what it cannot read yet.
     case unknown(kind: String, payload: JSONValue)
 
     /// The kind, when this build knows it.
@@ -267,8 +263,8 @@ public enum Payload: Hashable, Sendable {
     /// The owner says two originators are one: everything `author` ever did, and does from
     /// now on, is `same`'s. Nothing is rewritten; the files keep the name they were written
     /// under and the fold reads through it. For an originator that came through two keys
-    /// under two ids, a weeju and a Margo that were both dotto. Only the owner's count, and
-    /// nobody is made the same as the owner. Since 10 November 2026.
+    /// under two ids, both of them dotto. Only the owner's count, and nobody is made the same
+    /// as the owner.
     public struct Same: Hashable, Codable, Sendable {
         public var author: Author
         public var same: Author
@@ -282,8 +278,7 @@ public enum Payload: Hashable, Sendable {
     /// A loop: a sentence said once, kept, run, with a receipt each time. The owner's event,
     /// like a grant: a name, the grant it runs as, what wakes it, a line landing or the clock
     /// at an hour each day, a brief in the owner's words added to the door's conduct, and a
-    /// cap on turns and on spend. The newest set for a loop id stands; stop ends it. Since
-    /// 9 November 2026.
+    /// cap on turns and on spend. The newest set for a loop id stands; stop ends it.
     public struct LoopSet: Hashable, Codable, Sendable {
         public var loop: ULID
         public var name: String
@@ -317,8 +312,7 @@ public enum Payload: Hashable, Sendable {
     /// A loop someone other than the owner asks for: a sentence the owner wrote, heard and
     /// shaped as a loop, with the same fields a set has. Only the owner sets a loop, so a
     /// proposal waits for their hand: set with the proposal's id as the loop's, or declined
-    /// with a stop of that id. The proposer's own grant is the one it would run as. Since
-    /// 10 November 2026.
+    /// with a stop of that id. The proposer's own grant is the one it would run as.
     public struct LoopPropose: Hashable, Codable, Sendable {
         public var loop: ULID
         public var name: String
@@ -366,9 +360,9 @@ public enum Payload: Hashable, Sendable {
     }
 
     /// A thing: a shape with an id and a name that lines belong to, a fig, a book, a person,
-    /// the detox, a tag. Made by whoever proposes it; it stands until dropped. Only its own
+    /// a streak, a tag. Made by whoever proposes it; it stands until dropped. Only its own
     /// originator sets it again, to rename it or give it a kind, and the newest set stands.
-    /// A kind is a word for now, plant, book, person, not a link. Since 10 November 2026.
+    /// A kind is a word for now, plant, book, person, not a link.
     public struct ThingSet: Hashable, Codable, Sendable {
         public var thing: ULID
         public var name: String
@@ -389,9 +383,9 @@ public enum Payload: Hashable, Sendable {
         public init(thing: ULID) { self.thing = thing }
     }
 
-    /// A fact: a key and a value put on a line or a thing by an originator. The yield on the
-    /// harvest line, the state of the fig, the days of the detox. One fact per originator per
-    /// key on a thing; the newest word of that originator wins. Since 10 November 2026.
+    /// A fact: a key and a value put on a line or a thing by an originator. The weight on a
+    /// line about flour, the state of the fig, the days of a streak. One fact per originator
+    /// per key on a thing; the newest word of that originator wins.
     public struct FactSet: Hashable, Codable, Sendable {
         /// The line or the thing it is on.
         public var on: ULID
@@ -469,7 +463,7 @@ public enum Payload: Hashable, Sendable {
     /// comes from what its ends are: a line to an earlier line is a thread, a note to a line
     /// is a citation, a line to a shape is belonging. One link per pair, from the thing that
     /// points to the thing pointed at; a newer link or unlink for the same pair replaces an
-    /// older one. Since 9 November 2026; `link.add` and `link.remove` are the older shape.
+    /// older one.
     public struct Join: Hashable, Codable, Sendable {
         public var from: ULID
         public var to: ULID
@@ -508,9 +502,9 @@ public enum Payload: Hashable, Sendable {
         public init(entry: ULID) { self.entry = entry }
     }
 
-    /// The older shape, 4 to 9 November: a later line joined to an earlier one, with `closes`
-    /// meaning the later finished the earlier. Folded as a link from later to earlier, and,
-    /// when closes is set, as done on the earlier line by the later.
+    /// A later line joined to an earlier one, with `closes` meaning the later finished the
+    /// earlier. Folded as a link from later to earlier, and, when closes is set, as done on
+    /// the earlier line by the later. Still read: notebooks written by earlier builds carry it.
     public struct LinkAdd: Hashable, Codable, Sendable {
         public var later: ULID
         public var earlier: ULID
@@ -523,6 +517,8 @@ public enum Payload: Hashable, Sendable {
         }
     }
 
+    /// A `link.add` taken back, and the finishing with it. Still read: notebooks written by
+    /// earlier builds carry it.
     public struct LinkRemove: Hashable, Codable, Sendable {
         public var later: ULID
         public var earlier: ULID
@@ -634,13 +630,12 @@ public enum Payload: Hashable, Sendable {
         public var location: Location?
         /// Whose page the line lands on. Absent, the writer's own. Another originator may
         /// write a line onto the owner's page under its own name, a walk, a booking, a book,
-        /// and the owner drops it with one hold. Since 9 November 2026.
+        /// and the owner drops it with one hold.
         public var page: Author?
         /// What the line was said under: a line, which makes it a reply; a reply, which makes
         /// it an answer to that reply in the same conversation; or a thing, which makes it
         /// something said on that thing's page. Absent, it stands on its writer's days. Where
-        /// a line was said is part of it and never changes. Read since 10 November 2026;
-        /// nothing writes it until every build can read it.
+        /// a line was said is part of it and never changes.
         public var under: ULID?
 
         public init(entry: ULID, text: String, startedAt: Date, location: Location? = nil, page: Author? = nil, under: ULID? = nil) {
@@ -686,7 +681,6 @@ public enum Payload: Hashable, Sendable {
         public var height: Int?
         public var duration: Double?
         /// For a page kept beside the line: what it is called, and the address it came from.
-        /// Since 10 November 2026.
         public var title: String?
         public var source: String?
 
@@ -710,7 +704,8 @@ public enum Payload: Hashable, Sendable {
         }
     }
 
-    /// A line under someone's line, by anyone: a reply.
+    /// A line under someone's line, by anyone: a reply. Still read: notebooks written by
+    /// earlier builds carry it. A reply is written as a line that says what it is under.
     public struct NoteAdd: Hashable, Codable, Sendable {
         public var entry: ULID
         public var note: ULID
@@ -723,13 +718,15 @@ public enum Payload: Hashable, Sendable {
         }
     }
 
+    /// A note taken back. Still read: notebooks written by earlier builds carry it.
     public struct NoteRemove: Hashable, Codable, Sendable {
         public var note: ULID
 
         public init(note: ULID) { self.note = note }
     }
 
-    /// The note's author changed its words. The whole text, not a diff.
+    /// The note's author changed its words. The whole text, not a diff. Still read:
+    /// notebooks written by earlier builds carry it.
     public struct NoteEdit: Hashable, Codable, Sendable {
         public var note: ULID
         public var text: String

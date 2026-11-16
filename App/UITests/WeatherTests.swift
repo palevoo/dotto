@@ -38,7 +38,7 @@ final class WeatherTests: XCTestCase {
     /// Off until switched on in Setup. Switched on, a line that has a place gets its weather
     /// with nothing else asked of anyone.
     func testSwitchedOnInSetupALineWithAPlaceGetsItsWeather() {
-        let placed = app.line("Olives under the nets")
+        let placed = app.line("Light through the kitchen door")
         XCTAssertTrue(placed.waitForExistence(timeout: 15))
         placed.tap()
         XCTAssertTrue(app.navigationBars.buttons.firstMatch.waitForExistence(timeout: 5))

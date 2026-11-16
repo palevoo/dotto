@@ -5,23 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dotto</title>
 <meta name="description" content="Capture anything. Dotto takes it from there.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='22' fill='%23ffffff'/%3E%3Ccircle cx='33' cy='46' r='12' fill='%23e4572e'/%3E%3Ccircle cx='63' cy='46' r='12' fill='%23e4572e'/%3E%3C/svg%3E">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap">
+<!-- The name's own hand: only its three letters, and nothing shown in another face while it loads. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@700&text=dotto&display=block">
+<!-- The dots, as design/ draws them. -->
+<link rel="stylesheet" href="look.css">
 <style>
 :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 /* Layout: one screen. The words stand at the left edge, read bottom up from the live line.
    The rest is a field. Every line written becomes a dot in it, its own full stop; Dotto's
    dot, the only colour, leaves the name, goes through them, and they gather into things.
-   Palette of 9 November: a cool near-white ground, black ink, hairlines barely there.
+   Palette: a cool near-white ground, black text, hairlines barely there.
    A person's words in a serif, the system in a grotesk, times in mono. */
 :root {
   --ground: #f6f6f4;
-  --ink: #141618;
+  --text: #141618;
   --soft: #4f5357;
   --muted: #8a8f93;
   --unlit: #c6c9c9;
-  --rule: rgba(20, 22, 24, 0.10);
   --rule-strong: rgba(20, 22, 24, 0.26);
   --dot: #e4572e;
   --health: #3b5bdb;
@@ -32,15 +35,15 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ground: #111213; --ink: #ecedea; --soft: #b4b8b5; --muted: #7e8381; --unlit: #3a3e40;
-    --rule: rgba(236, 237, 234, 0.10); --rule-strong: rgba(236, 237, 234, 0.28);
+    --ground: #111213; --text: #ecedea; --soft: #b4b8b5; --muted: #7e8381; --unlit: #3a3e40;
+    --rule-strong: rgba(236, 237, 234, 0.28);
     --dot: #ff6a3d; --health: #7d94f0;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --ground: #111213; --ink: #ecedea; --soft: #b4b8b5; --muted: #7e8381; --unlit: #3a3e40;
-  --rule: rgba(236, 237, 234, 0.10); --rule-strong: rgba(236, 237, 234, 0.28);
+  --ground: #111213; --text: #ecedea; --soft: #b4b8b5; --muted: #7e8381; --unlit: #3a3e40;
+  --rule-strong: rgba(236, 237, 234, 0.28);
   --dot: #ff6a3d; --health: #7d94f0;
   color-scheme: dark;
 }
@@ -50,7 +53,7 @@ html, body { height: 100%; }
 body {
   margin: 0;
   background: var(--ground);
-  color: var(--ink);
+  color: var(--text);
   font-family: var(--system);
   font-size: 16px;
   line-height: 1.5;
@@ -81,22 +84,23 @@ body {
   .note { min-height: 4.6rem; }
 }
 
-/* The name. Its full stop is Dotto. */
+/* The name, written by hand. Its full stop is Dotto: a dot drawn by hand, its own. */
 .mark {
   grid-area: mark;
-  font-family: var(--words);
-  font-weight: 500;
-  font-size: 1.5rem;
-  letter-spacing: -0.01em;
+  font-family: "Shantell Sans", var(--words);
+  font-weight: 700;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 .o {
   display: inline-block;
-  width: 10px; height: 10px;
-  border-radius: 50%;
+  width: calc(10px * var(--own-w, 1)); height: calc(10px * var(--own-h, 1));
+  border-radius: var(--own-r, 50%);
+  transform: rotate(var(--own-turn, 0deg));
   background: var(--dot);
 }
-.mark .o { margin-left: 3px; }
+.mark .o { margin-left: 4px; }
 
 /* The words. */
 .say { grid-area: say; align-self: end; min-width: 0; display: flex; flex-direction: column; gap: 1.5rem; container-type: inline-size; }
@@ -109,7 +113,7 @@ h1 {
   letter-spacing: -0.018em;
 }
 .ph { display: block; color: var(--unlit); transition: color 0.9s ease; }
-.ph.on { color: var(--ink); }
+.ph.on { color: var(--text); }
 
 /* What "from there" is, one word for each thing the field then does. */
 .steps { margin: 0; display: flex; flex-wrap: wrap; gap: 0.3rem 1.15rem; font-size: 0.95rem; font-weight: 500; }
@@ -124,7 +128,7 @@ h1 {
 .said .t { margin-right: 0.6em; }
 .said .by { font-family: var(--system); font-size: 0.78rem; color: var(--health); margin-left: 0.5em; }
 .did { font-size: 0.92rem; color: var(--soft); display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 0.55rem; align-items: baseline; }
-.did .o { width: 7px; height: 7px; transform: translateY(-1px); }
+.did .o { width: calc(7px * var(--own-w, 1)); height: calc(7px * var(--own-h, 1)); transform: translateY(-1px) rotate(var(--own-turn, 0deg)); }
 .hint { font-size: 0.92rem; color: var(--muted); }
 
 /* The live line. */
@@ -140,7 +144,7 @@ h1 {
   min-width: 0; width: 100%;
   border: 0; outline: 0; padding: 0; margin: 0;
   background: transparent;
-  color: var(--ink);
+  color: var(--text);
   caret-color: var(--dot);
   font-family: var(--words);
   font-size: 1.3rem;
@@ -154,7 +158,7 @@ h1 {
   transition: opacity 0.2s ease;
 }
 .live input:placeholder-shown + .ret { opacity: 0; pointer-events: none; }
-.ret:hover { color: var(--ink); }
+.ret:hover { color: var(--text); }
 .ret:focus-visible, .foot a:focus-visible { outline: 2px solid var(--dot); outline-offset: 2px; }
 
 /* The foot. */
@@ -185,37 +189,54 @@ h1 {
   transition: left 1.5s var(--ease), top 1.5s var(--ease);
   -webkit-tap-highlight-color: transparent;
 }
+/* Each line's dot is drawn by hand, one of the dots design/ has: its shape, its turn, and
+   how much wider and shorter than round it is. */
 .dot::before {
   content: ""; position: absolute; inset: 0; margin: auto;
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--ink);
+  width: calc(10px * var(--w, 1)); height: calc(10px * var(--h, 1));
+  border-radius: var(--r, 50%);
+  background: var(--text);
+  transform: rotate(var(--turn, 0deg)) scale(var(--grown, 1));
   transition: transform 0.25s var(--ease);
 }
 .dot.health::before { background: var(--health); }
-.dot:hover::before, .dot:focus-visible::before { transform: scale(1.5); }
+.dot:hover, .dot:focus-visible { --grown: 1.5; }
 .dot:focus-visible { outline: none; }
 .dot[aria-pressed="true"]::after, .dot:focus-visible::after {
   content: ""; position: absolute; inset: 1px; border-radius: 50%;
-  border: 1px solid var(--ink);
+  border: 1px solid var(--text);
 }
 .dot.health[aria-pressed="true"]::after, .dot.health:focus-visible::after { border-color: var(--health); }
 .dot.waiting { visibility: hidden; }
 .dot.seen::before { animation: seen 0.5s var(--ease); }
-@keyframes seen { 40% { transform: scale(2.1); } }
+@keyframes seen { 40% { transform: rotate(var(--turn, 0deg)) scale(2.1); } }
 
 .label, .extra { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); pointer-events: none; }
 .label { font-size: 0.8rem; font-weight: 500; color: var(--soft); white-space: nowrap; line-height: 1; }
 .label.r { transform: translate(16px, -50%); }
 .label.b { transform: translate(-5px, 15px); }
 .extra { border-radius: 50%; transform: translate(-50%, -50%); }
-.extra.ring { width: 24px; height: 24px; border: 1px solid var(--ink); }
+.extra.ring { width: 24px; height: 24px; border: 1px solid var(--text); }
 .extra.today { width: 10px; height: 10px; border: 1.5px solid var(--dot); }
-.extra.answer { width: 7px; height: 7px; background: var(--dot); }
+.extra.answer {
+  width: calc(7px * var(--own-w, 1)); height: calc(7px * var(--own-h, 1));
+  border-radius: var(--own-r, 50%);
+  transform: translate(-50%, -50%) rotate(var(--own-turn, 0deg));
+  background: var(--dot);
+}
 
-/* What moves between the words and the field: a line on its way in, and Dotto on its way round. */
-.fly { position: fixed; left: 0; top: 0; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; pointer-events: none; z-index: 5; }
-.fly.line { background: var(--ink); }
-.fly.dotto { background: var(--dot); }
+/* What moves between the words and the field: a line on its way in, and Dotto on its way
+   round. Each is carried by a still box and drawn inside it, so its turn does not bend its way. */
+.fly { position: fixed; left: 0; top: 0; width: 10px; height: 10px; margin: -5px 0 0 -5px; pointer-events: none; z-index: 5; }
+.fly::before {
+  content: ""; position: absolute; left: 50%; top: 50%;
+  width: calc(10px * var(--w, 1)); height: calc(10px * var(--h, 1));
+  border-radius: var(--r, 50%);
+  transform: translate(-50%, -50%) rotate(var(--turn, 0deg));
+  background: var(--text);
+}
+.fly.dotto { --r: var(--own-r, 50%); --turn: var(--own-turn, 0deg); --w: var(--own-w, 1); --h: var(--own-h, 1); }
+.fly.dotto::before { background: var(--dot); }
 
 @media (prefers-reduced-motion: reduce) {
   .dot, .dot::before, .ph, .steps span, .links, .label, .label .n, .extra { transition: none; }
@@ -226,11 +247,11 @@ h1 {
 <body>
 
 <div class="page">
-  <header class="mark"><span>Dotto</span><i class="o" id="home"></i></header>
+  <header class="mark"><span>dotto</span><i class="o" id="home"></i></header>
 
   <main class="say">
     <h1>
-      <span class="ph on" id="p1">Capture anything.</span>
+      <span class="ph on">Capture anything.</span>
       <span class="ph" id="p2">Dotto takes it from there.</span>
     </h1>
 
@@ -338,9 +359,13 @@ h1 {
   function at(node, x, y) { node.style.setProperty("--x", x); node.style.setProperty("--y", y); }
   function centre(node) { var r = node.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }
 
-  // A dot is a button: touch it and it says its line.
+  // A dot is a button: touch it and it says its line. Each is one of the dots look.css has,
+  // from the second on; the first is Dotto's own.
+  var drawn = 0;
   function makeDot(line) {
     var b = el("button", "dot" + (line.by ? " health" : ""));
+    b.shape = "d" + (2 + drawn++ % 11);
+    b.classList.add(b.shape);
     b.type = "button";
     b.setAttribute("aria-pressed", "false");
     b.setAttribute("aria-label", line.t + ". " + line.w + (line.by ? " Written by " + line.by + "." : ""));
@@ -457,7 +482,7 @@ h1 {
     if (still) { b.classList.remove("waiting"); input.value = ""; return Promise.resolve(); }
     var from = end();
     input.value = "";
-    return fly("line", from, centre(b), 850).then(function (f) { b.classList.remove("waiting"); f.remove(); });
+    return fly("line " + b.shape, from, centre(b), 850).then(function (f) { b.classList.remove("waiting"); f.remove(); });
   }
 
   // Dotto leaves the name, goes to each line in turn, and comes home.

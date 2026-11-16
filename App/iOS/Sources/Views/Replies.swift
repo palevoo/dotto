@@ -85,7 +85,7 @@ struct ReplyBlock: View {
                                     .foregroundStyle(Theme.muted)
                                 Text(words(of: link.to))
                                     .font(Theme.sansSmall)
-                                    .foregroundStyle(Theme.ink(for: note.author, owner: model.store.manifest.owner))
+                                    .foregroundStyle(Theme.colour(for: note.author, owner: model.store.manifest.owner))
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                             }

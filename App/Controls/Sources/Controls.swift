@@ -2,8 +2,8 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
-/// Two controls for Control Center, the lock screen corners and the Action button:
-/// write, and photo. Each is one press into the app.
+/// Three controls for Control Center, the lock screen corners and the Action button:
+/// speak, write, and photo. Each is one press into the app.
 @main
 struct DottoControls: WidgetBundle {
     var body: some Widget {

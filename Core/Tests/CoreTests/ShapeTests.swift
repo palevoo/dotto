@@ -33,17 +33,17 @@ final class ShapeTests: XCTestCase {
     func testAThingIsMadeOnceAndSetOnlyByItsOriginator() {
         let fig = ULID(timestamp: clock)
         var notebook = Notebook(owner: me)
-        notebook.apply(event(.thingSet(.init(thing: fig, name: " Fig ", kind: "Plant")), author: .weeju))
+        notebook.apply(event(.thingSet(.init(thing: fig, name: " Fig ", kind: "Plant")), author: .moss))
         XCTAssertEqual(notebook.thing(fig)?.name, "Fig", "trimmed")
         XCTAssertEqual(notebook.thing(fig)?.kind, "plant", "a kind is a lower-case word")
-        XCTAssertEqual(notebook.thing(fig)?.author, .weeju)
+        XCTAssertEqual(notebook.thing(fig)?.author, .moss)
 
-        notebook.apply(event(.thingSet(.init(thing: fig, name: "Ficus")), author: "margo"))
+        notebook.apply(event(.thingSet(.init(thing: fig, name: "Ficus")), author: "fern"))
         XCTAssertEqual(notebook.thing(fig)?.name, "Fig", "only its own originator sets it")
 
-        let rename = event(.thingSet(.init(thing: fig, name: "The fig", kind: "plant")), author: .weeju)
+        let rename = event(.thingSet(.init(thing: fig, name: "The fig", kind: "plant")), author: .moss)
         notebook.apply(rename)
-        notebook.apply(older(.thingSet(.init(thing: fig, name: "Old name", kind: "plant")), author: .weeju))
+        notebook.apply(older(.thingSet(.init(thing: fig, name: "Old name", kind: "plant")), author: .moss))
         XCTAssertEqual(notebook.thing(fig)?.name, "The fig", "the newest set stands, whatever order it arrives in")
         XCTAssertEqual(notebook.allThings.map(\.id), [fig])
         XCTAssertEqual(notebook.things(kind: "plant").count, 1)
@@ -54,9 +54,9 @@ final class ShapeTests: XCTestCase {
     func testALineBelongsToAThingByALinkAndWaitsForEither() {
         let fig = ULID(timestamp: clock)
         let line = ULID(timestamp: clock.addingTimeInterval(60))
-        let make = event(.thingSet(.init(thing: fig, name: "fig")), author: .weeju)
+        let make = event(.thingSet(.init(thing: fig, name: "fig")), author: .moss)
         let write = event(.entryCreate(.init(entry: line, text: "Potted the fig", startedAt: clock)))
-        let belong = event(.link(.init(from: line, to: fig)), author: .weeju)
+        let belong = event(.link(.init(from: line, to: fig)), author: .moss)
 
         // The link arrives first, then the line, then the thing: placed once both are here.
         var notebook = Notebook(owner: me)
@@ -75,9 +75,9 @@ final class ShapeTests: XCTestCase {
 
         // Nothing points from a thing, and a note belongs to nothing.
         let note = ULID(timestamp: clock)
-        notebook.apply(event(.noteAdd(.init(entry: line, note: note, text: "Which pot?")), author: .weeju))
-        notebook.apply(event(.link(.init(from: fig, to: line)), author: .weeju))
-        notebook.apply(event(.link(.init(from: note, to: fig)), author: .weeju))
+        notebook.apply(event(.noteAdd(.init(entry: line, note: note, text: "Which pot?")), author: .moss))
+        notebook.apply(event(.link(.init(from: fig, to: line)), author: .moss))
+        notebook.apply(event(.link(.init(from: note, to: fig)), author: .moss))
         XCTAssertEqual(notebook.entry(line)?.incoming, [])
         XCTAssertEqual(notebook.thing(fig)?.lines, [line])
 
@@ -85,12 +85,12 @@ final class ShapeTests: XCTestCase {
         notebook.apply(event(.unlink(.init(from: line, to: fig))))
         XCTAssertEqual(notebook.entry(line)?.belongsTo, [])
         XCTAssertEqual(notebook.thing(fig)?.lines, [])
-        notebook.apply(event(.link(.init(from: line, to: fig)), author: .weeju))
+        notebook.apply(event(.link(.init(from: line, to: fig)), author: .moss))
         XCTAssertEqual(notebook.thing(fig)?.lines, [line])
         notebook.apply(event(.thingRemove(.init(thing: fig))))
         XCTAssertNil(notebook.thing(fig))
         XCTAssertEqual(notebook.entry(line)?.belongsTo, [])
-        notebook.apply(older(.thingSet(.init(thing: fig, name: "fig")), author: .weeju, by: 1800))
+        notebook.apply(older(.thingSet(.init(thing: fig, name: "fig")), author: .moss, by: 1800))
         XCTAssertNil(notebook.thing(fig), "a drop is final; a set arriving late does not bring it back")
     }
 
@@ -98,9 +98,9 @@ final class ShapeTests: XCTestCase {
         let fig = ULID(timestamp: clock)
         let line = ULID(timestamp: clock.addingTimeInterval(60))
         var notebook = Notebook(owner: me, events: [
-            event(.thingSet(.init(thing: fig, name: "fig")), author: .weeju),
+            event(.thingSet(.init(thing: fig, name: "fig")), author: .moss),
             event(.entryCreate(.init(entry: line, text: "Potted", startedAt: clock))),
-            event(.link(.init(from: line, to: fig)), author: .weeju),
+            event(.link(.init(from: line, to: fig)), author: .moss),
         ])
         XCTAssertEqual(notebook.thing(fig)?.lines, [line])
         notebook.apply(event(.entryDelete(.init(entry: line))))
@@ -108,42 +108,42 @@ final class ShapeTests: XCTestCase {
     }
 
     func testFactsOnALineAndAThingOnePerOriginatorPerKey() {
-        let harvest = ULID(timestamp: clock)
+        let flour = ULID(timestamp: clock)
         let fig = ULID(timestamp: clock)
         var notebook = Notebook(owner: me, events: [
-            event(.entryCreate(.init(entry: harvest, text: "90 kg gave 10 L", startedAt: clock))),
-            event(.thingSet(.init(thing: fig, name: "fig", kind: "plant")), author: .weeju),
+            event(.entryCreate(.init(entry: flour, text: "Bought the rye flour, 2 kg", startedAt: clock))),
+            event(.thingSet(.init(thing: fig, name: "fig", kind: "plant")), author: .moss),
         ])
 
-        let yield = event(.factSet(.init(on: harvest, key: " Yield", value: .number(10, unit: "L"))), author: .weeju)
-        notebook.apply(yield)
-        XCTAssertEqual(notebook.entry(harvest)?.facts.map(\.key), ["yield"])
-        XCTAssertEqual(notebook.entry(harvest)?.facts.first?.value, .number(10, unit: "L"))
-        XCTAssertEqual(notebook.entry(harvest)?.facts.first?.id, yield.id)
-        XCTAssertEqual(notebook.entry(harvest)?.activity.map(\.what), ["put yield 10 L on this"])
+        let weight = event(.factSet(.init(on: flour, key: " Weight", value: .number(2, unit: "kg"))), author: .moss)
+        notebook.apply(weight)
+        XCTAssertEqual(notebook.entry(flour)?.facts.map(\.key), ["weight"])
+        XCTAssertEqual(notebook.entry(flour)?.facts.first?.value, .number(2, unit: "kg"))
+        XCTAssertEqual(notebook.entry(flour)?.facts.first?.id, weight.id)
+        XCTAssertEqual(notebook.entry(flour)?.activity.map(\.what), ["put weight 2 kg on this"])
 
         // The same originator again: replaced. Another originator: beside it.
-        notebook.apply(event(.factSet(.init(on: harvest, key: "yield", value: .number(12, unit: "L"))), author: .weeju))
-        notebook.apply(event(.factSet(.init(on: harvest, key: "yield", value: .number(11, unit: "L"))), author: "margo"))
-        XCTAssertEqual(notebook.entry(harvest)?.facts.map { "\($0.author) \($0.value.words(calendar: utc))" }, ["margo 11 L", "weeju 12 L"])
+        notebook.apply(event(.factSet(.init(on: flour, key: "weight", value: .number(3, unit: "kg"))), author: .moss))
+        notebook.apply(event(.factSet(.init(on: flour, key: "weight", value: .number(4, unit: "kg"))), author: "fern"))
+        XCTAssertEqual(notebook.entry(flour)?.facts.map { "\($0.author) \($0.value.words(calendar: utc))" }, ["fern 4 kg", "moss 3 kg"])
 
         // An older word arriving late does not win.
-        notebook.apply(older(.factSet(.init(on: harvest, key: "yield", value: .number(1, unit: "L"))), author: .weeju))
-        XCTAssertEqual(notebook.entry(harvest)?.facts.last?.value, .number(12, unit: "L"))
+        notebook.apply(older(.factSet(.init(on: flour, key: "weight", value: .number(1, unit: "kg"))), author: .moss))
+        XCTAssertEqual(notebook.entry(flour)?.facts.last?.value, .number(3, unit: "kg"))
 
         // The owner takes another's off, naming whose; the originator takes its own off.
-        notebook.apply(event(.factRemove(.init(on: harvest, key: "yield", of: "margo"))))
-        XCTAssertEqual(notebook.entry(harvest)?.facts.map(\.author), [.weeju])
-        notebook.apply(event(.factRemove(.init(on: harvest, key: "yield", of: .weeju)), author: "margo"))
-        XCTAssertEqual(notebook.entry(harvest)?.facts.map(\.author), [.weeju], "nobody else takes it off")
-        notebook.apply(event(.factRemove(.init(on: harvest, key: "yield")), author: .weeju))
-        XCTAssertEqual(notebook.entry(harvest)?.facts, [])
+        notebook.apply(event(.factRemove(.init(on: flour, key: "weight", of: "fern"))))
+        XCTAssertEqual(notebook.entry(flour)?.facts.map(\.author), [.moss])
+        notebook.apply(event(.factRemove(.init(on: flour, key: "weight", of: .moss)), author: "fern"))
+        XCTAssertEqual(notebook.entry(flour)?.facts.map(\.author), [.moss], "nobody else takes it off")
+        notebook.apply(event(.factRemove(.init(on: flour, key: "weight")), author: .moss))
+        XCTAssertEqual(notebook.entry(flour)?.facts, [])
 
         // Facts on a thing are its state, and they wait for a thing not seen yet.
-        let state = event(.factSet(.init(on: fig, key: "state", value: .words("potted"))), author: .weeju)
+        let state = event(.factSet(.init(on: fig, key: "state", value: .words("potted"))), author: .moss)
         notebook.apply(state)
         XCTAssertEqual(notebook.thing(fig)?.facts.map { "\($0.key) \($0.value.words(calendar: utc))" }, ["state potted"])
-        let late = Notebook(owner: me, events: [state, event(.thingSet(.init(thing: fig, name: "fig")), author: .weeju)])
+        let late = Notebook(owner: me, events: [state, event(.thingSet(.init(thing: fig, name: "fig")), author: .moss)])
         XCTAssertEqual(late.thing(fig)?.facts.map(\.key), ["state"])
     }
 
@@ -157,7 +157,7 @@ final class ShapeTests: XCTestCase {
             (.span(2460), "41 min", #"{"span":2460}"#),
             (.span(5400), "1 h 30 min", #"{"span":5400}"#),
             (.span(3 * 86_400), "3 d", #"{"span":259200}"#),
-            (.place(Location(latitude: 38.7, longitude: -9.1)), "38.70, -9.10", #"{"place":{"latitude":38.7,"longitude":-9.1}}"#),
+            (.place(Location(latitude: 54.5, longitude: -3.2)), "54.50, -3.20", #"{"place":{"latitude":54.5,"longitude":-3.2}}"#),
         ]
         for (value, words, json) in values {
             XCTAssertEqual(value.words(calendar: utc), words)
@@ -180,14 +180,14 @@ final class ShapeTests: XCTestCase {
             let event = event(payload, author: author)
             files["\(author).iphone.jsonl", default: []].append(event)
         }
-        write(.entryCreate(.init(entry: line, text: "90 kg gave 10 L", startedAt: clock)), by: me)
-        write(.thingSet(.init(thing: fig, name: "fig", kind: "plant")), by: .weeju)
-        write(.factSet(.init(on: line, key: "yield", value: .number(10, unit: "L"))), by: .weeju)
-        write(.factSet(.init(on: fig, key: "state", value: .words("potted"))), by: .weeju)
+        write(.entryCreate(.init(entry: line, text: "Bought the rye flour, 2 kg", startedAt: clock)), by: me)
+        write(.thingSet(.init(thing: fig, name: "fig", kind: "plant")), by: .moss)
+        write(.factSet(.init(on: line, key: "weight", value: .number(2, unit: "kg"))), by: .moss)
+        write(.factSet(.init(on: fig, key: "state", value: .words("potted"))), by: .moss)
         let byFile = files.keys.sorted().map { ($0, files[$0]!) }
         let notebook = Notebook(owner: me, events: byFile.flatMap(\.1))
         let items = Inbox.items(files: byFile, notebook: notebook, calendar: utc)
-        XCTAssertEqual(items.map(\.what), ["put state potted on", "put yield 10 L on", "made a thing"])
+        XCTAssertEqual(items.map(\.what), ["put state potted on", "put weight 2 kg on", "made a thing"])
         XCTAssertEqual(items.map(\.kind), [.shape, .shape, .shape])
         XCTAssertEqual(items[0].thing, fig)
         XCTAssertEqual(items[0].text, "fig")
@@ -198,7 +198,7 @@ final class ShapeTests: XCTestCase {
 
     /// A proposed loop is an inbox item that wants the owner until it is set or declined.
     func testAProposedLoopWantsTheOwnerUntilAnswered() {
-        let grant = Grant(name: "Claude Code", author: .weeju, device: "claude-code")
+        let grant = Grant(name: "Claude Code", author: .moss, device: "claude-code")
         let proposal = ULID(timestamp: clock)
         var files: [String: [Event]] = [:]
         func write(_ payload: Payload, by author: Author) {
@@ -206,7 +206,7 @@ final class ShapeTests: XCTestCase {
             files["\(author).iphone.jsonl", default: []].append(event)
         }
         write(.grantCreate(grant.create), by: me)
-        write(.loopPropose(.init(loop: proposal, name: "The evening look", grant: grant.id, wake: "clock", at: "21:00", brief: "Read the day once.")), by: .weeju)
+        write(.loopPropose(.init(loop: proposal, name: "The evening look", grant: grant.id, wake: "clock", at: "21:00", brief: "Read the day once.")), by: .moss)
         func items() -> [InboxItem] {
             let byFile = files.keys.sorted().map { ($0, files[$0]!) }
             return Inbox.items(files: byFile, notebook: Notebook(owner: me, events: byFile.flatMap(\.1)), calendar: utc)
@@ -226,30 +226,30 @@ final class ShapeTests: XCTestCase {
 
     /// Todos are lines anyone marked todo and nobody marked done, due first; kinds count things.
     func testTodosDueAndKinds() {
-        let tv = ULID(timestamp: clock), tyres = ULID(timestamp: clock.addingTimeInterval(60)), visit = ULID(timestamp: clock.addingTimeInterval(120))
+        let books = ULID(timestamp: clock), rye = ULID(timestamp: clock.addingTimeInterval(60)), haircut = ULID(timestamp: clock.addingTimeInterval(120))
         let fig = ULID(timestamp: clock), book = ULID(timestamp: clock), untyped = ULID(timestamp: clock)
         let thursday = now.addingTimeInterval(2 * 86_400)
         var notebook = Notebook(owner: me, events: [
-            event(.entryCreate(.init(entry: tv, text: "Sell the TV", startedAt: clock))),
-            event(.entryCreate(.init(entry: tyres, text: "Tyres", startedAt: clock.addingTimeInterval(60)))),
-            event(.entryCreate(.init(entry: visit, text: "Apartment visit", startedAt: clock.addingTimeInterval(120)))),
-            event(.factSet(.init(on: tv, key: "todo", value: .words("open"))), author: .weeju),
-            event(.factSet(.init(on: tyres, key: "todo", value: .words("open"))), author: .weeju),
-            event(.factSet(.init(on: tyres, key: "due", value: .moment(thursday))), author: .weeju),
-            event(.factSet(.init(on: visit, key: "due", value: .moment(now.addingTimeInterval(86_400)))), author: .weeju),
-            event(.thingSet(.init(thing: fig, name: "fig", kind: "plant")), author: .weeju),
-            event(.thingSet(.init(thing: book, name: "Infinity", kind: "book")), author: .weeju),
-            event(.thingSet(.init(thing: untyped, name: "something")), author: .weeju),
+            event(.entryCreate(.init(entry: books, text: "Return the library books", startedAt: clock))),
+            event(.entryCreate(.init(entry: rye, text: "Buy rye flour", startedAt: clock.addingTimeInterval(60)))),
+            event(.entryCreate(.init(entry: haircut, text: "Haircut", startedAt: clock.addingTimeInterval(120)))),
+            event(.factSet(.init(on: books, key: "todo", value: .words("open"))), author: .moss),
+            event(.factSet(.init(on: rye, key: "todo", value: .words("open"))), author: .moss),
+            event(.factSet(.init(on: rye, key: "due", value: .moment(thursday))), author: .moss),
+            event(.factSet(.init(on: haircut, key: "due", value: .moment(now.addingTimeInterval(86_400)))), author: .moss),
+            event(.thingSet(.init(thing: fig, name: "fig", kind: "plant")), author: .moss),
+            event(.thingSet(.init(thing: book, name: "The Country Loaf", kind: "book")), author: .moss),
+            event(.thingSet(.init(thing: untyped, name: "something")), author: .moss),
         ])
-        XCTAssertEqual(notebook.todos.map(\.text), ["Tyres", "Sell the TV"], "due first, then newest")
-        XCTAssertEqual(notebook.entry(tyres)?.due, thursday)
-        XCTAssertFalse(notebook.entry(visit)!.isTodo, "an appointment is due, not a todo")
-        XCTAssertEqual(notebook.due(after: now).map(\.text), ["Apartment visit", "Tyres"])
+        XCTAssertEqual(notebook.todos.map(\.text), ["Buy rye flour", "Return the library books"], "due first, then newest")
+        XCTAssertEqual(notebook.entry(rye)?.due, thursday)
+        XCTAssertFalse(notebook.entry(haircut)!.isTodo, "an appointment is due, not a todo")
+        XCTAssertEqual(notebook.due(after: now).map(\.text), ["Haircut", "Buy rye flour"])
         XCTAssertEqual(notebook.due(after: now.addingTimeInterval(3 * 86_400)), [])
 
-        notebook.apply(event(.done(.init(entry: tv)), author: .weeju))
-        XCTAssertEqual(notebook.todos.map(\.text), ["Tyres"], "done leaves the list")
-        notebook.apply(event(.factRemove(.init(on: tyres, key: "todo", of: .weeju))))
+        notebook.apply(event(.done(.init(entry: books)), author: .moss))
+        XCTAssertEqual(notebook.todos.map(\.text), ["Buy rye flour"], "done leaves the list")
+        notebook.apply(event(.factRemove(.init(on: rye, key: "todo", of: .moss))))
         XCTAssertEqual(notebook.todos, [], "and so does the owner taking the fact off")
 
         XCTAssertEqual(notebook.kinds.map { "\($0.kind ?? "-") \($0.count)" }, ["book 1", "plant 1", "- 1"])
@@ -262,22 +262,22 @@ final class ShapeTests: XCTestCase {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
         // clock is Monday 2 November 2026, 10:00 UTC.
-        let visa = ULID(timestamp: clock), seeds = ULID(timestamp: clock.addingTimeInterval(60)), soon = ULID(timestamp: clock.addingTimeInterval(120))
+        let eyeTest = ULID(timestamp: clock), seeds = ULID(timestamp: clock.addingTimeInterval(60)), soon = ULID(timestamp: clock.addingTimeInterval(120))
         let friday = clock.addingTimeInterval(4 * 86_400 + 3600)        // Friday 11:00
         let march = clock.addingTimeInterval(100 * 86_400)
         let today = clock.addingTimeInterval(1800)                        // today 10:30
         var notebook = Notebook(owner: me, events: [
-            event(.entryCreate(.init(entry: visa, text: "Visa appointment", startedAt: clock)), at: clock),
+            event(.entryCreate(.init(entry: eyeTest, text: "Eye test", startedAt: clock)), at: clock),
             event(.entryCreate(.init(entry: seeds, text: "Plant the seeds", startedAt: clock)), at: clock),
             event(.entryCreate(.init(entry: soon, text: "Dentist", startedAt: clock)), at: clock),
-            event(.factSet(.init(on: visa, key: "at", value: .moment(friday))), author: .weeju, at: clock),
-            event(.factSet(.init(on: seeds, key: "todo", value: .words("open"))), author: .weeju, at: clock),
-            event(.factSet(.init(on: seeds, key: "due", value: .moment(march))), author: .weeju, at: clock),
-            event(.factSet(.init(on: soon, key: "at", value: .moment(today))), author: .weeju, at: clock),
+            event(.factSet(.init(on: eyeTest, key: "at", value: .moment(friday))), author: .moss, at: clock),
+            event(.factSet(.init(on: seeds, key: "todo", value: .words("open"))), author: .moss, at: clock),
+            event(.factSet(.init(on: seeds, key: "due", value: .moment(march))), author: .moss, at: clock),
+            event(.factSet(.init(on: soon, key: "at", value: .moment(today))), author: .moss, at: clock),
         ])
-        XCTAssertNil(notebook.entry(visa)?.todo, "an appointment is not to do")
-        XCTAssertEqual(notebook.entry(visa)?.moment, friday)
-        XCTAssertEqual(notebook.coming(after: clock).map(\.text), ["Dentist", "Visa appointment", "Plant the seeds"])
+        XCTAssertNil(notebook.entry(eyeTest)?.todo, "an appointment is not to do")
+        XCTAssertEqual(notebook.entry(eyeTest)?.moment, friday)
+        XCTAssertEqual(notebook.coming(after: clock).map(\.text), ["Dentist", "Eye test", "Plant the seeds"])
         XCTAssertEqual(notebook.todos.map(\.text), ["Plant the seeds"], "and is not among the todos")
 
         let said = notebook.notices(after: clock, calendar: calendar)
@@ -287,13 +287,13 @@ final class ShapeTests: XCTestCase {
         XCTAssertEqual(said[1].fire, friday.addingTimeInterval(-3600))
         XCTAssertEqual(said[2].fire, march)
         XCTAssertEqual(said.map(\.todo), [false, false, true])
-        XCTAssertEqual(said[0].key, Notice.key(entry: visa, moment: friday))
+        XCTAssertEqual(said[0].key, Notice.key(entry: eyeTest, moment: friday))
 
         // Moved, the notices are others; done, there are none; past, it is no longer coming.
-        notebook.apply(event(.factSet(.init(on: visa, key: "at", value: .moment(friday.addingTimeInterval(86_400)))), author: .weeju, at: clock.addingTimeInterval(1)))
+        notebook.apply(event(.factSet(.init(on: eyeTest, key: "at", value: .moment(friday.addingTimeInterval(86_400)))), author: .moss, at: clock.addingTimeInterval(1)))
         XCTAssertNotEqual(notebook.notices(after: clock, calendar: calendar).first?.id, said[0].id, "a moment moved is another notice")
         notebook.apply(event(.done(.init(entry: seeds)), at: clock.addingTimeInterval(2)))
-        XCTAssertEqual(notebook.notices(after: clock, calendar: calendar).map(\.body), ["Visa appointment", "Visa appointment"])
+        XCTAssertEqual(notebook.notices(after: clock, calendar: calendar).map(\.body), ["Eye test", "Eye test"])
         XCTAssertEqual(notebook.coming(after: friday.addingTimeInterval(2 * 86_400)), [], "an event passes by itself")
     }
 
@@ -301,30 +301,30 @@ final class ShapeTests: XCTestCase {
     /// place for the day it was finished; one with no moment that waited three weeks steps back.
     func testATodoEndsAndWaits() {
         let calendar = Calendar(identifier: .gregorian)
-        let old = ULID(timestamp: clock.addingTimeInterval(-30 * 86_400)), tv = ULID(timestamp: clock), tyres = ULID(timestamp: clock.addingTimeInterval(60))
+        let old = ULID(timestamp: clock.addingTimeInterval(-30 * 86_400)), books = ULID(timestamp: clock), rye = ULID(timestamp: clock.addingTimeInterval(60))
         var notebook = Notebook(owner: me, events: [
-            event(.entryCreate(.init(entry: old, text: "Gooseberry", startedAt: clock.addingTimeInterval(-30 * 86_400)))),
-            event(.entryCreate(.init(entry: tv, text: "Sell the TV", startedAt: clock))),
-            event(.entryCreate(.init(entry: tyres, text: "Tyres", startedAt: clock.addingTimeInterval(60)))),
-            event(.factSet(.init(on: old, key: "todo", value: .words("open"))), author: .weeju),
-            event(.factSet(.init(on: tv, key: "todo", value: .words("open"))), author: .weeju),
-            event(.factSet(.init(on: tyres, key: "todo", value: .words("open")))),
+            event(.entryCreate(.init(entry: old, text: "Sharpen the knives", startedAt: clock.addingTimeInterval(-30 * 86_400)))),
+            event(.entryCreate(.init(entry: books, text: "Return the library books", startedAt: clock))),
+            event(.entryCreate(.init(entry: rye, text: "Buy rye flour", startedAt: clock.addingTimeInterval(60)))),
+            event(.factSet(.init(on: old, key: "todo", value: .words("open"))), author: .moss),
+            event(.factSet(.init(on: books, key: "todo", value: .words("open"))), author: .moss),
+            event(.factSet(.init(on: rye, key: "todo", value: .words("open")))),
         ])
         let later = clock.addingTimeInterval(3600)
-        XCTAssertEqual(notebook.todos(at: later, calendar: calendar).now.map(\.text), ["Tyres", "Sell the TV"])
-        XCTAssertEqual(notebook.todos(at: later, calendar: calendar).someday.map(\.text), ["Gooseberry"], "three weeks with no moment: someday")
-        XCTAssertEqual(notebook.entry(tyres)?.todo, .open, "the owner's own word makes a todo too")
+        XCTAssertEqual(notebook.todos(at: later, calendar: calendar).now.map(\.text), ["Buy rye flour", "Return the library books"])
+        XCTAssertEqual(notebook.todos(at: later, calendar: calendar).someday.map(\.text), ["Sharpen the knives"], "three weeks with no moment: someday")
+        XCTAssertEqual(notebook.entry(rye)?.todo, .open, "the owner's own word makes a todo too")
 
-        notebook.apply(event(.done(.init(entry: tv)), at: later))
-        let entry = notebook.entry(tv)!
+        notebook.apply(event(.done(.init(entry: books)), at: later))
+        let entry = notebook.entry(books)!
         XCTAssertEqual(entry.todo, .done)
         XCTAssertEqual(entry.standingFacts, [], "done closes it; nothing is left saying open")
         XCTAssertEqual(entry.facts.map(\.key), ["todo"], "the word stays in the record")
-        XCTAssertEqual(notebook.todos(at: later, calendar: calendar).now.map(\.text), ["Tyres", "Sell the TV"], "finished today, it keeps its place")
-        XCTAssertEqual(notebook.todos(at: later.addingTimeInterval(86_400), calendar: calendar).now.map(\.text), ["Tyres"], "and is gone the day after")
+        XCTAssertEqual(notebook.todos(at: later, calendar: calendar).now.map(\.text), ["Buy rye flour", "Return the library books"], "finished today, it keeps its place")
+        XCTAssertEqual(notebook.todos(at: later.addingTimeInterval(86_400), calendar: calendar).now.map(\.text), ["Buy rye flour"], "and is gone the day after")
 
-        notebook.apply(event(.undone(.init(entry: tv)), at: later.addingTimeInterval(60)))
-        XCTAssertEqual(notebook.entry(tv)?.todo, .open, "opened again, it is to do again")
+        notebook.apply(event(.undone(.init(entry: books)), at: later.addingTimeInterval(60)))
+        XCTAssertEqual(notebook.entry(books)?.todo, .open, "opened again, it is to do again")
     }
 
     private var now: Date { clock }
@@ -334,10 +334,10 @@ final class ShapeTests: XCTestCase {
         let line = ULID(timestamp: clock.addingTimeInterval(60))
         let notebook = Notebook(owner: me, events: [
             event(.entryCreate(.init(entry: line, text: "Potted the fig", startedAt: clock))),
-            event(.thingSet(.init(thing: fig, name: "fig")), author: .weeju),
-            event(.link(.init(from: line, to: fig)), author: .weeju),
-            event(.factSet(.init(on: line, key: "pot", value: .words("clay"))), author: .weeju),
-            event(.nameSet(.init(name: "Moss")), author: .weeju),
+            event(.thingSet(.init(thing: fig, name: "fig")), author: .moss),
+            event(.link(.init(from: line, to: fig)), author: .moss),
+            event(.factSet(.init(on: line, key: "pot", value: .words("clay"))), author: .moss),
+            event(.nameSet(.init(name: "Moss")), author: .moss),
         ])
         let page = Projector.markdown(for: notebook.days(calendar: utc)[0], calendar: utc, names: notebook.chosenNames, things: notebook.thingNames)
         XCTAssertTrue(page.contains("\n_with fig_\n_pot clay · Moss_\n"), page)

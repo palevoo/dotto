@@ -17,10 +17,10 @@ struct AuthorPage: View {
                 if let name = model.notebook.name(of: author) {
                     Text(name)
                         .font(Theme.title)
-                        .foregroundStyle(Theme.ink(for: author, owner: model.store.manifest.owner))
+                        .foregroundStyle(Theme.colour(for: author, owner: model.store.manifest.owner))
                 } else {
                     HStack(spacing: 10) {
-                        AuthorMark(author: author, model: model, side: 18)
+                        AuthorMark(author: author, model: model, side: 20)
                         Text("no name yet")
                             .font(Theme.mono)
                             .foregroundStyle(Theme.faint)

@@ -12,7 +12,7 @@ struct GrantsView: View {
     /// Who a new key is for: dotto unless said otherwise; nil for a new originator.
     @State private var newAuthor: Author? = .dotto
     @State private var copied: ULID?
-    @State private var readerGrantID: ULID?
+    @State private var loopGrantID: ULID?
     @State private var openRuns: Set<ULID> = []
 
     var body: some View {
@@ -23,7 +23,7 @@ struct GrantsView: View {
                 waysInSection
                 doorSection
                 grantsSection
-                readerSection
+                loopsSection
                 pushSection
                 inboxSection
                 logSection
@@ -37,12 +37,11 @@ struct GrantsView: View {
 
     private var header: some View {
         HStack(spacing: 12) {
-            // dotto, looking: the smallest face there is.
-            HStack(spacing: 5) {
-                Circle().fill(MacTheme.accent).frame(width: 9, height: 9)
-                Circle().fill(MacTheme.accent).frame(width: 9, height: 9)
-            }
-            .accessibilityLabel("dotto")
+            // Dotto's own dot, as on the icon.
+            DotShape(.dotto)
+                .fill(MacTheme.accent)
+                .frame(width: 22, height: 22)
+                .accessibilityLabel("dotto")
             Text(Identity.name)
                 .font(.system(size: 30, weight: .medium, design: .serif))
                 .foregroundStyle(MacTheme.foreground)
@@ -255,7 +254,7 @@ struct GrantsView: View {
     /// Loops: a sentence said once, kept in the notebook, run by this app. Each runs as one
     /// of the grants' authors, so it is the same being as a session started by hand, and
     /// each leaves a receipt in the notebook when it has run.
-    private var readerSection: some View {
+    private var loopsSection: some View {
         Section("Loops") {
             if model.loops.isEmpty {
                 Text("A loop is a sentence said once and kept. One woken by a line is kept in mind: every line is read once, with all such sentences and the whole notebook in view. One on the clock runs at its hour. Either is a Claude Code session through the door, with the door as its only tool, while this app is open; each run leaves a receipt.")
@@ -282,11 +281,11 @@ struct GrantsView: View {
                 newLoop
             }
             HStack(spacing: 8) {
-                TextField("Model (default)", text: $model.readerModel)
+                TextField("Model (default)", text: $model.loopModel)
                     .textFieldStyle(.roundedBorder)
                     .font(MacTheme.mono)
                     .frame(maxWidth: 200)
-                Button("Show Log") { NSWorkspace.shared.activateFileViewerSelecting([model.readerLogURL]) }.controlSize(.small)
+                Button("Show Log") { NSWorkspace.shared.activateFileViewerSelecting([model.loopLogURL]) }.controlSize(.small)
             }
         }
     }
@@ -304,7 +303,7 @@ struct GrantsView: View {
                 TextField("Name", text: $newLoopName)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 160)
-                Picker("as", selection: $readerGrantID) {
+                Picker("as", selection: $loopGrantID) {
                     ForEach(model.grants) { grant in
                         Text(grant.name).tag(Optional(grant.id))
                     }
@@ -325,10 +324,10 @@ struct GrantsView: View {
                 TextField("Brief, in your words (optional)", text: $newLoopBrief)
                     .textFieldStyle(.roundedBorder)
                 Button("Set") {
-                    guard let grant = model.grants.first(where: { $0.id == readerGrantID }) ?? model.grants.first else { return }
+                    guard let grant = model.grants.first(where: { $0.id == loopGrantID }) ?? model.grants.first else { return }
                     let wake: Loop.Wake = newLoopWake == "clock" ? .clock(hour: newLoopHour, minute: newLoopMinute) : .line
                     let name = newLoopName.trimmingCharacters(in: .whitespaces)
-                    model.addLoop(name: name.isEmpty ? (wake == .line ? "The reader" : "At the hour") : name, grant: grant, wake: wake, brief: newLoopBrief)
+                    model.addLoop(name: name.isEmpty ? (wake == .line ? "When a line lands" : "At the hour") : name, grant: grant, wake: wake, brief: newLoopBrief)
                     newLoopName = ""
                     newLoopBrief = ""
                 }
@@ -352,7 +351,7 @@ struct GrantsView: View {
                 Text("· \(proposal.wake.words) · up to \(proposal.turns) turns and $\(String(format: "%.2f", proposal.budget)) a run · by")
                     .foregroundStyle(MacTheme.muted)
                 Text(model.name(of: proposal.author))
-                    .foregroundStyle(MacTheme.ink(for: proposal.author, owner: model.notebook?.owner))
+                    .foregroundStyle(MacTheme.colour(for: proposal.author, owner: model.notebook?.owner))
                 Spacer()
                 Button("Set It") { model.takeProposal(proposal) }.controlSize(.small).disabled(!runnable)
                 Button("Not Now") { model.declineProposal(proposal) }.controlSize(.small)
@@ -392,7 +391,7 @@ struct GrantsView: View {
                     Text("· as")
                         .foregroundStyle(MacTheme.faint)
                     Text(model.name(of: grant.author))
-                        .foregroundStyle(MacTheme.ink(for: grant.author, owner: model.notebook?.owner))
+                        .foregroundStyle(MacTheme.colour(for: grant.author, owner: model.notebook?.owner))
                 }
                 Spacer()
                 Button("Look Now") { model.lookNow(loop) }.controlSize(.small).disabled(status == nil)
@@ -492,7 +491,7 @@ struct GrantsView: View {
         Binding(get: { openRuns.contains(id) }, set: { open in if open { openRuns.insert(id) } else { openRuns.remove(id) } })
     }
 
-    private static func colour(of outcome: ReaderRun.Outcome) -> Color {
+    private static func colour(of outcome: RunRecord.Outcome) -> Color {
         switch outcome {
         case .running: MacTheme.accent
         case .failed: MacTheme.recording
@@ -501,7 +500,7 @@ struct GrantsView: View {
     }
 
     /// "4 Nov 13:21 · 6 turns · $0.31 · answered under two lines", or, while running, how far it is.
-    private static func runLine(_ run: ReaderRun) -> String {
+    private static func runLine(_ run: RunRecord) -> String {
         var parts = [stamp(run.startedAt)]
         let calls = run.calls
         switch run.outcome {
@@ -554,7 +553,7 @@ struct GrantsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(model.name(of: item.author))
-                                .foregroundStyle(MacTheme.ink(for: item.author, owner: model.notebook?.owner))
+                                .foregroundStyle(MacTheme.colour(for: item.author, owner: model.notebook?.owner))
                             Text(item.what)
                                 .foregroundStyle(MacTheme.muted)
                             if item.wantsYou {
@@ -599,7 +598,7 @@ struct GrantsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 6) {
                             Text(model.name(of: trace.author))
-                                .foregroundStyle(MacTheme.ink(for: trace.author, owner: model.notebook?.owner))
+                                .foregroundStyle(MacTheme.colour(for: trace.author, owner: model.notebook?.owner))
                             Text(trace.what)
                                 .foregroundStyle(MacTheme.muted)
                             Text("via \(trace.device.rawValue)")
@@ -677,9 +676,9 @@ struct GrantCard: View {
                     .controlSize(.small)
             }
             HStack(spacing: 8) {
-                Circle()
-                    .fill(MacTheme.ink(for: grant.author, owner: nil))
-                    .frame(width: 8, height: 8)
+                DotShape(grant.author.dot)
+                    .fill(MacTheme.colour(for: grant.author, owner: nil))
+                    .frame(width: 9, height: 9)
                 // The author this key is for. The menu hands the same key to another author instead.
                 Menu {
                     if grant.author != .dotto {
@@ -687,10 +686,10 @@ struct GrantCard: View {
                         Divider()
                     }
                     ForEach(others, id: \.0) { author, called in
-                        Button("Same author as \(called)") { onReassign(author) }
+                        Button("Same originator as \(called)") { onReassign(author) }
                     }
                     if others.isEmpty {
-                        Text("No other author has written yet.")
+                        Text("No other originator has written yet.")
                     }
                 } label: {
                     Text(name.map { "called \($0)" } ?? "no name yet · id \(grant.author.rawValue)")

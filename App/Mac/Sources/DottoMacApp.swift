@@ -3,8 +3,8 @@ import Core
 import SwiftUI
 
 /// dotto on the Mac. The home: it holds the grants, opens the door and runs the loops, in
-/// its window. And a way in: the live line, from anywhere, by the hotkey, the two dots in the
-/// menu bar, a drop on them, or a selection sent through Services.
+/// its window. And a way in: the live line, from anywhere, by the hotkey, the dot in the
+/// menu bar, a drop on it, or a selection sent through Services.
 @main
 struct DottoMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
@@ -73,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         model.stopLoops()
     }
 
-    /// The home keeps running with its window closed: the door, the loops and the dots stay.
+    /// The home keeps running with its window closed: the door, the loops and the dot stay.
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     private func showWindow() {

@@ -12,10 +12,10 @@ final class WeatherTests: XCTestCase {
         return calendar
     }()
     private var ids = ULIDGenerator()
-    /// Tuesday 10 November 2026, 16:13 UTC: the fig that lost its leaves.
+    /// Tuesday 10 November 2026, 16:13 UTC.
     private let afternoon = Date(timeIntervalSince1970: 1_794_327_180)
-    private let farm = Location(latitude: 39.4712, longitude: -8.1987, accuracy: 20)
-    private let flat = Location(latitude: 38.7223, longitude: -9.1393, accuracy: 10)
+    private let hill = Location(latitude: 54.4712, longitude: -3.1987, accuracy: 20)
+    private let town = Location(latitude: 53.4084, longitude: -2.9916, accuracy: 10)
 
     private func line(_ text: String, at when: Date, place: Location? = nil, by author: Author = "me") -> (ULID, Event) {
         let id = ids.next(at: when)
@@ -46,7 +46,7 @@ final class WeatherTests: XCTestCase {
     // MARK: - The fold
 
     func testALineHoldsWhatASourceSaidAndTheNewestWordStands() throws {
-        let (fig, figEvent) = line("One of the figs doesn't look so good", at: afternoon, place: farm)
+        let (fig, figEvent) = line("Roots on one fig stick already", at: afternoon, place: hill)
         var notebook = Notebook(owner: me, events: [figEvent])
         XCTAssertNil(notebook.entry(fig)?.conditions)
         XCTAssertEqual(notebook.entry(fig)?.conditionsSettled, false)
@@ -64,7 +64,7 @@ final class WeatherTests: XCTestCase {
     }
 
     func testItWaitsForALineThatHasNotArrived() throws {
-        let (fig, figEvent) = line("The fig", at: afternoon, place: farm)
+        let (fig, figEvent) = line("The fig", at: afternoon, place: hill)
         var notebook = Notebook(owner: me, events: [said(fig, rainy, at: afternoon.addingTimeInterval(5))])
         XCTAssertNil(notebook.entry(fig))
         notebook.apply(figEvent)
@@ -72,7 +72,7 @@ final class WeatherTests: XCTestCase {
     }
 
     func testTheOwnerTakesItOffWithOneHoldAndThatIsFinal() throws {
-        let (fig, figEvent) = line("The fig", at: afternoon, place: farm)
+        let (fig, figEvent) = line("The fig", at: afternoon, place: hill)
         var notebook = Notebook(owner: me, events: [figEvent, said(fig, rainy, at: afternoon.addingTimeInterval(5))])
 
         // Nobody else takes it off.
@@ -94,7 +94,7 @@ final class WeatherTests: XCTestCase {
     /// Every line gets one, so it must be nothing to be told about: no row in the inbox, no
     /// news that would wake a reading, no page for the source, nothing in the notebook's log.
     func testItIsQuietEverywhereButOnTheLine() throws {
-        let (fig, figEvent) = line("The fig", at: afternoon, place: farm)
+        let (fig, figEvent) = line("The fig", at: afternoon, place: hill)
         let events = [figEvent, said(fig, rainy, at: afternoon.addingTimeInterval(5))]
         let notebook = Notebook(owner: me, events: events)
         let files = [(file: "all", events: events)]
@@ -103,7 +103,7 @@ final class WeatherTests: XCTestCase {
         XCTAssertEqual(notebook.trail, [], "and the log says nothing of it")
         XCTAssertTrue(Inbox.items(files: files, notebook: notebook, calendar: utc).isEmpty)
 
-        let grant = Grant(name: "Reader", author: .dotto, device: "the-reading", createdAt: afternoon.addingTimeInterval(1))
+        let grant = Grant(name: "Claude Code", author: .dotto, device: "the-reading", createdAt: afternoon.addingTimeInterval(1))
         let report = Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: utc)
         XCTAssertEqual(report.count, 0, "weather alone wakes nobody")
 
@@ -114,10 +114,10 @@ final class WeatherTests: XCTestCase {
     // MARK: - Which lines want it, and what to ask
 
     func testALineWithAPlaceAndNothingSaidIsWaiting() {
-        let (fig, figEvent) = line("The fig", at: afternoon, place: farm)
+        let (fig, figEvent) = line("The fig", at: afternoon, place: hill)
         let (_, noPlace) = line("Written on the Mac", at: afternoon.addingTimeInterval(60))
-        let (_, old) = line("Before the record begins", at: Date(timeIntervalSince1970: 1_600_000_000), place: farm)
-        let (known, knownEvent) = line("Already said", at: afternoon.addingTimeInterval(120), place: farm)
+        let (_, old) = line("Before the record begins", at: Date(timeIntervalSince1970: 1_600_000_000), place: hill)
+        let (known, knownEvent) = line("Already said", at: afternoon.addingTimeInterval(120), place: hill)
         let notebook = Notebook(owner: me, events: [figEvent, noPlace, old, knownEvent, said(known, rainy, at: afternoon.addingTimeInterval(130))])
 
         XCTAssertEqual(Weather.waiting(in: notebook, now: afternoon.addingTimeInterval(3600)).map(\.id), [fig])
@@ -125,26 +125,26 @@ final class WeatherTests: XCTestCase {
     }
 
     func testLinesNearEachOtherInPlaceAndTimeAreOneQuestion() throws {
-        // Two at the farm the same afternoon, fifty metres apart; one at the farm a week
-        // later; one in the flat that evening.
-        let nearby = Location(latitude: 39.4716, longitude: -8.1991)
-        let (a, aEvent) = line("Fig", at: afternoon, place: farm)
+        // Two on the hill the same afternoon, fifty metres apart; one on the hill a week
+        // later; one in the town that evening.
+        let nearby = Location(latitude: 54.4716, longitude: -3.1991)
+        let (a, aEvent) = line("Fig", at: afternoon, place: hill)
         let (b, bEvent) = line("Seeds", at: afternoon.addingTimeInterval(600), place: nearby)
-        let (c, cEvent) = line("A week on", at: afternoon.addingTimeInterval(7 * 86_400), place: farm)
-        let (d, dEvent) = line("Home", at: afternoon.addingTimeInterval(4 * 3600), place: flat)
+        let (c, cEvent) = line("A week on", at: afternoon.addingTimeInterval(7 * 86_400), place: hill)
+        let (d, dEvent) = line("Home", at: afternoon.addingTimeInterval(4 * 3600), place: town)
         let notebook = Notebook(owner: me, events: [aEvent, bEvent, cEvent, dEvent])
 
         let asks = Weather.asks(for: Weather.waiting(in: notebook, now: afternoon.addingTimeInterval(30 * 86_400)))
         XCTAssertEqual(asks.map { $0.lines.map(\.entry) }, [[a, b], [d], [c]])
 
         let first = asks[0]
-        XCTAssertEqual(first.latitude, 39.47)
-        XCTAssertEqual(first.longitude, -8.2)
+        XCTAssertEqual(first.latitude, 54.47)
+        XCTAssertEqual(first.longitude, -3.2)
         XCTAssertEqual(first.from, "2026-11-09", "the day before, for what fell before the line")
         XCTAssertEqual(first.to, "2026-11-10")
         let url = first.url.absoluteString
-        XCTAssertTrue(url.hasPrefix("https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=39.47&longitude=-8.20&start_date=2026-11-09&end_date=2026-11-10&hourly="))
-        XCTAssertFalse(url.contains("39.4712"), "the place leaves rounded to about a kilometre, never as it was found")
+        XCTAssertTrue(url.hasPrefix("https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=54.47&longitude=-3.20&start_date=2026-11-09&end_date=2026-11-10&hourly="))
+        XCTAssertFalse(url.contains("54.4712"), "the place leaves rounded to about a kilometre, never as it was found")
         XCTAssertTrue(url.hasSuffix("&timeformat=unixtime&timezone=GMT"))
     }
 
@@ -170,7 +170,7 @@ final class WeatherTests: XCTestCase {
         humidity[10] = "null"
         func row(_ values: [String]) -> String { "[" + values.joined(separator: ",") + "]" }
         let json = """
-        {"latitude":39.47,"longitude":-8.2,"hourly_units":{"time":"unixtime"},"hourly":{"time":\(row(times.map { String(Int($0)) })),\
+        {"latitude":54.47,"longitude":-3.2,"hourly_units":{"time":"unixtime"},"hourly":{"time":\(row(times.map { String(Int($0)) })),\
         "temperature_2m":\(row(temperature)),"relative_humidity_2m":\(row(humidity)),"precipitation":\(row(rain)),\
         "weather_code":\(row(code)),"wind_speed_10m":\(row(Array(repeating: "12.3", count: 48))),\
         "wind_direction_10m":\(row(Array(repeating: "310", count: 48))),"is_day":\(row((0..<48).map { (7...17).contains($0 % 24) ? "1" : "0" }))}}
@@ -220,8 +220,8 @@ final class WeatherTests: XCTestCase {
     }
 
     func testAnAnswerBecomesOneEventPerLineItKnows() throws {
-        let (fig, figEvent) = line("Fig", at: afternoon, place: farm)
-        let (late, lateEvent) = line("Two days on", at: afternoon.addingTimeInterval(2 * 86_400), place: farm)
+        let (fig, figEvent) = line("Fig", at: afternoon, place: hill)
+        let (late, lateEvent) = line("Two days on", at: afternoon.addingTimeInterval(2 * 86_400), place: hill)
         var notebook = Notebook(owner: me, events: [figEvent, lateEvent])
         let ask = try XCTUnwrap(Weather.asks(for: Weather.waiting(in: notebook, now: afternoon.addingTimeInterval(5 * 86_400))).first)
         XCTAssertEqual(ask.lines.map(\.entry), [fig, late])
@@ -239,7 +239,7 @@ final class WeatherTests: XCTestCase {
     // MARK: - As it is read
 
     func testTheDayFileAndTheDoorSayWhereAndWhatItWasLike() throws {
-        let (fig, figEvent) = line("One of the figs doesn't look so good", at: afternoon, place: farm)
+        let (fig, figEvent) = line("Roots on one fig stick already", at: afternoon, place: hill)
         let notebook = Notebook(owner: me, events: [figEvent, said(fig, rainy, at: afternoon.addingTimeInterval(5))])
         let day = try XCTUnwrap(notebook.days(calendar: utc).first)
         XCTAssertEqual(
@@ -248,9 +248,9 @@ final class WeatherTests: XCTestCase {
             # 2026-11-10 · Tuesday
 
             ## 16:13
-            One of the figs doesn't look so good
+            Roots on one fig stick already
 
-            _where 39.47, -8.20_
+            _where 54.47, -3.20_
             _weather 14 °C, light rain, wind 12 km/h from the north-west, humidity 82 %; in the day before 9 to 17 °C, 3.1 mm of rain · Weather_
 
             """)

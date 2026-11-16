@@ -15,7 +15,7 @@ extension XCUIApplication {
     static func onAFreshNotebook(seeded: Bool = false, yesterday: Int = 0) -> XCUIApplication {
         let app = XCUIApplication()
         var arguments = ["-uitest-notebook", UUID().uuidString]
-        if seeded { arguments.append("-uitest-seed-photos") }
+        if seeded { arguments.append("-uitest-seed") }
         if yesterday > 0 { arguments += ["-uitest-seed-yesterday", String(yesterday)] }
         app.launchArguments = arguments
         app.launch()

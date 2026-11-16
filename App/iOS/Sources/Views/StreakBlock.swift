@@ -2,7 +2,7 @@ import Core
 import SwiftUI
 
 /// A streak as its page shows it: the run in days, a few quiet words, and every day since it
-/// began as a dot, seven to a row, so a row is a week of it. A day that counts is ink; a day
+/// began as a dot, seven to a row, so a row is a week of it. A day that counts is filled; a day
 /// that broke is an empty ring; a day missed is faint; a day still open is a faint ring.
 /// Today wears the one colour. A day with a line behind it, the one that broke it or the one
 /// that made it count, is a way to that line.

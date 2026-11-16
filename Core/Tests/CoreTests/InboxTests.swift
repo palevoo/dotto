@@ -5,7 +5,7 @@ import XCTest
 final class InboxTests: XCTestCase {
     let me: Author = "me"
     let moss: Author = "moss"
-    let anna: Author = "anna"
+    let ines: Author = "ines"
     let generator = ULIDGenerator()
     var clock = Date(timeIntervalSince1970: 1_793_613_600) // 2026-11-02 10:00 UTC
 
@@ -67,7 +67,7 @@ final class InboxTests: XCTestCase {
 
     func testALineOnAnotherPageAndAConversationThere() {
         let theirs = ULID()
-        write(.entryCreate(.init(entry: theirs, text: "Two harvests so far. Should I keep the yields?", startedAt: clock)), by: moss)
+        write(.entryCreate(.init(entry: theirs, text: "Two loaves so far. Should I keep the weights?", startedAt: clock)), by: moss)
         var inbox = items()
         XCTAssertEqual(inbox.map(\.kind), [.line])
         XCTAssertEqual(inbox[0].what, "wrote")
@@ -83,8 +83,8 @@ final class InboxTests: XCTestCase {
 
         // A reply on a page the owner has never joined is their own business.
         let aside = ULID()
-        write(.entryCreate(.init(entry: aside, text: "Note to self", startedAt: clock)), by: anna)
-        write(.noteAdd(.init(entry: aside, note: noteID(), text: "Remember this")), by: anna)
+        write(.entryCreate(.init(entry: aside, text: "Note to self", startedAt: clock)), by: ines)
+        write(.noteAdd(.init(entry: aside, note: noteID(), text: "Remember this")), by: ines)
         XCTAssertEqual(items().filter { $0.kind == .reply }.count, 1)
     }
 
@@ -93,16 +93,16 @@ final class InboxTests: XCTestCase {
         for (id, text) in [(a, "Cut two sticks"), (b, "Roots on one"), (c, "Potted")] {
             write(.entryCreate(.init(entry: id, text: text, startedAt: clock)), by: me)
         }
-        write(.labelAttach(.init(entry: a, label: "nursery")), by: moss)
-        write(.labelAttach(.init(entry: b, label: "Nursery")), by: moss)
-        write(.labelAttach(.init(entry: c, label: "nursery")), by: moss)
+        write(.labelAttach(.init(entry: a, label: "garden")), by: moss)
+        write(.labelAttach(.init(entry: b, label: "Garden")), by: moss)
+        write(.labelAttach(.init(entry: c, label: "garden")), by: moss)
         write(.labelAttach(.init(entry: c, label: "done")), by: moss)
 
         let inbox = items()
         XCTAssertEqual(inbox.count, 2)
-        let nursery = inbox.first { $0.what.hasSuffix("#nursery") }!
-        XCTAssertEqual(nursery.what, "filed 3 lines under #nursery")
-        XCTAssertNil(nursery.entry)
+        let garden = inbox.first { $0.what.hasSuffix("#garden") }!
+        XCTAssertEqual(garden.what, "filed 3 lines under #garden")
+        XCTAssertNil(garden.entry)
         let done = inbox.first { $0.what.hasSuffix("#done") }!
         XCTAssertEqual(done.what, "filed under #done")
         XCTAssertEqual(done.entry, c)
@@ -132,7 +132,7 @@ final class InboxTests: XCTestCase {
         let line = ULID()
         write(.entryCreate(.init(entry: line, text: "Potted the fig", startedAt: clock)), by: me)
         write(.noteAdd(.init(entry: line, note: noteID(), text: "Nice")), by: moss)
-        write(.noteAdd(.init(entry: line, note: noteID(), text: "Which pot?")), by: anna)
+        write(.noteAdd(.init(entry: line, note: noteID(), text: "Which pot?")), by: ines)
         XCTAssertEqual(items().filter(\.unread).count, 2)
 
         // Opening the inbox alone reads nothing that is about a line.
@@ -158,8 +158,8 @@ final class InboxTests: XCTestCase {
         let a = ULID(), b = ULID()
         write(.entryCreate(.init(entry: a, text: "Cut two sticks", startedAt: clock)), by: me)
         write(.entryCreate(.init(entry: b, text: "Roots on one", startedAt: clock)), by: me)
-        write(.labelAttach(.init(entry: a, label: "nursery")), by: moss)
-        write(.labelAttach(.init(entry: b, label: "nursery")), by: moss)
+        write(.labelAttach(.init(entry: a, label: "garden")), by: moss)
+        write(.labelAttach(.init(entry: b, label: "garden")), by: moss)
         write(.nameSet(.init(name: "Moss")), by: moss)
         XCTAssertEqual(items().filter(\.unread).count, 2)
 
@@ -179,9 +179,9 @@ final class InboxTests: XCTestCase {
         write(.entryCreate(.init(entry: line, text: "Mine", startedAt: clock)), by: me)
         write(.labelAttach(.init(entry: line, label: "mine")), by: me)
         write(.noteAdd(.init(entry: line, note: noteID(), text: "First")), by: moss)
-        write(.noteAdd(.init(entry: line, note: noteID(), text: "Second")), by: anna)
+        write(.noteAdd(.init(entry: line, note: noteID(), text: "Second")), by: ines)
         let inbox = items()
         XCTAssertEqual(inbox.map(\.text), ["Second", "First"])
-        XCTAssertEqual(inbox.map(\.author), [anna, moss])
+        XCTAssertEqual(inbox.map(\.author), [ines, moss])
     }
 }

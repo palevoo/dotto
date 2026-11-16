@@ -1,10 +1,10 @@
 import XCTest
 @testable import Core
 
-/// A line said under something, read. Under a line it is a reply in that line's
-/// conversation, beside the replies written the older way; nothing writes it yet.
+/// A line said under something. Under a line it is a reply in that line's conversation,
+/// beside the replies written as `note.add`, which notebooks written by earlier builds carry.
 final class SaidUnderTests: XCTestCase {
-    private let owner = Author(rawValue: "wiju")
+    private let owner = Author(rawValue: "me")
     private let ids = ULIDGenerator()
     private let start = Date(timeIntervalSince1970: 1_794_300_000)
     private var tick = 0.0
@@ -28,16 +28,16 @@ final class SaidUnderTests: XCTestCase {
 
     func testALineSaidUnderALineIsAReplyInAnyOrder() {
         let asked = line("What should I read on this?")
-        let answer = line("Hamming, 1950, ten pages.", by: .dotto, under: asked.id)
+        let answer = line("A. Hale, 1998, ten pages.", by: .dotto, under: asked.id)
         let again = line("And after that?", under: answer.id)
-        let older = event({ .noteAdd(.init(entry: asked.id, note: $0, text: "Written the older way.")) }, by: .dotto)
-        let events = [asked, answer, again, older]
+        let asNote = event({ .noteAdd(.init(entry: asked.id, note: $0, text: "Written as a note.")) }, by: .dotto)
+        let events = [asked, answer, again, asNote]
 
-        for order in [events, events.reversed(), [again, older, answer, asked], events.shuffled()] {
+        for order in [events, events.reversed(), [again, asNote, answer, asked], events.shuffled()] {
             let notebook = Notebook(owner: owner, events: order)
             XCTAssertEqual(notebook.entries.map(\.text), ["What should I read on this?"], "only the line is on the page")
             let replies = notebook.entry(asked.id)?.notes ?? []
-            XCTAssertEqual(replies.map(\.text), ["Hamming, 1950, ten pages.", "And after that?", "Written the older way."])
+            XCTAssertEqual(replies.map(\.text), ["A. Hale, 1998, ten pages.", "And after that?", "Written as a note."])
             XCTAssertEqual(replies.map(\.author), [.dotto, owner, .dotto])
             XCTAssertNil(replies[0].answers, "said under the line itself")
             XCTAssertEqual(replies[1].answers, answer.id, "an answer knows the reply it answers")
@@ -47,15 +47,15 @@ final class SaidUnderTests: XCTestCase {
     }
 
     func testAReplyIsChangedByItsWriterAndDroppedByItsWriterOrTheOwner() {
-        let asked = line("Is this a second mango?")
+        let asked = line("Is that a root on the second stick?")
         let answer = line("It is.", by: .dotto, under: asked.id)
-        let fixed = event({ _ in .entryEdit(.init(entry: answer.id, text: "It looks like one; the root says so.")) }, by: .dotto)
+        let fixed = event({ _ in .entryEdit(.init(entry: answer.id, text: "It looks like one; give it a week.")) }, by: .dotto)
         let notHis = event({ _ in .entryEdit(.init(entry: answer.id, text: "Changed by a stranger")) }, by: "stranger")
         let base = [asked, answer, fixed, notHis]
 
         for order in [base, base.reversed(), base.shuffled()] {
             let notebook = Notebook(owner: owner, events: order)
-            XCTAssertEqual(notebook.entry(asked.id)?.notes.map(\.text), ["It looks like one; the root says so."])
+            XCTAssertEqual(notebook.entry(asked.id)?.notes.map(\.text), ["It looks like one; give it a week."])
         }
 
         // A stranger's word that it is gone changes nothing; the writer's does, and the owner's.
@@ -68,9 +68,9 @@ final class SaidUnderTests: XCTestCase {
                 XCTAssertEqual(Notebook(owner: owner, events: order).entry(asked.id)?.notes.count, 0)
             }
         }
-        // The older way of taking a note back keeps the same rule.
-        let olderStranger = event({ _ in .noteRemove(.init(note: answer.id)) }, by: "stranger")
-        XCTAssertEqual(Notebook(owner: owner, events: base + [olderStranger]).entry(asked.id)?.notes.count, 1)
+        // `note.remove` keeps the same rule.
+        let byNoteRemove = event({ _ in .noteRemove(.init(note: answer.id)) }, by: "stranger")
+        XCTAssertEqual(Notebook(owner: owner, events: base + [byNoteRemove]).entry(asked.id)?.notes.count, 1)
     }
 
     func testALineSaidUnderAThingIsKeptAndShownNowhereYet() {
@@ -87,14 +87,14 @@ final class SaidUnderTests: XCTestCase {
 
     func testWhatIsNewTellsOfALineSaidUnderALineAsAReply() {
         let grant = Grant(name: "Claude Code", author: .dotto, device: "claude-code", createdAt: start)
-        let asked = line("How do you say tall?")
-        let reply = line("In Portuguese, I mean.", under: asked.id)
-        let files = [(file: "wiju.phone.jsonl", events: [asked, reply])]
+        let asked = line("Why does bread need salt?")
+        let reply = line("In the dough, I mean.", under: asked.id)
+        let files = [(file: "me.phone.jsonl", events: [asked, reply])]
         let notebook = Notebook(owner: owner, events: [asked, reply])
         let report = Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
         XCTAssertTrue(report.text.contains("## Replies"), report.text)
-        XCTAssertTrue(report.text.contains("In Portuguese, I mean."), report.text)
-        XCTAssertEqual(report.text.components(separatedBy: "In Portuguese, I mean.").count, 2, "told once, as a reply, not also as a new line")
+        XCTAssertTrue(report.text.contains("In the dough, I mean."), report.text)
+        XCTAssertEqual(report.text.components(separatedBy: "In the dough, I mean.").count, 2, "told once, as a reply, not also as a new line")
     }
 
     func testWhereALineWasSaidIsWrittenAndReadBack() throws {

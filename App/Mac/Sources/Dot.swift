@@ -5,10 +5,10 @@ import Observation
 
 /// dotto in the menu bar: one dot. At rest it is the menu bar's own colour, a quiet place
 /// that is ready to take a line or a drop. It takes dotto's colour only while dotto is
-/// working, a reading or a loop under way, and is hollow when the door is closed. Two
-/// coloured dots were eyes, and eyes that are always on look back at you; said by the owner
-/// on 10 November. A click opens the live line under it; anything dragged onto it lands in
-/// the line. The other click, or a click with Control held, offers the app's window and Quit.
+/// working, a reading or a loop under way, and is hollow when the door is closed. One dot
+/// and not two: two coloured dots read as eyes, and eyes that are always on look back at
+/// you. A click opens the live line under it; anything dragged onto it lands in the line.
+/// The other click, or a click with Control held, offers the app's window and Quit.
 @MainActor
 final class Dot: NSObject, NSWindowDelegate, NSDraggingDestination {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -26,13 +26,13 @@ final class Dot: NSObject, NSWindowDelegate, NSDraggingDestination {
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         button.setAccessibilityLabel("dotto")
         // The menu bar item lives in a window of its own; a window's delegate may be where
-        // its drags land, which is how the dots take a drop.
+        // its drags land, which is how the dot takes a drop.
         button.window?.registerForDraggedTypes(Offered.pasteboardTypes)
         button.window?.delegate = self
         watch()
     }
 
-    /// Where the dots are on the screen, for the line to open under them.
+    /// Where the dot is on the screen, for the line to open under it.
     var anchor: NSRect? { item.button?.window?.frame }
 
     /// Redrawn whenever the door or a loop changes, and only then.
@@ -50,15 +50,26 @@ final class Dot: NSObject, NSWindowDelegate, NSDraggingDestination {
         let coloured = running != nil || Identity.isDevelopment
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
             let colour = coloured ? NSColor(Identity.isDevelopment ? MacTheme.agent : MacTheme.accent) : NSColor.black
-            let side: CGFloat = 8
-            let dot = NSRect(x: (18 - side) / 2, y: (18 - side) / 2, width: side, height: side)
+            // Dotto's own dot, as on the icon. Its numbers count down from the top and this
+            // picture counts up from the bottom, so every height is taken from 18.
+            func edge(_ size: Double) -> NSBezierPath {
+                let outline = Core.Dot.dotto.outline(size: size, centre: Core.Dot.Point(x: 9, y: 9))
+                func point(_ point: Core.Dot.Point) -> NSPoint { NSPoint(x: point.x, y: 18 - point.y) }
+                let path = NSBezierPath()
+                path.move(to: point(outline.start))
+                for curve in outline.curves {
+                    path.curve(to: point(curve.end), controlPoint1: point(curve.control1), controlPoint2: point(curve.control2))
+                }
+                path.close()
+                return path
+            }
             if open {
                 colour.setFill()
-                NSBezierPath(ovalIn: dot).fill()
+                edge(9).fill()
             } else {
                 // The door is closed: the dot is only its outline.
                 colour.setStroke()
-                let ring = NSBezierPath(ovalIn: dot.insetBy(dx: 0.75, dy: 0.75))
+                let ring = edge(7.5)
                 ring.lineWidth = 1.5
                 ring.stroke()
             }
@@ -99,7 +110,7 @@ final class Dot: NSObject, NSWindowDelegate, NSDraggingDestination {
         onOpenApp()
     }
 
-    // MARK: - Drops on the dots
+    // MARK: - Drops on the dot
 
     func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         item.button?.highlight(true)

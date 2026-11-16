@@ -5,8 +5,7 @@ import Foundation
 // Two facts carry a moment, and they mean different things. `at` is when something happens,
 // whether or not the owner does anything: an appointment, a class, a booking. It passes by
 // itself and is never to do. `due` is when something wants the owner: a todo to be done by
-// then, or a plain reminder. Said by the owner on 10 November 2026, after an appointment was
-// marked todo: "Appointment ain't a freaking todo."
+// then, or a plain reminder. An appointment is not a todo.
 
 public extension Entry {
     /// When it happens, if it is an event: the earliest `at` anyone put.

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The palette, 9 November 2026: a cool near-white ground, neutral black ink, hairlines barely
+/// The palette: a cool near-white ground, neutral black text, hairlines barely
 /// there, and nothing coloured but the dot. Persimmon is this notebook's dotto; every other
 /// originator has a colour of its own from its id. The rounded square is the shape of things
 /// made with the app, photos and buttons; a mark that stands for someone is a dot.
@@ -12,7 +12,6 @@ enum Theme {
     static let muted = Color(light: 0x6B7075, dark: 0x9EA3A1)
     static let faint = Color(light: 0xC9CCCA, dark: 0x4A4E4D)
     static let accent = Color(light: 0xE4572E, dark: 0xFF6A3D)
-    static let agent = Color(light: 0x7A4E8C, dark: 0xB78BC9)
     static let warm = Color(light: 0xB8741A, dark: 0xE0A33F)
     static let recording = Color(light: 0xC62828, dark: 0xFF5252)
 

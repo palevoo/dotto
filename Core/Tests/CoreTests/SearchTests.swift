@@ -23,64 +23,64 @@ final class SearchTests: XCTestCase {
         return Event(id: generator.next(at: when), author: author, device: "iphone", at: when, payload: payload)
     }
 
-    /// Three lines: the harvest, a Russian detox line with a reply, and a quote under a book.
-    func notebook() -> (Notebook, harvest: ULID, detox: ULID, quote: ULID, book: ULID) {
-        let harvest = ULID(timestamp: clock)
-        let detox = ULID(timestamp: clock.addingTimeInterval(1))
+    /// Three lines: the flour, a Russian line about a walk with a reply, and a quote under a book.
+    func notebook() -> (Notebook, flour: ULID, walk: ULID, quote: ULID, book: ULID) {
+        let flour = ULID(timestamp: clock)
+        let walk = ULID(timestamp: clock.addingTimeInterval(1))
         let quote = ULID(timestamp: clock.addingTimeInterval(2))
         let book = ULID(timestamp: clock.addingTimeInterval(3))
         var notebook = Notebook(owner: me)
-        notebook.apply(event(.entryCreate(.init(entry: harvest, text: "90kg from our first harvest, 10 litres", startedAt: tick()))))
-        notebook.apply(event(.entryCreate(.init(entry: detox, text: "Сегодня день без YouTube", startedAt: tick()))))
+        notebook.apply(event(.entryCreate(.init(entry: flour, text: "Bought rye flour, 900 grams", startedAt: tick()))))
+        notebook.apply(event(.entryCreate(.init(entry: walk, text: "Сегодня прогулка, 4 км, так записал Health", startedAt: tick()))))
         notebook.apply(event(.entryCreate(.init(entry: quote, text: "Café at dawn, a line from the book", startedAt: tick()))))
-        notebook.apply(event(.noteAdd(.init(entry: detox, note: ULID(timestamp: clock.addingTimeInterval(4)), text: "Day one of the detox, then.")), author: .weeju))
-        notebook.apply(event(.thingSet(.init(thing: book, name: "The Beginning of Infinity, David Deutsch", kind: "book")), author: .weeju))
-        notebook.apply(event(.link(.init(from: quote, to: book)), author: .weeju))
-        notebook.apply(event(.labelAttach(.init(entry: harvest, label: "terreno")), author: .weeju))
-        return (notebook, harvest, detox, quote, book)
+        notebook.apply(event(.noteAdd(.init(entry: walk, note: ULID(timestamp: clock.addingTimeInterval(4)), text: "The first of the week, then.")), author: .moss))
+        notebook.apply(event(.thingSet(.init(thing: book, name: "The Country Loaf, Ada Hale", kind: "book")), author: .moss))
+        notebook.apply(event(.link(.init(from: quote, to: book)), author: .moss))
+        notebook.apply(event(.labelAttach(.init(entry: flour, label: "bread")), author: .moss))
+        return (notebook, flour, walk, quote, book)
     }
 
     func testEveryWordMustAppearCaseAndAccentsAside() {
-        let (notebook, harvest, _, quote, _) = notebook()
-        XCTAssertEqual(notebook.search("HARVEST").map(\.id), [harvest])
+        let (notebook, flour, _, quote, _) = notebook()
+        XCTAssertEqual(notebook.search("FLOUR").map(\.id), [flour])
         XCTAssertEqual(notebook.search("cafe dawn").map(\.id), [quote], "accents set aside, both words needed")
-        XCTAssertEqual(notebook.search("cafe harvest"), [], "one line must hold every word")
+        XCTAssertEqual(notebook.search("cafe flour"), [], "one line must hold every word")
         XCTAssertEqual(notebook.search("   "), [], "nothing asked, nothing found")
-        XCTAssertEqual(notebook.search("litre").map(\.id), [harvest], "a word is found inside a longer one")
+        XCTAssertEqual(notebook.search("gram").map(\.id), [flour], "a word is found inside a longer one")
     }
 
     func testAWordInsideALongerOneFindsRussianEndings() {
-        let (notebook, _, detox, _, _) = notebook()
-        XCTAssertEqual(notebook.search("youtube").map(\.id), [detox])
+        let (notebook, _, walk, _, _) = notebook()
+        XCTAssertEqual(notebook.search("health").map(\.id), [walk])
         XCTAssertEqual(notebook.search("неделя").map(\.id), [], "a word not there is not found")
-        XCTAssertEqual(notebook.search("ден").map(\.id), [detox], "an ending does not hide the word")
+        XCTAssertEqual(notebook.search("прогулк").map(\.id), [walk], "an ending does not hide the word")
     }
 
     func testFoundThroughAReplyAThingOrATag() {
-        let (notebook, harvest, detox, quote, _) = notebook()
-        let viaReply = notebook.search("detox")
-        XCTAssertEqual(viaReply.map(\.id), [detox])
-        XCTAssertEqual(viaReply.first?.via?.text, "Day one of the detox, then.", "the reply that held the word is named")
-        XCTAssertNil(notebook.search("youtube").first?.via, "no reply named when the line's own words held it")
-        XCTAssertEqual(notebook.search("deutsch").map(\.id), [quote], "through the thing it is with")
-        XCTAssertEqual(notebook.search("terreno").map(\.id), [harvest], "through the tag it is under")
-        XCTAssertEqual(notebook.search("deutsch book").map(\.id), [quote], "one word in the thing's name, one in the line")
+        let (notebook, flour, walk, quote, _) = notebook()
+        let viaReply = notebook.search("week")
+        XCTAssertEqual(viaReply.map(\.id), [walk])
+        XCTAssertEqual(viaReply.first?.via?.text, "The first of the week, then.", "the reply that held the word is named")
+        XCTAssertNil(notebook.search("health").first?.via, "no reply named when the line's own words held it")
+        XCTAssertEqual(notebook.search("hale").map(\.id), [quote], "through the thing it is with")
+        XCTAssertEqual(notebook.search("bread").map(\.id), [flour], "through the tag it is under")
+        XCTAssertEqual(notebook.search("hale book").map(\.id), [quote], "one word in the thing's name, one in the line")
     }
 
     func testNewestFirstAndThingsByName() {
-        let (notebook, harvest, detox, quote, book) = notebook()
-        XCTAssertEqual(notebook.search("e").map(\.id), [quote, detox, harvest], "newest first")
-        XCTAssertEqual(notebook.things(matching: "infinity deutsch").map(\.id), [book])
-        XCTAssertEqual(notebook.things(matching: "terreno").map(\.id), [ULID.tag("terreno")], "tags are things with names too")
+        let (notebook, flour, walk, quote, book) = notebook()
+        XCTAssertEqual(notebook.search("e").map(\.id), [quote, walk, flour], "newest first")
+        XCTAssertEqual(notebook.things(matching: "country hale").map(\.id), [book])
+        XCTAssertEqual(notebook.things(matching: "bread").map(\.id), [ULID.tag("bread")], "tags are things with names too")
         XCTAssertEqual(notebook.things(matching: "fig"), [])
     }
 
     func testASearchIsAReadOfTheLinesItFound() {
-        var (notebook, harvest, detox, _, _) = notebook()
-        notebook.apply(event(.visit(.init(what: .search, count: 1, words: "harvest")), author: .weeju))
-        XCTAssertEqual(notebook.visits.last?.what, "searched for “harvest”, 1 line")
-        XCTAssertEqual(notebook.reads(of: notebook.entry(harvest)!, calendar: utc).count, 1, "the harvest line was read by that search")
-        XCTAssertEqual(notebook.reads(of: notebook.entry(detox)!, calendar: utc).count, 0)
+        var (notebook, flour, walk, _, _) = notebook()
+        notebook.apply(event(.visit(.init(what: .search, count: 1, words: "flour")), author: .moss))
+        XCTAssertEqual(notebook.visits.last?.what, "searched for “flour”, 1 line")
+        XCTAssertEqual(notebook.reads(of: notebook.entry(flour)!, calendar: utc).count, 1, "the flour line was read by that search")
+        XCTAssertEqual(notebook.reads(of: notebook.entry(walk)!, calendar: utc).count, 0)
     }
 
     /// A newer build's kind of read is carried by its word and written back as it came,
@@ -95,7 +95,7 @@ final class SearchTests: XCTestCase {
         XCTAssertEqual(Payload.Visit.What(rawValue: "search"), .search)
         XCTAssertEqual(Payload.Visit.What.search.rawValue, "search")
         var notebook = Notebook(owner: me)
-        notebook.apply(event(.visit(visit), author: .weeju))
+        notebook.apply(event(.visit(visit), author: .moss))
         XCTAssertEqual(notebook.visits.last?.what, "looked at dreams")
     }
 }

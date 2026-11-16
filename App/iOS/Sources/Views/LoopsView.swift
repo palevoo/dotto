@@ -22,7 +22,7 @@ struct LoopsView: View {
                     .font(Theme.title)
                     .foregroundStyle(Theme.foreground)
                 if loops.filter({ $0.wake == .line }).count > 1 {
-                    // How they run, so two sentences do not read as two readers.
+                    // How they run, so two sentences do not look like two runs.
                     Text("The sentences woken by a line are kept in mind together: each line is read once, with all of them.")
                         .font(Theme.mono)
                         .foregroundStyle(Theme.muted)

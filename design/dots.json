@@ -1,0 +1,19 @@
+{
+  "size": 0.58,
+  "dotto": { "dot": 1, "colour": "dot-persimmon" },
+  "dev": { "dot": 1, "colour": "dot-plum" },
+  "dots": [
+    { "meets": [58, 55, 53, 46], "proportion": 1.09, "turn": -8 },
+    { "meets": [44, 41, 39, 52], "proportion": 0.87, "turn": 12 },
+    { "meets": [51, 47, 62, 60], "proportion": 1.10, "turn": 4 },
+    { "meets": [50, 62, 50, 62], "proportion": 0.86, "turn": -10 },
+    { "meets": [64, 60, 36, 40], "proportion": 1.10, "turn": 18 },
+    { "meets": [52, 47, 49, 51], "proportion": 1.00, "turn": 0 },
+    { "meets": [36, 50, 48, 36], "proportion": 1.00, "turn": 30 },
+    { "meets": [45, 50, 55, 50], "proportion": 1.22, "turn": -12 },
+    { "meets": [55, 58, 42, 44], "proportion": 0.82, "turn": 6 },
+    { "meets": [38, 36, 44, 58], "proportion": 1.04, "turn": -20 },
+    { "meets": [62, 52, 58, 38], "proportion": 0.95, "turn": 14 },
+    { "meets": [47, 66, 57, 34], "proportion": 1.06, "turn": 24 }
+  ]
+}

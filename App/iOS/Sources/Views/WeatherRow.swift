@@ -56,7 +56,7 @@ struct WeatherRow: View {
     }
 }
 
-/// The weather in the reader's own units and a few words. The notebook keeps it metric; a
+/// The weather in the phone's own units and a few words. The notebook keeps it metric; a
 /// phone set to miles and Fahrenheit reads it that way.
 struct WeatherWords {
     let conditions: Conditions

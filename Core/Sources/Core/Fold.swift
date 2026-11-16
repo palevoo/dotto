@@ -120,7 +120,7 @@ public struct Loop: Hashable, Sendable, Identifiable {
     /// The hand the loop is: what its events say they came through, and what keeps its own
     /// place in the notebook, so two loops of one originator each see what is new to them
     /// and each write to a file of their own. Its name as a slug, with a little of its id
-    /// so two loops of one name are two hands: "the-reader-0epw".
+    /// so two loops of one name are two hands: "answers-0epw".
     public var hand: DeviceID {
         let slug = String(name.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "-" })
             .split(separator: "-").joined(separator: "-")
@@ -168,8 +168,8 @@ public struct Done: Hashable, Sendable {
     public let at: Date
 }
 
-/// A fact: a key and a value on a line or a thing, by an originator. The yield on the
-/// harvest line, the fig's state, the detox's days. One per originator per key; newest wins.
+/// A fact: a key and a value on a line or a thing, by an originator. The weight on a line
+/// about flour, the fig's state, a streak's days. One per originator per key; newest wins.
 public struct Fact: Hashable, Sendable, Identifiable {
     /// The event that set it.
     public let id: ULID
@@ -182,7 +182,7 @@ public struct Fact: Hashable, Sendable, Identifiable {
 }
 
 /// A thing: a shape with an id and a name that lines belong to. A fig, a book, a person,
-/// the detox. Made by an originator, standing until dropped; its facts are its state, and
+/// a streak. Made by an originator, standing until dropped; its facts are its state, and
 /// its lines are the captures linked to it.
 ///
 /// A tag is the simplest thing: its name is a word, its id comes from the word, and nobody
@@ -722,7 +722,7 @@ public struct Notebook: Sendable {
 
     /// A line said under something. Under a line it is a reply; under a reply, an answer to
     /// it in the same conversation; either way it joins the line's conversation, where the
-    /// replies written the older way already are. Under a thing it is something said on that
+    /// replies written as `note.add` are too. Under a thing it is something said on that
     /// thing's page, which has no screen yet: it is kept in the file and shown nowhere.
     /// Under something not here yet, it waits for it.
     private mutating func said(_ event: Event, _ p: Payload.EntryCreate, under: ULID) {
@@ -891,9 +891,9 @@ public struct Notebook: Sendable {
     /// What the home runs. A loop is a sentence, said once and kept. One woken by the clock
     /// is run at its hour, by itself. Those woken by a line are not run each by itself: an
     /// originator reads what lands once, with every such sentence kept in mind and the whole
-    /// notebook in view, where a session for each read the same line with half the picture,
-    /// twice. That one reading stands here as a loop of its own, under the oldest of them, so
-    /// its receipts have a place; the clock loops follow as they are.
+    /// notebook in view, where a session for each would read the same line with half the
+    /// picture, twice. That one reading stands here as a loop of its own, under the oldest of
+    /// them, so its receipts have a place; the clock loops follow as they are.
     public var running: [Loop] {
         let all = loops
         var readings: [Loop] = []
@@ -986,9 +986,9 @@ public struct Notebook: Sendable {
         entry.activity.sort { $0.id < $1.id }
     }
 
-    /// Links and done, in both their shapes. The older shape, link.add with closes, is one
-    /// event saying two things, a link and a finishing, so it is recorded once in the older
-    /// words and folded into both.
+    /// Links and done, in both their shapes. `link.add` with closes is one event saying two
+    /// things, a link and a finishing, so it is recorded once, in its own words, and folded
+    /// into both.
     private mutating func join(_ event: Event) {
         switch event.payload {
         case .link(let p):
@@ -1324,7 +1324,7 @@ public struct Notebook: Sendable {
     }
 
     /// A line finished, or not after all. The newest word on the line wins; the event waits
-    /// for a line not seen yet. `quietly` leaves no record of its own, for the older shape
+    /// for a line not seen yet. `quietly` leaves no record of its own, for `link.add`,
     /// where the link already recorded it.
     private mutating func finish(_ event: Event, entry id: ULID, by: ULID?, on: Bool, quietly: Bool = false) {
         doneMarks.mark(id, DoneMark(on: on, by: by, author: event.author, at: event.at), by: event.id)
@@ -1351,7 +1351,8 @@ public struct Notebook: Sendable {
 
     /// Where an id belongs in a list kept in id order. Events are folded oldest first, so
     /// almost always the end, found at once; a late one is found by halving. Sorting the
-    /// whole list for every receipt made the fold slower with the square of what was read.
+    /// whole list for every receipt would make the fold slower with the square of what is
+    /// read.
     private static func place<T>(of id: ULID, in list: [T], by key: KeyPath<T, ULID>) -> Int {
         guard let last = list.last, id < last[keyPath: key] else { return list.count }
         var low = 0, high = list.count
@@ -1593,12 +1594,6 @@ public struct Notebook: Sendable {
         Self.days(of: entries(of: author), calendar: calendar)
     }
 
-    /// Live entries filed under `label`, grouped by day.
-    public func days(labelled label: String, calendar: Calendar) -> [Day] {
-        let wanted = label.lowercased()
-        return Self.days(of: entries.filter { $0.labels.contains(wanted) }, calendar: calendar)
-    }
-
     /// The visits that took this line in: made after it was written, and asking for a range
     /// or label it falls under, or for one of its photos.
     public func reads(of entry: Entry, calendar: Calendar) -> [Visit] {
@@ -1661,13 +1656,6 @@ public struct Notebook: Sendable {
         return allThings.filter { thing in
             let name = Self.folded(thing.name)
             return terms.allSatisfy { name.contains($0) }
-        }
-    }
-
-    /// Every tag in use, with how many live lines are under it.
-    public var labelCounts: [String: Int] {
-        entries.reduce(into: [:]) { counts, entry in
-            for label in entry.labels { counts[label, default: 0] += 1 }
         }
     }
 

@@ -177,7 +177,7 @@ struct ComingPage: View {
     }
 }
 
-/// Every thing of one kind, or every thing at all: the shelf, the nursery, the people.
+/// Every thing of one kind, or every thing at all: the shelf, the garden, the people.
 /// Each with its facts as its state and how many lines it holds. Tap one for its page.
 struct ThingsPage: View {
     /// A kind, or nil for everything.

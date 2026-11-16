@@ -1,6 +1,6 @@
 import AppIntents
 
-/// The two presses, offered to Siri, Shortcuts and the Action button by name.
+/// The three presses, offered to Siri, Shortcuts and the Action button by name.
 struct DottoShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(

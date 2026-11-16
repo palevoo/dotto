@@ -1,8 +1,7 @@
 import XCTest
 
 /// The live line, driven as a thumb would: tap it, type, paste, press Return. Runs on a
-/// booted simulator with `xcodebuild test -scheme Dotto`. The notebook on that simulator is
-/// whatever it has; a fresh one is kept on the phone when asked.
+/// booted simulator with `xcodebuild test -scheme Dotto`, each test on a notebook of its own.
 final class LiveLineTests: XCTestCase {
     private var app: XCUIApplication!
 
@@ -13,7 +12,7 @@ final class LiveLineTests: XCTestCase {
 
     private var liveLine: XCUIElement { app.textViews["live-line"] }
 
-    /// The live line keeps its words between launches now, so a test that needs it empty
+    /// The live line keeps its words between launches, so a test that needs it empty
     /// first stores whatever an earlier run left in it.
     private func startEmpty() {
         XCTAssertTrue(liveLine.waitForExistence(timeout: 5))

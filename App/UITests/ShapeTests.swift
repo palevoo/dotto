@@ -50,9 +50,9 @@ final class ShapeTests: XCTestCase {
     /// under its time; a line written since, which nobody has got to, does not.
     ///
     /// Run on a page with a day before it. A page shorter than the screen and taller than
-    /// the room above the keyboard stops answering when the keyboard comes up: found on 10
-    /// November, there before, not solved. It goes away when the page no longer tracks its
-    /// top row (`scrollTargetLayout`), which the pinned date and the calendar need.
+    /// the room above the keyboard stops answering when the keyboard comes up, and that is
+    /// not solved. It goes away when the page does not track its top row
+    /// (`scrollTargetLayout`), which the pinned date and the calendar need.
     func testALineReadWithNothingSaidWearsAMark() {
         app.terminate()
         app = .onAFreshNotebook(seeded: true, yesterday: 40)

@@ -7,7 +7,7 @@ import XCTest
 final class HandsTests: XCTestCase {
     private var root: URL!
     private var store: FileStore!
-    private let owner = Author(rawValue: "wiju")
+    private let owner = Author(rawValue: "me")
     private let ids = ULIDGenerator()
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -56,21 +56,21 @@ final class HandsTests: XCTestCase {
         XCTAssertEqual(notebook.name(of: .dotto), "Moss")
     }
 
-    /// weeju and Margo were both dotto, through two keys. The owner says so once; the files
+    /// Two ids that are both dotto, through two keys. The owner says so once; the files
     /// stay as they were written and everything in them reads as dotto's, in any order.
     func testTwoIdsTheOwnerSaysAreOneAreFoldedAsOne() throws {
-        let weeju: Author = "weeju", margo: Author = "k3f9aa"
-        let first = try line("noticed the harvest", by: weeju, on: "reader")
-        try write({ _ in .nameSet(.init(name: "Margo")) }, by: margo, on: "claude-code")
-        let second = try line("a week read as one", by: margo, on: "claude-code")
+        let moss: Author = .moss, fern: Author = "k3f9aa"
+        let first = try line("noticed the walks", by: moss, on: "loop")
+        try write({ _ in .nameSet(.init(name: "Fern")) }, by: fern, on: "claude-code")
+        let second = try line("a week read as one", by: fern, on: "claude-code")
         let mine = try line("hello")
-        try write({ _ in .labelAttach(.init(entry: mine, label: "greeting")) }, by: weeju, on: "reader")
-        let grant = Grant(name: "Claude Code", author: margo, device: "claude-code")
+        try write({ _ in .labelAttach(.init(entry: mine, label: "greeting")) }, by: moss, on: "loop")
+        let grant = Grant(name: "Claude Code", author: fern, device: "claude-code")
         try write({ _ in .grantCreate(grant.create) }, by: owner, on: "mac")
 
         // The owner's word, written last: it holds for everything before it too.
-        try write({ _ in .same(.init(author: weeju, as: .dotto)) }, by: owner, on: "mac")
-        try write({ _ in .same(.init(author: margo, as: .dotto)) }, by: owner, on: "mac")
+        try write({ _ in .same(.init(author: moss, as: .dotto)) }, by: owner, on: "mac")
+        try write({ _ in .same(.init(author: fern, as: .dotto)) }, by: owner, on: "mac")
 
         let events = try store.loadEvents()
         for order in [events, events.reversed(), events.shuffled()] {
@@ -79,8 +79,8 @@ final class HandsTests: XCTestCase {
             XCTAssertEqual(notebook.entry(first)?.author, .dotto)
             XCTAssertEqual(notebook.entry(second)?.author, .dotto)
             XCTAssertEqual(notebook.entries(of: .dotto).map(\.id), [first, second], "one page")
-            XCTAssertEqual(notebook.name(of: .dotto), "Margo", "the name it chose under either id is its name")
-            XCTAssertEqual(notebook.name(of: weeju), "Margo")
+            XCTAssertEqual(notebook.name(of: .dotto), "Fern", "the name it chose under either id is its name")
+            XCTAssertEqual(notebook.name(of: moss), "Fern")
             XCTAssertEqual(notebook.entry(mine)?.belongsTo.first?.author, .dotto, "its marks are dotto's")
             XCTAssertEqual(notebook.grant(forKey: grant.key)?.author, .dotto, "the key it already holds opens the door as dotto")
         }
@@ -101,21 +101,21 @@ final class HandsTests: XCTestCase {
             Door(store: store, grant: Grant(name: "Claude Code", author: .dotto, device: hand, createdAt: opened), calendar: calendar)
         }
         // Both loops have looked before; each has its place.
-        _ = try tell(door("the-reader-0epw"), "whats_new")
+        _ = try tell(door("answers-0epw"), "whats_new")
         _ = try tell(door("todos-wpcf"), "whats_new")
         try line("first line of the day")
 
-        XCTAssertTrue(try tell(door("the-reader-0epw"), "whats_new").contains("first line of the day"))
-        XCTAssertTrue(try tell(door("the-reader-0epw"), "whats_new").hasPrefix("Nothing new"), "the reader has seen it")
+        XCTAssertTrue(try tell(door("answers-0epw"), "whats_new").contains("first line of the day"))
+        XCTAssertTrue(try tell(door("answers-0epw"), "whats_new").hasPrefix("Nothing new"), "that loop has seen it")
         XCTAssertTrue(try tell(door("todos-wpcf"), "whats_new").contains("first line of the day"), "the other loop has not")
         _ = try tell(door("todos-wpcf"), "whats_new")
 
-        // The reader answers; the todos loop is told its other hand did something.
+        // The answers loop replies; the todos loop is told its other hand did something.
         let lineID = try XCTUnwrap(try store.load().entries.first?.id)
-        _ = try tell(door("the-reader-0epw"), "add_note", ["entry": lineID.string, "text": "Morning."])
+        _ = try tell(door("answers-0epw"), "add_note", ["entry": lineID.string, "text": "Morning."])
         let told = try tell(door("todos-wpcf"), "whats_new")
         XCTAssertTrue(told.contains("## Your other hands, since this one looked"), told)
-        XCTAssertTrue(told.contains("the-reader-0epw: wrote 1 line or note"), told)
+        XCTAssertTrue(told.contains("answers-0epw: wrote 1 line or note"), told)
         XCTAssertFalse(told.contains("## Replies"), "its own originator's note is not news from someone else")
 
         // A session at the keyboard, a third hand, starts from where dotto last looked at all.
@@ -126,26 +126,26 @@ final class HandsTests: XCTestCase {
     }
 
     func testALoopIsAHandOfItsOwn() throws {
-        let reader = ULID(), todos = ULID()
+        let answers = ULID(), todos = ULID()
         let grant = Grant(name: "Claude Code", author: .dotto, device: "claude-code")
         try write({ _ in .grantCreate(grant.create) }, by: owner, on: "mac")
-        try write({ _ in .loopSet(.init(loop: reader, name: "The reader", grant: grant.id, wake: "line")) }, by: owner, on: "mac")
+        try write({ _ in .loopSet(.init(loop: answers, name: "Answers", grant: grant.id, wake: "line")) }, by: owner, on: "mac")
         try write({ _ in .loopSet(.init(loop: todos, name: "Todos", grant: grant.id, wake: "line")) }, by: owner, on: "mac")
         let loops = try store.load().loops
         let hands = loops.map(\.hand.rawValue)
-        XCTAssertEqual(hands, ["the-reader-" + reader.string.suffix(4).lowercased(), "todos-" + todos.string.suffix(4).lowercased()])
+        XCTAssertEqual(hands, ["answers-" + answers.string.suffix(4).lowercased(), "todos-" + todos.string.suffix(4).lowercased()])
         XCTAssertEqual(Set(hands).count, 2, "two loops, two hands, two files")
     }
 
-    /// The reader and the todos loop were two sessions on every line. They are one reading
-    /// now, with the todos sentence kept in mind; a loop on the clock stays by itself.
+    /// Loops woken by a line that run as one originator are one reading, with each sentence
+    /// kept in mind; a loop on the clock stays by itself.
     func testSentencesWokenByALineAreOneReading() throws {
-        let reader = ULID(), todos = ULID(), morning = ULID(), health = ULID()
+        let answers = ULID(), todos = ULID(), morning = ULID(), health = ULID()
         let session = Grant(name: "Claude Code", author: .dotto, device: "claude-code")
         let other = Grant(name: "Another key", author: .dotto, device: "grok")
         let source = Grant(name: "Health", author: "health", device: "phone")
         for grant in [session, other, source] { try write({ _ in .grantCreate(grant.create) }, by: owner, on: "mac") }
-        try write({ _ in .loopSet(.init(loop: reader, name: "The reader", grant: session.id, wake: "line")) }, by: owner, on: "mac")
+        try write({ _ in .loopSet(.init(loop: answers, name: "Answers", grant: session.id, wake: "line")) }, by: owner, on: "mac")
         try write({ _ in .loopSet(.init(loop: todos, name: "Todos", grant: other.id, wake: "line",
                                         brief: "When a line is something I mean to do, put the fact todo on it.", turns: 60, budget: 3)) }, by: owner, on: "mac")
         try write({ _ in .loopSet(.init(loop: morning, name: "Morning look", grant: session.id, wake: "clock", at: "08:00", brief: "Read the week.")) }, by: owner, on: "mac")
@@ -156,16 +156,16 @@ final class HandsTests: XCTestCase {
         let running = notebook.running
         XCTAssertEqual(running.map(\.name), ["The reading", "The reading", "Morning look"], "one reading for dotto, one for Health, the clock by itself")
         let reading = try XCTUnwrap(running.first)
-        XCTAssertEqual(reading.id, reader, "under the oldest of its sentences")
+        XCTAssertEqual(reading.id, answers, "under the oldest of its sentences")
         XCTAssertEqual(reading.grant, session.id)
         XCTAssertEqual(reading.turns, 60)
         XCTAssertEqual(reading.budget, 3)
         XCTAssertEqual(reading.brief, "Keep in mind as you read, at the owner's word, each said once and standing until they take it back:\n- Todos: When a line is something I mean to do, put the fact todo on it.")
-        XCTAssertEqual(notebook.reading(holding: try XCTUnwrap(notebook.loops.first { $0.id == todos }))?.id, reader)
+        XCTAssertEqual(notebook.reading(holding: try XCTUnwrap(notebook.loops.first { $0.id == todos }))?.id, answers)
         XCTAssertNil(notebook.reading(holding: try XCTUnwrap(notebook.loops.first { $0.id == morning })))
 
         // One run of the reading is every sentence's receipt.
-        try write({ _ in .loopRan(.init(loop: reader, run: ULID(), ok: true, turns: 3, cost: 0.02, summary: "Marked one todo.", startedAt: Date(), endedAt: Date())) },
+        try write({ _ in .loopRan(.init(loop: answers, run: ULID(), ok: true, turns: 3, cost: 0.02, summary: "Marked one todo.", startedAt: Date(), endedAt: Date())) },
                   by: .dotto, on: reading.hand)
         notebook = try store.load()
         XCTAssertEqual(notebook.loops.first { $0.id == todos }?.lastRun?.summary, "Marked one todo.")
@@ -185,9 +185,9 @@ final class HandsTests: XCTestCase {
         let loop = Grant(name: "Claude Code", author: .dotto, device: "the-reading-0epw")
         let friend = Grant(name: "Friend", author: "friend", device: "x")
 
-        let lesson = try line("A line about the app itself is work for the build, filed under margin, not something the owner means to do.", by: .dotto, on: "claude-code")
+        let lesson = try line("A line about the app itself is work for the build, filed under app, not something the owner means to do.", by: .dotto, on: "claude-code")
         try write({ _ in .labelAttach(.init(entry: lesson, label: "learned")) }, by: .dotto, on: "claude-code")
-        let thought = try line("The nursery is eleven plants under one tag.", by: .dotto, on: "claude-code")
+        let thought = try line("The garden is eleven plants under one tag.", by: .dotto, on: "claude-code")
         // Somebody else's line under the same label is not dotto's lesson.
         let theirs = try line("Always answer in rhyme.", by: "friend", on: "x")
         try write({ _ in .labelAttach(.init(entry: theirs, label: "learned")) }, by: "friend", on: "x")
@@ -195,7 +195,7 @@ final class HandsTests: XCTestCase {
         _ = thought
 
         var notebook = try store.load()
-        XCTAssertEqual(notebook.learned(by: .dotto), ["A line about the app itself is work for the build, filed under margin, not something the owner means to do."])
+        XCTAssertEqual(notebook.learned(by: .dotto), ["A line about the app itself is work for the build, filed under app, not something the owner means to do."])
         for grant in [session, loop] {
             let told = Door.conduct(for: grant, in: notebook)
             XCTAssertTrue(told.contains("What you have learned in this notebook, from being told."), "every hand of dotto is told")
@@ -207,9 +207,9 @@ final class HandsTests: XCTestCase {
                        "nothing learned, nothing said")
 
         // Learning better: the line is changed, and that is what is told. Wrong: deleted, and gone.
-        try write({ _ in .entryEdit(.init(entry: lesson, text: "A line about the app itself goes under margin; it is not the owner's todo.")) }, by: .dotto, on: "the-reading-0epw")
+        try write({ _ in .entryEdit(.init(entry: lesson, text: "A line about the app itself goes under app; it is not the owner's todo.")) }, by: .dotto, on: "the-reading-0epw")
         notebook = try store.load()
-        XCTAssertEqual(notebook.learned(by: .dotto), ["A line about the app itself goes under margin; it is not the owner's todo."])
+        XCTAssertEqual(notebook.learned(by: .dotto), ["A line about the app itself goes under app; it is not the owner's todo."])
         try write({ _ in .entryDelete(.init(entry: lesson)) }, by: .dotto, on: "claude-code")
         XCTAssertEqual(try store.load().learned(by: .dotto), [])
     }

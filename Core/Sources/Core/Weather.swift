@@ -2,14 +2,13 @@ import Foundation
 
 // The weather of a line.
 //
-// Asked for by the owner on 4 November 2026: weather and other conditions at the time of a
-// line, not only location. A line is stamped with when and where, and the weather follows
-// from those two, so nothing new is captured and writing costs what it did. It is found out
-// afterwards, by a source, and said once per line: with no signal it is said when the phone
-// is back, and a line from June gets it like a line from today.
+// A line is stamped with when and where, and the weather follows from those two, so nothing
+// new is captured and writing costs what it did. It is found out afterwards, by a source,
+// and said once per line: with no signal it is said when the phone is back, and a line from
+// June gets it like a line from today.
 //
 // It is the weather model's value for that square of land and that hour, not a measurement
-// on the land. A station on the farm would be another source, saying the same thing better.
+// on the land. A station on the land would be another source, saying the same thing better.
 //
 // The source is Open-Meteo, whose data may be kept (CC BY 4.0). Apple's weather may not be
 // stored, kept in a database or fetched for the past in bulk (Developer Program License
@@ -24,7 +23,7 @@ public extension Author {
 }
 
 /// What it was like where and when a line was written. Metric, as the source gives it; a
-/// page says it in the reader's own units. Every value may be missing: a source says what
+/// page says it in the person's own units. Every value may be missing: a source says what
 /// it knows.
 public struct Conditions: Hashable, Codable, Sendable {
     /// Who the values are from: "open-meteo", later a station's own name.
@@ -43,7 +42,7 @@ public struct Conditions: Hashable, Codable, Sendable {
     /// Rain or snow in the line's hour, millimetres of water.
     public var rain: Double?
     /// Over the day before the line, the 24 hours up to its hour: how much fell, the
-    /// coldest and the warmest. What a plant or a harvest has just been through.
+    /// coldest and the warmest. What a plant or a walk has just been through.
     public var rainBefore: Double?
     public var low: Double?
     public var high: Double?
@@ -146,7 +145,7 @@ public extension Payload {
     /// What it was like where and when a line was written, said by a source after the fact.
     /// One per line: the newest word stands. It is not a mark on the line and nothing to be
     /// told about; it is what the line's own when and where come to. Written flat, the line
-    /// beside the values. Since 11 November 2026.
+    /// beside the values.
     struct ConditionsSet: Hashable, Codable, Sendable {
         public var entry: ULID
         public var conditions: Conditions

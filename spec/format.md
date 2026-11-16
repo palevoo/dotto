@@ -1,9 +1,9 @@
 # The folder, as a format
 
 What a notebook is on disk, written down so that another program, in any language, can read
-one and take part in one. This is version 1, the `version` in `notebook.json`, as built on
-13 November 2026. It grows by addition only: a kind never changes its meaning, and a reader
-passes over what it does not know.
+one and take part in one. This is version 1, the `version` in `notebook.json`. It grows by
+addition only: a kind never changes its meaning, and a reader passes over what it does not
+know.
 
 `spec/sample` is a small notebook with the day pages a reading of it comes to. A program
 reads the format rightly when its reading of the sample's events gives those pages.
@@ -24,6 +24,9 @@ Everything that counts is in `events` and `media`. `days` can be deleted and mad
     { "id": "01KJPRZB00…", "created": "2026-03-02T08:00:00.000Z", "owner": "me", "version": 1 }
 
 `owner` is the author id of the person whose notebook it is. It never changes.
+
+An author is whoever writes: the owner, the notebook's own originator, Health, another
+person. The apps and the other documents say originator; the field is `author`.
 
 ## Event files
 
@@ -84,6 +87,9 @@ Lines
 
 Replies
 
+A reply is a line: an `entry.create` whose `under` is the line, or the reply, it answers.
+The apps and the door write replies this way. The older shape is still read:
+
     note.add       {entry, note, text}   A line under someone's line, by anyone.
     note.edit      {note, text}          Counts from the note's author.
     note.remove    {note}                Counts from the note's author and from the owner.
@@ -97,8 +103,8 @@ Marks, placed afterwards by anyone
     label.detach   {entry, label}        Read as the unlink.
     done           {entry, by?}          The line is finished, by the line `by` when one
     undone         {entry}               finished it. The newest of the two stands.
-    link.add       {later, earlier, closes}   The older shape of link and done, written
-    link.remove    {later, earlier}           4 to 9 November 2026. Still read.
+    link.add       {later, earlier, closes}   The older shape of link and done. Still
+    link.remove    {later, earlier}           read; nothing writes it.
 
 Things
 
@@ -155,7 +161,9 @@ Loops
 Receipts
 
     visit          {what, count, since?, label?, entry?, hash?, seen?, words?}
-                   Someone read through the door: what they asked for and how much came back.
+                   Someone read: what they asked for and how much came back. `what` is one
+                   of days, lines, photo, kept, inbox, things, loops, search. `seen` is how
+                   long each event file was at that look.
 
 ## Reading
 
@@ -172,7 +180,7 @@ Take every event from every file and put them in order of id. Then:
   line to a thing belongs to it, a note to a line cites it.
 
 The apps read a few fact keys in a set way: `todo`, `due` and `at` on a line, and on a streak
-`since`, `counts`, `span`, `ended` and `break`. `spec/system.md` says how.
+`since`, `counts`, `span`, `ended` and `break`. `spec/design.md` says how, under Shapes.
 
 ## Media
 
@@ -216,5 +224,5 @@ writes every line back to check it comes out as the same bytes.
 ## Not here yet
 
 - Nothing is signed. A file's name says who wrote it, and nothing proves it.
-- The door, the local server that hands the notebook to an agent by a key, is described in
-  the README, not here.
+- The door, the local server that hands the notebook to an agent by a key, is in
+  `spec/door.md`.

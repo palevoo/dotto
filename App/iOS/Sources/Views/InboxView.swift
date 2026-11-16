@@ -5,7 +5,7 @@ import SwiftUI
 /// thing made, a fact put, a loop proposed, a name chosen. Each row is the thing itself.
 /// What can be answered is answered here: reply under the row, set or decline a loop, drop
 /// a mark; the line or thing it is about is one tap away for the rest. A mark stands
-/// before the time until the line is opened; what asks and has no answer yet is in ink.
+/// before the time until the line is opened; what asks and has no answer yet is in black.
 struct InboxView: View {
     @Bindable var model: NotebookModel
 
@@ -164,7 +164,7 @@ struct InboxRow: View {
         }
     }
 
-    /// What can be done from here, in a quiet row: the one thing worth doing in ink, the rest muted.
+    /// What can be done from here, in a quiet row: the one thing worth doing in black, the rest muted.
     @ViewBuilder
     private func actions(_ entry: Entry?) -> some View {
         HStack(spacing: 18) {

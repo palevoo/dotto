@@ -2,9 +2,18 @@
 import Core
 import UIKit
 
-/// Lines for the UI tests, made on launch when asked for with `-uitest-seed-photos`: one
-/// line with two photos of printed words, so the viewer has pages to turn and words for
-/// Live Text to find. Debug builds only; made once per notebook.
+/// What the UI tests read, made on launch when asked for with `-uitest-seed`, most of it by
+/// an originator of its own called seed. A line with two photos of printed words, under the
+/// tag book, with a fact on it; a second line, cited by a note under the first, that is
+/// with a thing, the fig, has a page kept beside it and is to do, due tomorrow; a grant for
+/// the seed and a loop it proposes; a walk in Health's name; a quiet line with an event two
+/// days ahead, its weather said, and a streak it broke yesterday; a line with a place and
+/// no weather yet; and the seed's look, so the lines it left nothing under are read with
+/// nothing said. Each is made once per notebook. Debug builds only.
+///
+/// On a test's own notebook (`-uitest-notebook`) the weather is off until a test switches
+/// it on, and is answered here, never by the real source. `-uitest-seed-yesterday <n>`
+/// stands by itself.
 @MainActor
 enum Seed {
     static let words = "Two pages from a book, for the viewer"
@@ -21,7 +30,7 @@ enum Seed {
             model.weather.ask = { try Weather.Hours(data: answer(to: $0)) }
         }
         seedYesterdayIfAsked(model)
-        guard ProcessInfo.processInfo.arguments.contains("-uitest-seed-photos") else { return }
+        guard ProcessInfo.processInfo.arguments.contains("-uitest-seed") else { return }
         let line: ULID
         if let existing = model.notebook.entries.first(where: { $0.text == words }) {
             line = existing.id
@@ -135,7 +144,7 @@ enum Seed {
             let id = ULID(timestamp: at)
             try? model.store.append(Event(id: id, author: model.store.manifest.owner, device: model.device, at: at,
                                           payload: .entryCreate(.init(entry: id, text: placed, startedAt: at,
-                                                                      location: Location(latitude: 39.4712, longitude: -8.1987, accuracy: 20)))))
+                                                                      location: Location(latitude: 54.4712, longitude: -3.1987, accuracy: 20)))))
         }
         // The weather where and when the quiet line was written, as the source would say it.
         if let quiet = model.notebook.entries.first(where: { $0.text == plain }), quiet.conditions == nil {
@@ -186,7 +195,7 @@ enum Seed {
 
     static let weather = Conditions(source: Weather.source, temperature: 14.2, sky: 61, daylight: true, humidity: 82, wind: 12, windFrom: 310,
                                     rain: 0.4, rainBefore: 3.1, low: 9, high: 17.4)
-    static let placed = "Olives under the nets"
+    static let placed = "Light through the kitchen door"
 
     /// What the source would send for a question: every hour from the day before the first
     /// line to the hour after the last, overcast and still, with a little rain each hour.

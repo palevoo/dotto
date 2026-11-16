@@ -18,8 +18,9 @@ enum MacTheme {
         RoundedRectangle(cornerRadius: side * 0.22, style: .continuous)
     }
 
-    /// Everyone's own colour, from their id, the same as on the phone. The owner is the ink.
-    static func ink(for author: Author, owner: Author?) -> Color {
+    /// Everyone's own colour, from their id, the same as on the phone. The owner's is the
+    /// colour of the text.
+    static func colour(for author: Author, owner: Author?) -> Color {
         guard author != owner else { return foreground }
         // The notebook's own wears the one colour the app has.
         guard author != .dotto else { return accent }
@@ -32,7 +33,6 @@ enum MacTheme {
         })
     }
 
-    static let title: Font = .system(size: 22, weight: .medium, design: .serif)
     static let heading: Font = .system(size: 15, weight: .medium, design: .serif)
     static let body: Font = .system(size: 13)
     static let mono: Font = .system(size: 11.5, design: .monospaced)

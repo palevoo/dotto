@@ -1,8 +1,8 @@
 import XCTest
 
 /// The first line of a new day, after a day taller than the screen: the page goes to it, and
-/// opens on it. Until 10 November it did neither: a day was one child of the lazy stack, with
-/// no height the page knew until it was drawn, so the page stopped at the end of yesterday.
+/// opens on it. A day drawn as one child of a lazy stack has no height the page knows until
+/// it is drawn, and the page would stop at the end of yesterday.
 final class NewDayTests: XCTestCase {
     private var app: XCUIApplication!
 

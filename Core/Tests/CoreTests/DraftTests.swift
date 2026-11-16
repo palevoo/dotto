@@ -6,11 +6,11 @@ import XCTest
 final class DraftTests: XCTestCase {
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "Europe/Lisbon")!
+        calendar.timeZone = TimeZone(identifier: "Europe/Amsterdam")!
         return calendar
     }
     private let now = Date(timeIntervalSince1970: 1_794_132_000) // 2026-11-08 10:00 UTC
-    private let owner = Author(rawValue: "wiju")
+    private let owner = Author(rawValue: "me")
     private let ids = ULIDGenerator()
 
     func testBeginsOnTheFirstCharacterAndEndsWithTheLast() {
@@ -48,7 +48,7 @@ final class DraftTests: XCTestCase {
     func testAPhotoFromBeforeOffersItsMomentAndTheLineTakesIt() {
         var draft = Draft()
         let yesterday = now.addingTimeInterval(-86_400)
-        let there = Location(latitude: 38.7, longitude: -9.1)
+        let there = Location(latitude: 52.4, longitude: 4.9)
         draft.add(DraftMedia(hash: "p1", mime: "image/jpeg", at: yesterday, location: there, fromBefore: true),
                   beginning: now, now: now, calendar: calendar)
         XCTAssertEqual(draft.photoMoment(now: now, calendar: calendar), yesterday)
@@ -88,15 +88,15 @@ final class DraftTests: XCTestCase {
     func testStoredIsOneEntryWithItsMediaAtItsMomentAndPlace() throws {
         var draft = Draft()
         let begun = now.addingTimeInterval(-300)
-        draft.write(" Olives in, at last \n", now: begun)
+        draft.write(" Starter fed, at last \n", now: begun)
         draft.add(DraftMedia(hash: "p1", mime: "image/jpeg", width: 4000, height: 3000, at: now), beginning: now, now: now, calendar: calendar)
-        let here = Location(latitude: 39.0, longitude: -8.0)
+        let here = Location(latitude: 54.5, longitude: -3.2)
 
         let stored = try XCTUnwrap(draft.stored(by: owner, on: "phone", here: here, ids: ids, now: now, calendar: calendar))
         XCTAssertEqual(stored.events.count, 2)
         guard case .entryCreate(let create) = stored.events[0].payload else { return XCTFail("the first event makes the line") }
         XCTAssertEqual(create.entry, stored.id)
-        XCTAssertEqual(create.text, "Olives in, at last", "trimmed")
+        XCTAssertEqual(create.text, "Starter fed, at last", "trimmed")
         XCTAssertEqual(create.startedAt, begun, "stored at the moment it began")
         XCTAssertEqual(create.location, here)
         XCTAssertEqual(stored.id.timestamp.timeIntervalSince1970, begun.timeIntervalSince1970, accuracy: 0.001, "the id carries the moment")
@@ -110,7 +110,7 @@ final class DraftTests: XCTestCase {
     func testStoredAtThePhotosMomentTakesTheirPlace() throws {
         var draft = Draft()
         let yesterday = now.addingTimeInterval(-86_400)
-        let there = Location(latitude: 38.7, longitude: -9.1)
+        let there = Location(latitude: 52.4, longitude: 4.9)
         draft.add(DraftMedia(hash: "p1", mime: "image/jpeg", at: yesterday, location: there, fromBefore: true),
                   beginning: now, now: now, calendar: calendar)
         let stored = try XCTUnwrap(draft.stored(by: owner, on: "phone", here: Location(latitude: 1, longitude: 1), ids: ids, now: now, calendar: calendar))

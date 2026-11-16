@@ -1,12 +1,12 @@
 import Foundation
 
-// The reader, the author that wakes on its own: its status while on, and the record of each
-// run, step by step, so the owner can see exactly what it did. Kept in Core so the record is
-// under test and any app can read it.
+// A loop's runs: its status while it is on, and the record of each run, step by step, so
+// the owner can see exactly what it did. Kept in Core so the record is under test and any
+// app can read it.
 
 /// One thing that happened inside a run: a tool the session called, what came back, words
 /// it said, the end.
-public struct ReaderStep: Codable, Sendable, Hashable {
+public struct RunStep: Codable, Sendable, Hashable {
     public var at: Date
     /// "started", the door tool's name, "got", "said", "ended".
     public var what: String
@@ -19,23 +19,23 @@ public struct ReaderStep: Codable, Sendable, Hashable {
     }
 }
 
-/// One run of the reader, as it unfolds. Built from the session's own stream, line by line.
-public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
+/// One run of a loop, as it unfolds. Built from the session's own stream, line by line.
+public struct RunRecord: Codable, Sendable, Identifiable, Hashable {
     public let id: ULID
-    /// The loop this run was of. Absent on runs from before loops were things.
-    public let loop: ULID?
+    /// The loop this run was of.
+    public let loop: ULID
     public let startedAt: Date
-    /// Set once, by the stream's result or by `fail`. Kept as two fields on disk, as runs
-    /// already written have them; `outcome` is how they are read.
+    /// Set once, by the stream's result or by `fail`. Two fields on disk; `outcome` is how
+    /// they are read.
     public private(set) var endedAt: Date?
     public private(set) var ok: Bool?
     public private(set) var summary: String
     public private(set) var turns: Int?
     public private(set) var costUSD: Double?
     public private(set) var model: String?
-    public private(set) var steps: [ReaderStep]
+    public private(set) var steps: [RunStep]
 
-    public init(id: ULID = ULID(), loop: ULID? = nil, startedAt: Date = Date()) {
+    public init(id: ULID = ULID(), loop: ULID, startedAt: Date = Date()) {
         self.id = id
         self.loop = loop
         self.startedAt = startedAt
@@ -74,25 +74,24 @@ public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
             guard object["subtype"] as? String == "init" else { return }
             let model = object["model"] as? String
             self.model = model
-            steps.append(ReaderStep(at: now, what: "started", detail: model ?? ""))
+            steps.append(RunStep(at: now, what: "started", detail: model ?? ""))
         case "assistant":
             for item in Self.content(of: object) {
                 switch item["type"] as? String {
                 case "tool_use":
                     let name = (item["name"] as? String ?? "?")
                         .replacingOccurrences(of: "mcp__dotto__", with: "")
-                        .replacingOccurrences(of: "mcp__margin__", with: "")
-                    steps.append(ReaderStep(at: now, what: name, detail: Self.compact(item["input"])))
+                    steps.append(RunStep(at: now, what: name, detail: Self.compact(item["input"])))
                 case "text":
                     let text = (item["text"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !text.isEmpty { steps.append(ReaderStep(at: now, what: "said", detail: Self.clip(text))) }
+                    if !text.isEmpty { steps.append(RunStep(at: now, what: "said", detail: Self.clip(text))) }
                 default:
                     break
                 }
             }
         case "user":
             for item in Self.content(of: object) where item["type"] as? String == "tool_result" {
-                steps.append(ReaderStep(at: now, what: "got", detail: Self.clip(Self.text(of: item["content"]))))
+                steps.append(RunStep(at: now, what: "got", detail: Self.clip(Self.text(of: item["content"]))))
             }
         case "result":
             endedAt = now
@@ -103,7 +102,7 @@ public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
             let problems = (object["errors"] as? [String])?.joined(separator: "; ") ?? ""
             let said = (object["result"] as? String ?? "").replacingOccurrences(of: "\n", with: " ")
             summary = failed ? (problems.isEmpty ? Self.clip(said) : problems) : (said.isEmpty ? "ran" : Self.clip(said))
-            steps.append(ReaderStep(at: now, what: "ended", detail: summary))
+            steps.append(RunStep(at: now, what: "ended", detail: summary))
         default:
             break
         }
@@ -116,7 +115,7 @@ public struct ReaderRun: Codable, Sendable, Identifiable, Hashable {
         endedAt = now
         ok = false
         summary = why
-        steps.append(ReaderStep(at: now, what: "ended", detail: why))
+        steps.append(RunStep(at: now, what: "ended", detail: why))
     }
 
     private static func content(of object: [String: Any]) -> [[String: Any]] {
@@ -253,13 +252,13 @@ public struct LoopMachine: Equatable, Sendable {
     }
 }
 
-/// What the reader is doing: waiting, woken, running, and what stands in its way.
-public struct ReaderStatus: Codable, Sendable {
-    public enum State: String, Codable, Sendable {
+/// What a loop is doing: waiting or running, and what stands in its way.
+public struct LoopStatus: Sendable {
+    public enum State: Sendable {
         case waiting, running
     }
 
-    public struct Wake: Codable, Sendable, Hashable {
+    public struct Wake: Sendable, Hashable {
         public var at: Date
         /// How many new things the grant had not seen.
         public var new: Int
@@ -272,29 +271,25 @@ public struct ReaderStatus: Codable, Sendable {
         }
     }
 
-    public var pid: Int32
     public var startedAt: Date
-    public var build: String?
     public var state: State
     public var lastWake: Wake?
     /// For a loop woken by the clock: when it next fires.
     public var nextWake: Date?
-    public var lastRun: ReaderRun?
+    public var lastRun: RunRecord?
     /// What stands in the way, if anything: no config, no claude command, a notebook that would not open.
     public var trouble: String?
 
-    public init(pid: Int32, startedAt: Date, build: String?, state: State = .waiting) {
-        self.pid = pid
+    public init(startedAt: Date, state: State = .waiting) {
         self.startedAt = startedAt
-        self.build = build
         self.state = state
     }
 }
 
-/// The reader's files, beside the Mac app's grants: a log, and a folder of runs.
-public enum ReaderFiles {
-    public static let log = "reader.log"
-    public static let runs = "reader-runs"
+/// Where runs are kept, beside the Mac app's grants: a log, and a folder of records.
+public enum RunFiles {
+    public static let log = "loops.log"
+    public static let runs = "loop-runs"
 
     /// How many runs' records are kept. Each is every step of a session, photos read
     /// included, outside the notebook folder; the receipts in the notebook are kept for good.
@@ -313,10 +308,10 @@ public enum ReaderFiles {
     }
 
     /// The runs kept in a folder, newest first, at most `limit`.
-    public static func runs(in directory: URL, limit: Int = 8) -> [ReaderRun] {
+    public static func runs(in directory: URL, limit: Int = 8) -> [RunRecord] {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
         return names.filter { $0.hasSuffix(".json") }.sorted(by: >).prefix(limit).compactMap { name in
-            (try? Data(contentsOf: directory.appendingPathComponent(name))).flatMap { try? JSONLines.decoder().decode(ReaderRun.self, from: $0) }
+            (try? Data(contentsOf: directory.appendingPathComponent(name))).flatMap { try? JSONLines.decoder().decode(RunRecord.self, from: $0) }
         }
     }
 }

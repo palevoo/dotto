@@ -12,7 +12,7 @@ final class ArrivalTests: XCTestCase {
     private let bytes = Data([1, 2, 3])
 
     func testALinkDraggedFromABrowserLandsOnceAsItsAddress() {
-        let link = URL(string: "https://transformer-circuits.pub/2022/toy_model/index.html")!
+        let link = URL(string: "https://papers.example.org/2022/a-paper/index.html")!
         let offered = Offered(link: link, words: link.absoluteString)
         XCTAssertEqual(offered.arrivals(), [.words(link.absoluteString)])
     }
@@ -24,7 +24,7 @@ final class ArrivalTests: XCTestCase {
 
     func testWordsThatComeWithARenderingOfThemAreWords() {
         // Cells copied from a spreadsheet: the text and a picture of the cells.
-        XCTAssertEqual(Offered(picture: bytes, words: "Olives\t130 kg").arrivals(), [.words("Olives\t130 kg")])
+        XCTAssertEqual(Offered(picture: bytes, words: "Flour\t2 kg").arrivals(), [.words("Flour\t2 kg")])
         // A picture alone is the picture.
         XCTAssertEqual(Offered(picture: bytes).arrivals(), [.picture(bytes)])
         // Words selected on a page that happen to be offered with the page's address.
@@ -41,10 +41,10 @@ final class ArrivalTests: XCTestCase {
 
     func testOfFilesPicturesLandAndTheRestAreNamed() {
         let shot = URL(fileURLWithPath: "/tmp/Screenshot 2026-11-10 at 09.14.02.png")
-        let paper = URL(fileURLWithPath: "/tmp/more-is-different.pdf")
+        let paper = URL(fileURLWithPath: "/tmp/a-paper.pdf")
         let offered = Offered(files: [shot, paper], words: "ignored beside files")
         let arrivals = offered.arrivals { $0 == shot ? self.bytes : nil }
-        XCTAssertEqual(arrivals, [.picture(bytes), .leftOut("more-is-different.pdf")])
+        XCTAssertEqual(arrivals, [.picture(bytes), .leftOut("a-paper.pdf")])
     }
 
     func testAPictureFileThatCannotBeReadIsLeftOutByName() {
@@ -83,16 +83,16 @@ final class ArrivalTests: XCTestCase {
     @MainActor
     func testWordsOnAPasteboardAreWords() {
         let board = pasteboard()
-        board.setString("how do you say tall", forType: .string)
+        board.setString("why does bread need salt", forType: .string)
         let offered = Offered.read(board)
-        XCTAssertEqual(offered, Offered(words: "how do you say tall"))
-        XCTAssertEqual(offered.arrivals(), [.words("how do you say tall")])
+        XCTAssertEqual(offered, Offered(words: "why does bread need salt"))
+        XCTAssertEqual(offered.arrivals(), [.words("why does bread need salt")])
     }
 
     @MainActor
     func testALinkOnAPasteboardLandsAsItsAddress() {
         let board = pasteboard()
-        let link = URL(string: "https://www.tkm.kit.edu/downloads/TKM1_2011_more_is_different_PWA.pdf")!
+        let link = URL(string: "https://papers.example.org/downloads/a-paper.pdf")!
         board.writeObjects([link as NSURL])
         let offered = Offered.read(board)
         XCTAssertEqual(offered.link, link)

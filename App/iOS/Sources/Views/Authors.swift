@@ -1,10 +1,10 @@
 import Core
 import SwiftUI
 
-/// Everyone has a colour of their own, from their id, before they have a name. You are the
-/// page's own ink. Nobody is called anything until they choose.
+/// Everyone has a colour of their own, from their id, before they have a name. Yours is
+/// the colour of the page's own text.
 extension Theme {
-    static func ink(for author: Author, owner: Author) -> Color {
+    static func colour(for author: Author, owner: Author) -> Color {
         guard author != owner else { return foreground }
         // The notebook's own wears the one colour the app has.
         if author == .dotto { return Theme.accent }
@@ -29,22 +29,22 @@ struct Who: View {
         if author == owner {
             Text("you").font(font).foregroundStyle(Theme.foreground)
         } else if let name = model.notebook.name(of: author) {
-            Text(name).font(font).foregroundStyle(Theme.ink(for: author, owner: owner))
+            Text(name).font(font).foregroundStyle(Theme.colour(for: author, owner: owner))
         } else {
             AuthorMark(author: author, model: model)
         }
     }
 }
 
-/// The dot in someone's colour, for where their name would go.
+/// Someone's own dot in their colour, for where their name would go.
 struct AuthorMark: View {
     let author: Author
     let model: NotebookModel
-    var side: CGFloat = 10
+    var side: CGFloat = 11
 
     var body: some View {
-        Circle()
-            .fill(Theme.ink(for: author, owner: model.store.manifest.owner))
+        DotShape(author.dot)
+            .fill(Theme.colour(for: author, owner: model.store.manifest.owner))
             .frame(width: side, height: side)
     }
 }
@@ -57,11 +57,11 @@ struct AuthorLabel: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            AuthorMark(author: author, model: model, side: 9)
+            AuthorMark(author: author, model: model, side: 10)
             if let name = model.notebook.name(of: author) {
                 Text(name)
                     .font(Theme.mono)
-                    .foregroundStyle(Theme.ink(for: author, owner: model.store.manifest.owner))
+                    .foregroundStyle(Theme.colour(for: author, owner: model.store.manifest.owner))
             } else {
                 Text("no name yet")
                     .font(Theme.mono)

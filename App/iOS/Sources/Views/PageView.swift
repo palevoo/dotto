@@ -61,8 +61,8 @@ struct PageView: View {
 
     /// One row of the page: a day's rule with its date, or a line. The rows, not the days,
     /// are what the page lays out lazily and what it scrolls to. A whole day as one child
-    /// has no height the page knows until it has been drawn, so the bottom of the page was
-    /// worked out without a day only just begun and the first line of a day was never
+    /// has no height the page knows until it has been drawn, so the bottom of the page would
+    /// be worked out without a day only just begun and the first line of a day never
     /// reached; a row is small, the last one is always drawn, and a line stored is gone to
     /// by its own id.
     private struct Row: Identifiable {

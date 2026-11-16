@@ -21,7 +21,7 @@ public struct InboxItem: Hashable, Sendable, Identifiable {
     /// Nil when the item stands for several lines.
     public let entry: ULID?
     /// What the author did, as the page would say it: "replied", "wrote", "filed 3 lines
-    /// under #nursery", "is called Moss now".
+    /// under #garden", "is called Moss now".
     public let what: String
     /// The words: the reply's, the line's. Empty when the item stands for several lines.
     public let text: String
@@ -48,7 +48,7 @@ public enum Inbox {
     /// Everything a grant has not seen, by anyone else, oldest first, and when it last looked.
     /// After the counts its last look took, file by file, so a file that grew late still
     /// counts; on the first look, since the grant last read anything, or since it was made.
-    /// The same cursor whether the door answers whats_new or the reader asks whether to wake.
+    /// The same cursor whether the door answers whats_new or a loop asks whether to wake.
     public static func fresh(files: [(file: String, events: [Event])], notebook: Notebook, grant: Grant) -> (events: [Event], since: Date?) {
         let (others, _, since) = unseen(files: files, notebook: notebook, grant: grant)
         return (others, since)
@@ -271,7 +271,7 @@ public enum Inbox {
                     labels[key] = group
 
                 case .linkAdd(let p):
-                    // The older shape: a thread, and done when it closes.
+                    // `link.add`: a thread, and done when it closes.
                     guard let later = notebook.entry(p.later), let earlier = notebook.entry(p.earlier),
                           later.author != event.author || earlier.author != event.author,
                           later.carriesOn.contains(where: { $0.to == p.earlier }) else { continue }

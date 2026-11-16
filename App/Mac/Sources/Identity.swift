@@ -6,7 +6,7 @@ import Foundation
 /// the folder the app keeps its own records in, the keychain entries, the hotkey. Their
 /// settings are apart already, since the system keeps those per bundle id.
 ///
-/// dotto dev never runs loops and never carries anything over from the home. It takes its
+/// dotto dev never runs loops. It takes its
 /// notebook from the folder picked in its own window, or from `-dotto-folder <path>` on its
 /// command line, which the home ignores.
 enum Identity {
@@ -22,8 +22,6 @@ enum Identity {
     static let supportFolder = isDevelopment ? "dotto dev" : "dotto"
     /// Only the home runs loops: a second runner on the same notebook would run each twice.
     static let runsLoops = !isDevelopment
-    /// Only the home has a past to carry over.
-    static let carriesOver = !isDevelopment
 
     /// A keychain service of this build's own: "<bundle id>.grant-keys".
     static func keychainService(_ what: String) -> String {
@@ -35,7 +33,7 @@ enum Identity {
         static let folder = "dotto.folder.bookmark"
         static let owner = "dotto.owner"
         static let device = "dotto.device"
-        static let readerModel = "dotto.reader.model"
+        static let loopModel = "dotto.loop.model"
         static let dueSent = "dotto.due.sent"
         static let pushKeyID = "dotto.push.keyID"
         static let pushTeamID = "dotto.push.teamID"

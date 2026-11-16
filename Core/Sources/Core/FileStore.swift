@@ -40,7 +40,6 @@ public struct FileStore: Sendable {
     public enum Error: Swift.Error, Equatable {
         case alreadyANotebook(URL)
         case notANotebook(URL)
-        case badEventFile(URL, line: Int)
     }
 
     /// Makes a new notebook folder. Fails if one is already there.

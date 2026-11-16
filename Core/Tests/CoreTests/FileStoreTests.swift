@@ -42,10 +42,10 @@ final class FileStoreTests: XCTestCase {
         let id = ULID()
         try store.append(event(.entryCreate(.init(entry: id, text: "from the phone", startedAt: Date())), device: "iphone"))
         try store.append(event(.entryEdit(.init(entry: id, text: "edited on the mac")), device: "mac"))
-        try store.append(event(.noteAdd(.init(entry: id, note: ULID(), text: "noted")), author: .weeju, device: "mac"))
+        try store.append(event(.noteAdd(.init(entry: id, note: ULID(), text: "noted")), author: .moss, device: "mac"))
 
         let names = try store.eventFiles().map(\.lastPathComponent)
-        XCTAssertEqual(names, ["me.iphone.jsonl", "me.mac.jsonl", "weeju.mac.jsonl"])
+        XCTAssertEqual(names, ["me.iphone.jsonl", "me.mac.jsonl", "moss.mac.jsonl"])
 
         let events = try store.loadEvents()
         XCTAssertEqual(events.map(\.kind), [.entryCreate, .entryEdit, .noteAdd])
@@ -53,7 +53,7 @@ final class FileStoreTests: XCTestCase {
 
         let notebook = try store.load()
         XCTAssertEqual(notebook.entry(id)?.text, "edited on the mac")
-        XCTAssertEqual(notebook.entry(id)?.notes.first?.author, .weeju)
+        XCTAssertEqual(notebook.entry(id)?.notes.first?.author, .moss)
     }
 
     func testAppendIsAppendOnly() throws {
@@ -103,7 +103,7 @@ final class FileStoreTests: XCTestCase {
 /// Damage in an event file costs the damaged line and nothing else.
 final class DamagedFileTests: XCTestCase {
     private var root: URL!
-    private let owner = Author(rawValue: "wiju")
+    private let owner = Author(rawValue: "me")
     private let ids = ULIDGenerator()
 
     override func setUpWithError() throws {

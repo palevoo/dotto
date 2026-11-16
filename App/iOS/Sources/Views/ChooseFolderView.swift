@@ -1,3 +1,4 @@
+import Core
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -9,9 +10,10 @@ struct ChooseFolderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             Spacer()
-            Theme.square(44)
+            // Dotto's own dot, as on the icon.
+            DotShape(.dotto)
                 .fill(Theme.accent)
-                .frame(width: 44, height: 44)
+                .frame(width: 48, height: 48)
             VStack(alignment: .leading, spacing: 12) {
                 Text("Where should your notebook live?")
                     .font(Theme.title)

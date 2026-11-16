@@ -3,11 +3,10 @@ import Foundation
 // A streak: something kept up day after day, worked out from what is already in the
 // notebook. Nothing is stored for it and nothing is counted by hand.
 //
-// A thing or a tag is a streak once it has a `since` moment. From the owner's line of 5
-// November 2026, there are two ways one runs:
+// A thing or a tag is a streak once it has a `since` moment. There are two ways one runs:
 //
-//   without   every day counts unless a line says it broke: no TikTok, no wine. The owner
-//             states nothing while it holds; a break is what gets said.
+//   without   every day counts unless a line says it broke: no sugar, no scrolling. The
+//             owner states nothing while it holds; a break is what gets said.
 //   with      a day counts when a line is with it: a walk, a page read. The owner, or a
 //             source such as Health, states each day.
 //

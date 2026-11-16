@@ -11,12 +11,12 @@ final class StreakTests: XCTestCase {
         return calendar
     }()
     private var ids = ULIDGenerator()
-    /// Thursday 5 November 2026, 07:53 UTC: the morning the detox began.
+    /// Thursday 5 November 2026, 07:53 UTC: the morning the streak began.
     private let began = Date(timeIntervalSince1970: 1_793_865_180)
 
     private func at(_ days: Double, _ hours: Double = 0) -> Date { began.addingTimeInterval(days * 86_400 + hours * 3600) }
 
-    private func event(_ payload: Payload, by author: Author = "weeju", at when: Date) -> Event {
+    private func event(_ payload: Payload, by author: Author = .moss, at when: Date) -> Event {
         Event(id: ids.next(at: when), author: author, device: "test", at: when, payload: payload)
     }
 
@@ -28,21 +28,21 @@ final class StreakTests: XCTestCase {
     /// Without: every day counts unless a line says it broke. A break said the morning after
     /// names the day it happened. The run starts again the day after a break.
     func testADayCountsUnlessALineSaysItBroke() throws {
-        let detox = ULID(timestamp: began)
-        let (first, firstEvent) = line("A day without YouTube and TikTok", at: began)
-        let (after, afterEvent) = line("YouTube I did watch yesterday in the evening", at: at(2, 7))
+        let scrolling = ULID(timestamp: began)
+        let (first, firstEvent) = line("No scrolling today. Let's see.", at: began)
+        let (after, afterEvent) = line("I did scroll yesterday in the evening", at: at(2, 7))
         var notebook = Notebook(owner: me, events: [
             firstEvent, afterEvent,
-            event(.thingSet(.init(thing: detox, name: "the detox", kind: "streak")), at: began),
-            event(.factSet(.init(on: detox, key: "since", value: .moment(began))), at: began),
-            event(.link(.init(from: first, to: detox)), at: began),
-            event(.link(.init(from: after, to: detox)), at: at(2, 7)),
+            event(.thingSet(.init(thing: scrolling, name: "no scrolling", kind: "streak")), at: began),
+            event(.factSet(.init(on: scrolling, key: "since", value: .moment(began))), at: began),
+            event(.link(.init(from: first, to: scrolling)), at: began),
+            event(.link(.init(from: after, to: scrolling)), at: at(2, 7)),
         ])
-        let thing = try XCTUnwrap(notebook.thing(detox))
+        let thing = try XCTUnwrap(notebook.thing(scrolling))
         XCTAssertTrue(thing.isStreak)
 
         // Tuesday 10 November, the sixth day, nothing broken.
-        var streak = try XCTUnwrap(notebook.streak(notebook.thing(detox)!, at: at(5, 3), calendar: calendar))
+        var streak = try XCTUnwrap(notebook.streak(notebook.thing(scrolling)!, at: at(5, 3), calendar: calendar))
         XCTAssertEqual(streak.counts, .without)
         XCTAssertEqual(streak.days.count, 6)
         XCTAssertEqual(streak.run, 6, "the day it began is the first, today the sixth")
@@ -52,7 +52,7 @@ final class StreakTests: XCTestCase {
 
         // The line written on the 7th says the 6th broke.
         notebook.apply(event(.factSet(.init(on: after, key: "break", value: .moment(at(1, 12)))), at: at(2, 7)))
-        streak = try XCTUnwrap(notebook.streak(notebook.thing(detox)!, at: at(5, 3), calendar: calendar))
+        streak = try XCTUnwrap(notebook.streak(notebook.thing(scrolling)!, at: at(5, 3), calendar: calendar))
         XCTAssertEqual(streak.days.map(\.mark), [.counted, .broken, .counted, .counted, .counted, .counted])
         XCTAssertEqual(streak.days[1].line, after, "the broken day leads to the line that said so")
         XCTAssertEqual(streak.run, 4, "the run starts again the day after")
@@ -60,17 +60,17 @@ final class StreakTests: XCTestCase {
         XCTAssertEqual(streak.breaks, 1)
 
         // A break with no moment is the line's own day; broken today, the run is nothing.
-        let (today, todayEvent) = line("Opened TikTok", at: at(5, 2))
+        let (today, todayEvent) = line("Scrolled at lunch", at: at(5, 2))
         notebook.apply(todayEvent)
-        notebook.apply(event(.link(.init(from: today, to: detox)), at: at(5, 2)))
-        notebook.apply(event(.factSet(.init(on: today, key: "break", value: .words("TikTok"))), at: at(5, 2)))
-        streak = try XCTUnwrap(notebook.streak(notebook.thing(detox)!, at: at(5, 3), calendar: calendar))
+        notebook.apply(event(.link(.init(from: today, to: scrolling)), at: at(5, 2)))
+        notebook.apply(event(.factSet(.init(on: today, key: "break", value: .words("lunch"))), at: at(5, 2)))
+        streak = try XCTUnwrap(notebook.streak(notebook.thing(scrolling)!, at: at(5, 3), calendar: calendar))
         XCTAssertEqual(streak.run, 0)
         XCTAssertEqual(streak.longest, 3)
 
         // The owner takes the break back with one hold, and the day counts again.
-        notebook.apply(event(.factRemove(.init(on: today, key: "break", of: "weeju")), by: me, at: at(5, 2.5)))
-        XCTAssertEqual(notebook.streak(notebook.thing(detox)!, at: at(5, 3), calendar: calendar)?.run, 4)
+        notebook.apply(event(.factRemove(.init(on: today, key: "break", of: .moss)), by: me, at: at(5, 2.5)))
+        XCTAssertEqual(notebook.streak(notebook.thing(scrolling)!, at: at(5, 3), calendar: calendar)?.run, 4)
     }
 
     /// A span is an end: the days ahead are shown, and it is complete when they are behind.
@@ -78,7 +78,7 @@ final class StreakTests: XCTestCase {
     func testASpanAnEndAndBeginningAgain() throws {
         let week = ULID(timestamp: began)
         var notebook = Notebook(owner: me, events: [
-            event(.thingSet(.init(thing: week, name: "no alcohol week", kind: "streak")), at: began),
+            event(.thingSet(.init(thing: week, name: "no sugar week", kind: "streak")), at: began),
             event(.factSet(.init(on: week, key: "since", value: .moment(began))), at: began),
             event(.factSet(.init(on: week, key: "span", value: .span(7 * 86_400))), at: began),
         ])

@@ -171,7 +171,6 @@ final class NotebookModel {
         set { draft.write(newValue, now: Date()) }
     }
     var draftMedia: [DraftMedia] { draft.media }
-    var draftIsEmpty: Bool { draft.isEmpty }
     /// Whether the line is stored at its photos' moment. Tapping the time toggles it.
     var draftKeepsPhotoMoment: Bool { draft.keepsPhotoMoment }
     /// The moment the photos in the line offer, when they all come from one earlier day.

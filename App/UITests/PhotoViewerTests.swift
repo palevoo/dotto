@@ -1,7 +1,7 @@
 import XCTest
 
-/// The photo viewer, driven as a thumb would. The app is launched with `-uitest-seed-photos`,
-/// which gives the notebook one line with two photos of printed words.
+/// The photo viewer, driven as a thumb would. The app is launched with `-uitest-seed`,
+/// which gives the notebook, among other things, one line with two photos of printed words.
 final class PhotoViewerTests: XCTestCase {
     private var app: XCUIApplication!
     private let seededWords = "Two pages from a book, for the viewer"

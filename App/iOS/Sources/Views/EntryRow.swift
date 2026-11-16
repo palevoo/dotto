@@ -25,9 +25,9 @@ struct EntryRow: View {
     private var readWithNothingSaid: Author? {
         guard entry.author == model.store.manifest.owner,
               DayKey(entry.startedAt, calendar: model.calendar) == model.today,
-              let reader = model.taken[entry.id],
-              !entry.notes.contains(where: { $0.author == reader }) else { return nil }
-        return reader
+              let who = model.taken[entry.id],
+              !entry.notes.contains(where: { $0.author == who }) else { return nil }
+        return who
     }
 
     private var photos: [Media] { entry.media.filter { $0.mime.hasPrefix("image") } }
@@ -45,15 +45,15 @@ struct EntryRow: View {
                 if entry.todo != nil {
                     TodoMark(entry: entry, model: model)
                         .padding(.top, -3)
-                } else if let reader = readWithNothingSaid {
-                    // Read, and nothing said: a dot in the reader's colour, so silence after
-                    // a line is told apart from a line nobody has got to yet.
-                    Circle()
-                        .fill(Theme.ink(for: reader, owner: model.store.manifest.owner))
-                        .frame(width: 5, height: 5)
+                } else if let who = readWithNothingSaid {
+                    // Read, and nothing said: the dot of whoever read, in their colour, so silence
+                    // after a line is told apart from a line nobody has got to yet.
+                    DotShape(who.dot)
+                        .fill(Theme.colour(for: who, owner: model.store.manifest.owner))
+                        .frame(width: 6, height: 6)
                         .padding(.leading, 1)
                         .accessibilityElement()
-                        .accessibilityLabel("Read by \(model.notebook.name(of: reader) ?? "someone")")
+                        .accessibilityLabel("Read by \(model.notebook.name(of: who) ?? "someone")")
                         .accessibilityIdentifier("read-mark")
                 }
             }

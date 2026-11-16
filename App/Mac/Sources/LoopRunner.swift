@@ -12,7 +12,7 @@ import Foundation
 /// of a run is written down as it happens, a record per run with the raw stream beside it; a
 /// receipt for the run goes into the notebook under the loop's originator, so Logs say it ran.
 @MainActor
-final class ReaderRunner {
+final class LoopRunner {
     let loop: Loop
     let grant: Grant
     let door: String
@@ -21,12 +21,12 @@ final class ReaderRunner {
     var model: String
     /// Where the claude command is, or nil when the Mac has none.
     let claude: String?
-    private(set) var status: ReaderStatus
-    private(set) var runs: [ReaderRun] = []
+    private(set) var status: LoopStatus
+    private(set) var runs: [RunRecord] = []
     /// Told whenever the status or a run changes, so the window follows.
     var onChange: () -> Void = {}
     /// Told when a run has ended, with its record, so the receipt can be written.
-    var onRan: (ReaderRun) -> Void = { _ in }
+    var onRan: (RunRecord) -> Void = { _ in }
 
     /// The phase the loop is in and what each event means there. Decided in Core, under test.
     private var machine = LoopMachine()
@@ -49,10 +49,10 @@ final class ReaderRunner {
         self.runsDirectory = runsDirectory
         self.logURL = logURL
         claude = Self.findClaude()
-        status = ReaderStatus(pid: ProcessInfo.processInfo.processIdentifier, startedAt: Date(), build: Build.commit)
+        status = LoopStatus(startedAt: Date())
         if claude == nil { status.trouble = "the claude command was not found on this Mac" }
         try? FileManager.default.createDirectory(at: runsDirectory, withIntermediateDirectories: true)
-        runs = ReaderFiles.runs(in: runsDirectory, limit: 200).filter { $0.loop == loop.id || ($0.loop == nil && loop.wake == .line) }.prefix(8).map { $0 }
+        runs = RunFiles.runs(in: runsDirectory, limit: 200).filter { $0.loop == loop.id }.prefix(8).map { $0 }
         log("\(loop.name) on as \(grant.name), \(loop.wake.words), claude at \(claude ?? "nowhere")")
         if case .clock = loop.wake { scheduleClock() }
     }
@@ -153,7 +153,7 @@ final class ReaderRunner {
             // machine decides, and the window says why nothing is running.
             let leftOver = able && waiting.isSubset(of: machine.offered)
             found = able && !leftOver
-            status.lastWake = ReaderStatus.Wake(at: now, new: pending.count, ran: found)
+            status.lastWake = LoopStatus.Wake(at: now, new: pending.count, ran: found)
             if leftOver {
                 status.trouble = Self.leftWaiting
                 log("woke: \(pending.count) still waiting from the last run, which did not take them; not running again until something new lands")
@@ -165,7 +165,7 @@ final class ReaderRunner {
             return
         } catch {
             found = false
-            status.lastWake = ReaderStatus.Wake(at: now, new: 0, ran: false)
+            status.lastWake = LoopStatus.Wake(at: now, new: 0, ran: false)
             status.trouble = "could not read the notebook: \(error)"
             log("woke: \(status.trouble!)")
         }
@@ -204,7 +204,7 @@ final class ReaderRunner {
     private func start(_ store: FileStore) {
         let now = Date()
         guard let claude else {
-            status.lastWake = ReaderStatus.Wake(at: now, new: 0, ran: false)
+            status.lastWake = LoopStatus.Wake(at: now, new: 0, ran: false)
             onChange()
             carry(machine.finished())
             return
@@ -217,7 +217,7 @@ final class ReaderRunner {
             if status.trouble == Self.leftWaiting { status.trouble = nil }
             if status.lastWake == nil || status.lastWake?.ran == false {
                 let pending = Core.Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
-                status.lastWake = ReaderStatus.Wake(at: now, new: pending.count, ran: true)
+                status.lastWake = LoopStatus.Wake(at: now, new: pending.count, ran: true)
                 log("looking now: \(pending.count) new, running")
             }
 
@@ -234,7 +234,7 @@ final class ReaderRunner {
                 brief += loop.wake == .line ? "\n\n\(words)" : "\n\nThe brief the owner set for this loop: \(words)"
             }
             status.state = .running
-            let run = ReaderRun(loop: loop.id, startedAt: now)
+            let run = RunRecord(loop: loop.id, startedAt: now)
             status.lastRun = run
             runs.insert(run, at: 0)
             onChange()
@@ -254,7 +254,7 @@ final class ReaderRunner {
                 await MainActor.run { self.finish(finished) }
             }
         } catch {
-            status.lastWake = ReaderStatus.Wake(at: now, new: 0, ran: false)
+            status.lastWake = LoopStatus.Wake(at: now, new: 0, ran: false)
             status.trouble = "could not read the notebook: \(error)"
             log("start: \(status.trouble!)")
             onChange()
@@ -262,15 +262,15 @@ final class ReaderRunner {
         }
     }
 
-    private func progress(_ run: ReaderRun) {
+    private func progress(_ run: RunRecord) {
         status.lastRun = run
         if let index = runs.firstIndex(where: { $0.id == run.id }) { runs[index] = run } else { runs.insert(run, at: 0) }
         onChange()
     }
 
-    private func finish(_ run: ReaderRun) {
+    private func finish(_ run: RunRecord) {
         current = nil
-        ReaderFiles.prune(runsDirectory)
+        RunFiles.prune(runsDirectory)
         status.state = .waiting
         progress(run)
         let ending: String
@@ -334,11 +334,11 @@ struct Session: Sendable {
     let maxTurns: Int
     let maxBudgetUSD: Double
 
-    func run(_ start: ReaderRun, as running: RunningSession, progress: @escaping @Sendable (ReaderRun) -> Void) -> ReaderRun {
+    func run(_ start: RunRecord, as running: RunningSession, progress: @escaping @Sendable (RunRecord) -> Void) -> RunRecord {
         var run = start
         let runFile = runsDirectory.appendingPathComponent("\(run.id.string).json")
         let streamFile = runsDirectory.appendingPathComponent("\(run.id.string).jsonl")
-        func write(_ run: ReaderRun) {
+        func write(_ run: RunRecord) {
             let encoder = JSONLines.encoder()
             encoder.outputFormatting.insert(.prettyPrinted)
             try? encoder.encode(run).write(to: runFile, options: .atomic)
@@ -346,7 +346,7 @@ struct Session: Sendable {
         }
         write(run)
 
-        let workDir = FileManager.default.temporaryDirectory.appendingPathComponent("dotto-reader-\(run.id.string)", isDirectory: true)
+        let workDir = FileManager.default.temporaryDirectory.appendingPathComponent("dotto-loop-\(run.id.string)", isDirectory: true)
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workDir) }
 

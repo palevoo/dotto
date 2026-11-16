@@ -1,14 +1,14 @@
 import Foundation
 
-/// What a kind of thing is: a paper, a plant, a person. A kind was one word on a thing, and
-/// nothing said what a paper has, so each came out with whatever facts its maker happened to
-/// write, under whatever names. A shape says what the things of a kind have, in order, and
-/// what each is, so they are made alike and drawn alike: a thing's page is its shape's facts
-/// in its shape's order, each drawn by what it is.
+/// What a kind of thing is: a paper, a plant, a person. A kind is one word on a thing, and
+/// the word alone does not say what a paper has: each would come out with whatever facts
+/// its maker happened to write, under whatever names. A shape says what the things of a
+/// kind have, in order, and what each is, so they are made alike and drawn alike: a thing's
+/// page is its shape's facts in its shape's order, each drawn by what it is.
 ///
 /// A shape is found by its kind's word, as a tag is by its own, so every thing already
 /// called a paper is of the paper shape the moment one is said. Anyone through the door
-/// says what a kind has; the newest word stands; the owner drops it. Since 10 November 2026.
+/// says what a kind has; the newest word stands; the owner drops it.
 public struct KindShape: Hashable, Codable, Sendable, Identifiable {
     /// The kind, lower-case: "paper".
     public var kind: String

@@ -10,14 +10,14 @@ final class EventTests: XCTestCase {
         let entry = ULID()
         let note = ULID()
         let payloads: [Payload] = [
-            .entryCreate(.init(entry: entry, text: "Measure the wall", startedAt: at, location: .init(latitude: 39.5, longitude: -8.1, accuracy: 12))),
-            .entryEdit(.init(entry: entry, text: "Measure the wall for the repairs")),
+            .entryCreate(.init(entry: entry, text: "Measure the shelf", startedAt: at, location: .init(latitude: 54.5, longitude: -3.2, accuracy: 12))),
+            .entryEdit(.init(entry: entry, text: "Measure the shelf for the brackets")),
             .entryDelete(.init(entry: entry)),
             .mediaAttach(.init(entry: entry, hash: "abc", mime: "image/jpeg", width: 1280, height: 960)),
             .noteAdd(.init(entry: entry, note: note, text: "Kept as a to-do.")),
             .noteRemove(.init(note: note)),
-            .labelAttach(.init(entry: entry, label: "margin")),
-            .labelDetach(.init(entry: entry, label: "margin")),
+            .labelAttach(.init(entry: entry, label: "app")),
+            .labelDetach(.init(entry: entry, label: "app")),
             .visit(.init(what: .days, since: "2026-11-01", label: "bug", count: 4)),
             .visit(.init(what: .photo, count: 1, entry: entry, hash: "abc")),
             .nameSet(.init(name: "Moss")),
@@ -36,12 +36,12 @@ final class EventTests: XCTestCase {
         let id = ULID("01KA1C4Q6R0000000000000000")!
         let event = Event(
             id: id, author: me, device: phone, at: at,
-            payload: .entryCreate(.init(entry: id, text: "Olives in", startedAt: at))
+            payload: .entryCreate(.init(entry: id, text: "Starter fed", startedAt: at))
         )
         let line = try JSONLines.encode(event)
         XCTAssertEqual(
             line,
-            #"{"at":"2026-11-02T10:00:00.500Z","author":"me","device":"iphone","id":"01KA1C4Q6R0000000000000000","kind":"entry.create","payload":{"at":"2026-11-02T10:00:00.500Z","entry":"01KA1C4Q6R0000000000000000","text":"Olives in"}}"#
+            #"{"at":"2026-11-02T10:00:00.500Z","author":"me","device":"iphone","id":"01KA1C4Q6R0000000000000000","kind":"entry.create","payload":{"at":"2026-11-02T10:00:00.500Z","entry":"01KA1C4Q6R0000000000000000","text":"Starter fed"}}"#
         )
     }
 
@@ -60,8 +60,8 @@ final class EventTests: XCTestCase {
         }
     }
 
-    /// Until 10 November an unknown kind failed the line, and with it the file. The
-    /// vocabulary grows by addition, so now it is carried as unknown; see UnknownKindTests.
+    /// An unknown kind fails neither the line nor the file: the vocabulary grows by addition,
+    /// so it is carried as unknown. See UnknownKindTests.
     func testUnknownKindIsCarried() throws {
         let line = #"{"at":"2026-11-02T10:00:00Z","author":"me","device":"iphone","id":"01KA1C4Q6R0000000000000000","kind":"entry.explode","payload":{}}"#
         let event = try JSONLines.decode(line)

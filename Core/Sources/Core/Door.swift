@@ -8,7 +8,7 @@ import Foundation
 /// the same grants and any of them can serve the door. The notebook holds the key's hash
 /// only; the key itself is known to whoever was handed it, and to the device that made it
 /// if it chose to keep it. `key` is empty when this device does not have it.
-public struct Grant: Hashable, Codable, Sendable, Identifiable {
+public struct Grant: Hashable, Sendable, Identifiable {
     public var id: ULID
     public var name: String
     public var author: Author
@@ -66,23 +66,6 @@ public struct Grant: Hashable, Codable, Sendable, Identifiable {
         if writesLinks { parts.append("links") }
         if writesLines { parts.append("lines") }
         return parts
-    }
-
-    /// A grant saved before links or own lines existed may write them: they are the same
-    /// kind of thing as notes. One saved before the hash was kept has the key, so the hash follows.
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(ULID.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
-        author = try container.decode(Author.self, forKey: .author)
-        device = try container.decode(DeviceID.self, forKey: .device)
-        key = try container.decodeIfPresent(String.self, forKey: .key) ?? ""
-        keyHash = try container.decodeIfPresent(String.self, forKey: .keyHash) ?? Grant.hash(key)
-        writesNotes = try container.decode(Bool.self, forKey: .writesNotes)
-        writesLabels = try container.decode(Bool.self, forKey: .writesLabels)
-        writesLinks = try container.decodeIfPresent(Bool.self, forKey: .writesLinks) ?? true
-        writesLines = try container.decodeIfPresent(Bool.self, forKey: .writesLines) ?? true
-        createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 
     /// 256 random bits, URL-safe.
@@ -343,7 +326,7 @@ public struct Door: Sendable {
                                         "required": ["from", "to"]]]
             case .setThing:
                 return ["name": rawValue,
-                        "description": "Make a thing lines can belong to: a fig, a book, a person, the detox. Look in list_things first so each thing is made once. With thing, rename one of yours or give it a kind; on=false takes one of yours back. It stands until the owner drops it.",
+                        "description": "Make a thing lines can belong to: a fig, a book, a person, a habit. Look in list_things first so each thing is made once. With thing, rename one of yours or give it a kind; on=false takes one of yours back. It stands until the owner drops it.",
                         "inputSchema": ["type": "object",
                                         "properties": ["name": ["type": "string"],
                                                        "kind": ["type": "string", "description": "A word: plant, book, person, project."],
@@ -355,7 +338,7 @@ public struct Door: Sendable {
                         "inputSchema": ["type": "object", "properties": ["kind": ["type": "string", "description": "Only things of this kind."]]]]
             case .setFact:
                 return ["name": rawValue,
-                        "description": "Put a fact on a line or a thing: a key and one value. yield 10 L on the harvest line; state potted on the fig. Something the owner has to do gets todo, words open, and due too when it has a moment; mark_done finishes it, and nothing else needs taking off. Something that happens at a moment whether or not the owner does anything, an appointment, a booking, a class, is an event: it gets at with its moment, and never todo or due. A plain reminder, nothing to finish, gets due alone. A thing with since, a moment, is a streak, and its run is worked out, never set: when a line that is with it says a day broke, put break on that line, with the moment it happened when that was another day than the line's own. A break counts against every streak its line is with, so a line that broke one streak and kept another is put only with the one it broke. One fact per key under your name; a newer one replaces it; on=false takes yours off. Give exactly one of number, words, moment, span or place.",
+                        "description": "Put a fact on a line or a thing: a key and one value. distance 7.3 km on the line about a walk; state potted on the fig. Something the owner has to do gets todo, words open, and due too when it has a moment; mark_done finishes it, and nothing else needs taking off. Something that happens at a moment whether or not the owner does anything, an appointment, a booking, a class, is an event: it gets at with its moment, and never todo or due. A plain reminder, nothing to finish, gets due alone. A thing with since, a moment, is a streak, and its run is worked out, never set: when a line that is with it says a day broke, put break on that line, with the moment it happened when that was another day than the line's own. A break counts against every streak its line is with, so a line that broke one streak and kept another is put only with the one it broke. One fact per key under your name; a newer one replaces it; on=false takes yours off. Give exactly one of number, words, moment, span or place.",
                         "inputSchema": ["type": "object",
                                         "properties": ["on": ["type": "string", "description": "The id of the line or thing."],
                                                        "key": ["type": "string", "description": "A lower-case word: yield, state, days, todo, due, at, since, break, place."],
@@ -371,7 +354,7 @@ public struct Door: Sendable {
                 return ["name": rawValue,
                         "description": "Say what the things of a kind have, in the order their page shows them: for a paper, about, by, when, source. Each is a key, what it is, and a few words on it. The newest word for a kind stands and every thing of that kind is drawn by it; the owner drops it. Look in list_shapes first, and keep the keys a kind already has unless they are wrong.",
                         "inputSchema": ["type": "object",
-                                        "properties": ["kind": ["type": "string", "description": "The kind's word, lower-case: paper, plant, wine."],
+                                        "properties": ["kind": ["type": "string", "description": "The kind's word, lower-case: paper, plant, book."],
                                                        "has": ["type": "array",
                                                                "items": ["type": "object",
                                                                          "properties": ["key": ["type": "string"],
@@ -1014,11 +997,11 @@ public struct DoorRouter: Sendable {
         else {
             return HTTPResponse(status: 401, text: "No grant for that key.")
         }
-        // One grant, several hands: the same author may come through from a session at the
-        // keyboard or from the reader, and says which with a header, so Logs can tell them apart.
+        // One grant, several hands: the same originator may come through from a session at
+        // the keyboard or from a loop, and says which with the Dotto-Device header, so Logs
+        // can tell them apart.
         var hand = grant
-        // Dotto-Device is the header; Margin-Device is what builds before 9 November sent.
-        if let device = (request.headers["dotto-device"] ?? request.headers["margin-device"]).map(Self.deviceName), !device.isEmpty {
+        if let device = request.headers["dotto-device"].map(Self.deviceName), !device.isEmpty {
             hand.device = DeviceID(rawValue: device)
         }
         let door = Door(store: store, grant: hand, calendar: calendar, written: written)

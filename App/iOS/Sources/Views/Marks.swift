@@ -177,7 +177,7 @@ struct LineWords: View {
 }
 
 /// What a line is, in a few words: the things it is with, its moment, its facts, what was
-/// kept beside it, its tags. "fig · due 12 Nov 11:30 · #nursery". The same words wherever
+/// kept beside it, its tags. "fig · due 12 Nov 11:30 · #garden". The same words wherever
 /// lines are listed, so a line reads alike on its day, on a thing's page and among what is
 /// coming. On a thing's own page the thing is left out, being the page.
 enum LineHint {

@@ -4,7 +4,7 @@ import Foundation
 import Observation
 
 /// The live line on the Mac: the same line the phone has, written here. Words typed, and
-/// whatever lands from outside the keyboard, a paste, a drop on the dots in the menu bar or
+/// whatever lands from outside the keyboard, a paste, a drop on the dot in the menu bar or
 /// on the line itself, a selection sent through Services. Nothing stores it but Return; it
 /// is written down as it changes, so the words wait across a close or a relaunch.
 ///
