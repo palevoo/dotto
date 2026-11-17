@@ -410,6 +410,39 @@ final class FoldTests: XCTestCase {
         XCTAssertTrue(notebook.hasLine(by: health, startedAt: began))
     }
 
+    /// Two readers of one source hear of the same walk at the same moment, an app that is on
+    /// the phone twice, a second phone, and each writes before it has seen the other's file.
+    /// The line's id follows from the source and the second the walk began, so both land on
+    /// one line and the fold takes it once, in whichever order the files arrive.
+    func testAWalkSaidByTwoReadersAtOnceIsOneLine() {
+        let health: Author = "health"
+        let began = Date(timeIntervalSince1970: 1_794_909_900.25) // a ride that began at 10:05
+        let id = ULID.said(by: health, at: began)
+        XCTAssertEqual(id, ULID.said(by: health, at: began.addingTimeInterval(0.7)), "the same second, the same line")
+        XCTAssertEqual(id.milliseconds, 1_794_909_900_000, "its time is the second it began")
+        XCTAssertNotEqual(id, ULID.said(by: health, at: began.addingTimeInterval(1)), "another second, another line")
+        XCTAssertNotEqual(id, ULID.said(by: "weather", at: began), "another source, another line")
+        XCTAssertFalse(id.isTag)
+
+        func said(on device: DeviceID) -> Event {
+            Event(id: id, author: health, device: device, at: began.addingTimeInterval(480),
+                  payload: .entryCreate(.init(entry: id, text: "Ride, 1.6 km, 8 min", startedAt: began, page: me)))
+        }
+        for order in [["one-app", "the-other"], ["the-other", "one-app"]] {
+            var notebook = Notebook(owner: me)
+            for device in order { notebook.apply(said(on: DeviceID(rawValue: device))) }
+            XCTAssertEqual(notebook.entries(of: me).map(\.text), ["Ride, 1.6 km, 8 min"], "\(order)")
+            XCTAssertTrue(notebook.hasLine(by: health, startedAt: began))
+        }
+
+        // Dropped by the owner, it stays dropped when a reader says it again.
+        var notebook = Notebook(owner: me)
+        notebook.apply(said(on: "one-app"))
+        notebook.apply(event(.entryDelete(.init(entry: id)), author: me))
+        notebook.apply(said(on: "the-other"))
+        XCTAssertEqual(notebook.entries(of: me), [])
+    }
+
     /// A loop is the owner's event: set, stopped, run with a receipt. Only the owner sets or
     /// stops one; the newest set stands; a receipt shows in the log.
     func testLoopsAreTheOwnersEvents() {

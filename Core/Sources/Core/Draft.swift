@@ -33,6 +33,7 @@ public struct DraftMedia: Identifiable, Hashable, Codable, Sendable {
 /// It is in one of two states, empty or begun, and only its own moves change it: writing,
 /// something landing, something taken out. The moment is fixed when the first thing lands and
 /// let go when the last thing leaves, so `begun` is nil exactly while the line is empty.
+/// A line left unsent and come back to begins again then: see `comeBack`.
 /// Photos from before offer their own moment, and the line takes it until told otherwise.
 /// Nothing stores it but Return, which is `stored`.
 public struct Draft: Equatable, Codable, Sendable {
@@ -84,6 +85,16 @@ public struct Draft: Equatable, Codable, Sendable {
         media.removeAll { $0.id == id }
         settle(at: now)
         if photoMoment(now: now, calendar: calendar) == nil { keepsPhotoMoment = false }
+    }
+
+    /// The line was left unsent and is come back to: the app went away and is in front
+    /// again, a panel was closed and is open again. The words and what landed with them
+    /// wait, as they should. The moment does not: a line is of the sitting it is sent
+    /// from, and one begun yesterday would land on yesterday's page, out of sight. So it
+    /// begins again now. Photos from before still offer the moment they were taken.
+    public mutating func comeBack(now: Date) {
+        guard !isEmpty else { return }
+        begun = now
     }
 
     /// Between the photos' moment and now, when the photos offer one.

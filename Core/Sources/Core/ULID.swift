@@ -47,6 +47,18 @@ public struct ULID: Hashable, Comparable, Sendable, Codable, CustomStringConvert
         return ULID(milliseconds: 0, random: Array(digest.prefix(10)))
     }
 
+    /// The id of a line a source says about a moment: a walk from Health, at the second
+    /// it began. Made from the originator and that second alone, so two readers of one
+    /// source, an app that is on the phone twice, a second phone, land on the same line with
+    /// no lookup, and the fold takes it once however the files arrive. Its time is the
+    /// moment itself. For a source that says one thing about a moment, as a body takes one
+    /// walk at a time.
+    public static func said(by author: Author, at moment: Date) -> ULID {
+        let second = UInt64(max(0, moment.timeIntervalSince1970.rounded(.down)))
+        let digest = SHA256.hash(data: Data("\(author.rawValue)\u{0}\(second)".utf8))
+        return ULID(milliseconds: second * 1000, random: Array(digest.prefix(10)))
+    }
+
     /// Whether this is a tag's id: made from a word, not at a moment.
     public var isTag: Bool { milliseconds == 0 }
 

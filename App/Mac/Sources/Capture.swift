@@ -74,6 +74,12 @@ final class CaptureModel {
         note = left.isEmpty ? nil : "Left out: \(left.joined(separator: ", ")). Words, links and pictures land here for now."
     }
 
+    /// The panel was closed with a line still unsent and is open again: the words wait,
+    /// and the line begins again now, so it lands where it is sent from.
+    func comeBack() {
+        draft.comeBack(now: Date())
+    }
+
     func remove(_ item: DraftMedia) {
         draft.remove(item.id, now: Date(), calendar: .current)
         thumbs[item.hash] = nil
@@ -103,7 +109,8 @@ final class CaptureModel {
     /// from the notebook.
     private func restore() {
         guard let data = UserDefaults.standard.data(forKey: Self.draftKey),
-              let kept = try? JSONDecoder().decode(Draft.self, from: data) else { return }
+              var kept = try? JSONDecoder().decode(Draft.self, from: data) else { return }
+        kept.comeBack(now: Date())
         draft = kept
         for item in kept.media {
             guard let url = mac.mediaURL(hash: item.hash) else { continue }

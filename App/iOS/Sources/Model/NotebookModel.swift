@@ -132,6 +132,9 @@ final class NotebookModel {
     private func add(_ walks: [Walks.Walk]) -> Bool {
         // Health hands its walks over again to an app put on again, and to a second phone of
         // the same owner. A walk already said, at the moment it began, is not said twice.
+        // That check is against what this app has read, and another reader may be writing the
+        // same walk at this moment. So the line's id follows from Health and the second the
+        // walk began: both land on one line, and the fold takes it once.
         let walks = walks.filter { !notebook.hasLine(by: Self.health, startedAt: $0.start) }
         guard !walks.isEmpty else { return true }
         var events: [Event] = []
@@ -140,7 +143,7 @@ final class NotebookModel {
                                 payload: .nameSet(.init(name: "Health"))))
         }
         for walk in walks {
-            let id = generator.next(at: walk.start)
+            let id = ULID.said(by: Self.health, at: walk.start)
             events.append(Event(id: id, author: Self.health, device: device, at: Date(),
                                 payload: .entryCreate(.init(entry: id, text: Walks.sentence(for: walk, locale: calendar.locale ?? .current),
                                                             startedAt: walk.start, page: store.manifest.owner))))
@@ -258,11 +261,18 @@ final class NotebookModel {
         if let data = try? JSONEncoder().encode(draft) { defaults.set(data, forKey: Self.draftKey) }
     }
 
-    /// Whatever was in the live line when the app last went away.
+    /// Whatever was in the live line when the app last went away. The words wait; the
+    /// moment is now, since the line is sent from this sitting and not the one it was left in.
     private func restoreDraft() {
         guard let data = UserDefaults.standard.data(forKey: Self.draftKey),
-              let kept = try? JSONDecoder().decode(Draft.self, from: data) else { return }
+              var kept = try? JSONDecoder().decode(Draft.self, from: data) else { return }
+        kept.comeBack(now: Date())
         draft = kept
+    }
+
+    /// The app was away and is in front again with a line still unsent: it begins again now.
+    func comeBackToLine() {
+        draft.comeBack(now: Date())
     }
 
     /// A photo lands in the live line. From the camera it is of this moment; from the library it

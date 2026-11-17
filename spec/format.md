@@ -129,6 +129,11 @@ A tag is a thing whose id follows from its word, so every writer lands on the sa
 no lookup: time zero, and for the other ten bytes the first ten of the SHA-256 of the word,
 trimmed and lower-cased.
 
+A line a source says about a moment, a walk from Health, has an id that follows from the
+source and the second it began, so two readers of one source write the same line and it is
+read once. Its time is that second, and its other ten bytes are the first ten of the SHA-256
+of the author id, a zero byte, and the second since 1970 written as a decimal number.
+
 What it was like
 
     conditions.set     {entry, source, temperature?, sky?, daylight?, humidity?, wind?, windFrom?,
@@ -171,6 +176,8 @@ Take every event from every file and put them in order of id. Then:
 
 - A kind you do not know is kept and passed over. So is a value you do not know.
 - An event about a line that has not been created yet waits for it.
+- An event whose id was read already is passed over, and so is an `entry.create` for a line
+  that exists.
 - Whose word counts is in the list above. A line belongs to whoever wrote it: only they
   change it. Everything else on a line is beside it, in its writer's own file, and can be
   taken off without touching the line.

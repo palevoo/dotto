@@ -30,7 +30,9 @@ act. Pages show.
 
 **Captures** are what arrives: a line, a photo, a voice note, a walk, a link from the
 laptop. A capture is stamped with who, when and where, and never changes; an edit keeps
-the words before. Writing one costs nothing, and you never file it.
+the words before. Writing one costs nothing, and you never file it. A line's moment is
+when it began; one left unsent and come back to begins again then, so it lands on the day
+it is sent from.
 Ways in today: the live line, the camera, the mic, the library, the share sheet, the
 controls and Siri, and Health on the phone; on the Mac a panel that takes words, links and
 pictures by typing, paste, drop and Services.

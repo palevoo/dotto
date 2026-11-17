@@ -120,6 +120,55 @@ final class DraftTests: XCTestCase {
         XCTAssertEqual(create.location, there, "where the photo was taken, not where the phone is")
     }
 
+    /// A line left unsent keeps its words and is sent from the sitting it is come back to:
+    /// begun yesterday, it lands today, at the foot of the page it is sent from.
+    func testALineLeftAndComeBackToBeginsAgain() throws {
+        var draft = Draft()
+        draft.write("An old thought", now: now)
+        let nextMorning = now.addingTimeInterval(20 * 3600 + 28 * 60)
+
+        draft.comeBack(now: nextMorning)
+        XCTAssertEqual(draft.text, "An old thought", "the words wait")
+        XCTAssertEqual(draft.begun, nextMorning, "the moment does not")
+
+        // Written over, as it was on the phone: never empty in between, a new line all the same.
+        draft.write("Want to add this to my gin collection", now: nextMorning.addingTimeInterval(40))
+        XCTAssertEqual(draft.begun, nextMorning, "and it does not move again while typing")
+
+        let stored = try XCTUnwrap(draft.stored(by: owner, on: "phone", here: nil, ids: ids, now: nextMorning.addingTimeInterval(60), calendar: calendar))
+        guard case .entryCreate(let line) = stored.events[0].payload else { return XCTFail("a line") }
+        XCTAssertEqual(line.startedAt, nextMorning)
+        XCTAssertEqual(DayKey(line.startedAt, calendar: calendar), DayKey(nextMorning, calendar: calendar), "on the day it was sent")
+        XCTAssertNotEqual(DayKey(line.startedAt, calendar: calendar), DayKey(now, calendar: calendar))
+    }
+
+    func testComingBackToAnEmptyLineBeginsNothing() {
+        var draft = Draft()
+        draft.comeBack(now: now)
+        XCTAssertNil(draft.begun)
+        XCTAssertTrue(draft.isEmpty)
+    }
+
+    /// What landed waits too, a voice note recorded and not sent; and photos from before
+    /// go on offering the moment they were taken.
+    func testWhatLandedWaitsAndPhotosFromBeforeKeepTheirMoment() {
+        var spoken = Draft()
+        let recorded = now.addingTimeInterval(-40)
+        spoken.add(DraftMedia(hash: "v1", mime: "audio/mp4", duration: 40, at: recorded), beginning: recorded, now: now, calendar: calendar)
+        let later = now.addingTimeInterval(3 * 3600)
+        spoken.comeBack(now: later)
+        XCTAssertEqual(spoken.media.map(\.hash), ["v1"])
+        XCTAssertEqual(spoken.begun, later)
+
+        var pictured = Draft()
+        let lastWeek = now.addingTimeInterval(-7 * 86_400)
+        pictured.add(DraftMedia(hash: "p1", mime: "image/jpeg", at: lastWeek, fromBefore: true), beginning: now, now: now, calendar: calendar)
+        XCTAssertTrue(pictured.keepsPhotoMoment)
+        pictured.comeBack(now: later)
+        XCTAssertTrue(pictured.keepsPhotoMoment)
+        XCTAssertEqual(pictured.moment(now: later, calendar: calendar), lastWeek, "the photos' own moment still stands")
+    }
+
     func testNothingToStore() {
         var draft = Draft()
         XCTAssertNil(draft.stored(by: owner, on: "phone", here: nil, ids: ids, now: now, calendar: calendar))

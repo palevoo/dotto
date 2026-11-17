@@ -34,6 +34,8 @@ final class CaptureController: NSObject, NSWindowDelegate {
     /// Opens the line. Under the dot when it is what was touched; otherwise in the upper
     /// part of the screen the pointer is on.
     func show(under anchor: NSRect? = nil) {
+        // Opened after being closed: a line left in it begins again now.
+        if !isOpen { model.comeBack() }
         let panel = self.panel ?? make()
         self.panel = panel
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
