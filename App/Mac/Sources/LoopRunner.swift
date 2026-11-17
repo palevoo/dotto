@@ -221,7 +221,9 @@ final class LoopRunner {
                 log("looking now: \(pending.count) new, running")
             }
 
-            var brief = Door.conduct(for: grant, in: notebook) + """
+            // The home starts this hand, so it tells it everything before its first word:
+            // the conduct and what was learned, whole.
+            var brief = Door.told(to: grant, in: notebook) + """
 
 
             You are running on your own, as the loop called \(loop.name), \(loop.wake.words). Nobody \
@@ -350,9 +352,12 @@ struct Session: Sendable {
         try? FileManager.default.createDirectory(at: workDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: workDir) }
 
-        // The same key as a session at the keyboard; the header says which hand this is.
+        // The same key as a session at the keyboard; one header says which hand this is,
+        // the other that its brief already told it what was learned, so the door does not
+        // say it again with its first answer.
         let servers: [String: Any] = ["mcpServers": ["dotto": [
-            "type": "http", "url": door, "headers": ["Authorization": "Bearer \(grant.key)", "Dotto-Device": grant.device.rawValue],
+            "type": "http", "url": door,
+            "headers": ["Authorization": "Bearer \(grant.key)", "Dotto-Device": grant.device.rawValue, "Dotto-Told": "brief"],
         ]]]
         let mcpConfig = workDir.appendingPathComponent("door.json")
         guard let json = try? JSONSerialization.data(withJSONObject: servers), (try? json.write(to: mcpConfig)) != nil else {

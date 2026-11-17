@@ -167,15 +167,16 @@ final class DoorTests: XCTestCase {
 
     func testTheSameGrantFromAnotherHand() throws {
         let router = DoorRouter(calendar: utc, resolve: { [store, grant] key in key == grant!.key ? (store!, grant!) : nil })
+        let session = try XCTUnwrap(router.begin(key: grant.key))
         func call(_ headers: [String: String]) -> Int {
             let request: [String: Any] = ["jsonrpc": "2.0", "id": 1, "method": "tools/call",
                                           "params": ["name": "write_line", "arguments": ["text": "A line"]]]
             let body = try! JSONSerialization.data(withJSONObject: request)
             return router.respond(HTTPRequest(method: "POST", path: "/mcp", headers: headers, body: body)).status
         }
-        XCTAssertEqual(call(["authorization": "Bearer \(grant.key)"]), 200)
-        XCTAssertEqual(call(["authorization": "Bearer \(grant.key)", "dotto-device": "The Answers!"]), 200)
-        XCTAssertEqual(call(["authorization": "Bearer nope", "dotto-device": "answers"]), 401)
+        XCTAssertEqual(call(["authorization": "Bearer \(grant.key)", "mcp-session-id": session]), 200)
+        XCTAssertEqual(call(["authorization": "Bearer \(grant.key)", "mcp-session-id": session, "dotto-device": "The Answers!"]), 200)
+        XCTAssertEqual(call(["authorization": "Bearer nope", "mcp-session-id": session, "dotto-device": "answers"]), 401)
         let notebook = try store.load()
         let devices = notebook.entries(of: .moss).map(\.id).compactMap { id in
             try! store.loadEvents().first { $0.id == id }?.device.rawValue
@@ -556,12 +557,14 @@ final class DoorTests: XCTestCase {
         XCTAssertEqual(router.respond(HTTPRequest(method: "GET", path: "/mcp", headers: [:], body: Data())).status, 405)
         XCTAssertEqual(router.respond(HTTPRequest(method: "POST", path: "/other", headers: [:], body: body)).status, 404)
 
-        let ok = router.respond(HTTPRequest(method: "POST", path: "/mcp", headers: ["authorization": "Bearer \(grant.key)"], body: body))
+        let session = try XCTUnwrap(router.begin(key: grant.key))
+        let inSession = ["authorization": "Bearer \(grant.key)", "mcp-session-id": session]
+        let ok = router.respond(HTTPRequest(method: "POST", path: "/mcp", headers: inSession, body: body))
         XCTAssertEqual(ok.status, 200)
         XCTAssertEqual(ok.headers["Content-Type"], "application/json")
 
         let notification = try JSONSerialization.data(withJSONObject: ["jsonrpc": "2.0", "method": "notifications/initialized"])
-        XCTAssertEqual(router.respond(HTTPRequest(method: "POST", path: "/mcp", headers: ["authorization": "Bearer \(grant.key)"], body: notification)).status, 202)
+        XCTAssertEqual(router.respond(HTTPRequest(method: "POST", path: "/mcp", headers: inSession, body: notification)).status, 202)
     }
 
     func testServerOverLoopback() async throws {
@@ -577,6 +580,13 @@ final class DoorTests: XCTestCase {
         request.httpMethod = "POST"
         request.setValue("Bearer \(grant.key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // A session begins, and the id comes back as a header a client can read.
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "jsonrpc": "2.0", "id": 1, "method": "initialize", "params": ["protocolVersion": "2025-06-18"],
+        ])
+        let (_, began) = try await URLSession.shared.data(for: request)
+        let session = try XCTUnwrap((began as? HTTPURLResponse)?.value(forHTTPHeaderField: "Mcp-Session-Id"))
+        request.setValue(session, forHTTPHeaderField: "Mcp-Session-Id")
         request.httpBody = try JSONSerialization.data(withJSONObject: [
             "jsonrpc": "2.0", "id": 7, "method": "tools/call",
             "params": ["name": "list_lines", "arguments": ["since": "2026-11-01"]],
@@ -619,7 +629,8 @@ final class DoorTests: XCTestCase {
         func call(_ key: String) -> HTTPResponse {
             let request: [String: Any] = ["jsonrpc": "2.0", "id": 1, "method": "tools/call",
                                           "params": ["name": "write_line", "arguments": ["text": "A line"]]]
-            return router.respond(HTTPRequest(method: "POST", path: "/mcp", headers: ["authorization": "Bearer \(key)"], body: try! JSONSerialization.data(withJSONObject: request)))
+            // A key that opens nothing begins no session, and is refused for the key.
+            return router.post(request, key: key, session: router.begin(key: key) ?? "no-session")
         }
         XCTAssertEqual(call(opened.key).status, 200)
         XCTAssertEqual(call(revoked.key).status, 401)

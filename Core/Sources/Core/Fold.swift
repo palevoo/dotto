@@ -870,8 +870,9 @@ public struct Notebook: Sendable {
     // MARK: - What an originator has learned
 
     /// What an originator has learned here from being told: the lines on its own page it
-    /// filed under `learned`, oldest first. Every hand of it is told them on arrival, so a
-    /// correction made once holds for every reading after. Its own to change and delete;
+    /// filed under `learned`, oldest first. Every hand of it is told them before it writes
+    /// anything, as `Door.learned` says them, so a correction made once holds for every
+    /// reading after. Its own to change and delete;
     /// the owner's to drop. The newest are kept when there are too many to say at once.
     public func learned(by author: Author, atMost count: Int = 40, characters: Int = 6000) -> [String] {
         var kept: [String] = []

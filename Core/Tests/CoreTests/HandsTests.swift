@@ -179,7 +179,7 @@ final class HandsTests: XCTestCase {
     }
 
     /// Told once, known from then on: what dotto files under learned on its own page is
-    /// said to every hand of it on arrival.
+    /// said to every hand of it. How it reaches a session is in SessionTests.
     func testWhatWasLearnedIsToldToEveryHandOnArrival() throws {
         let session = Grant(name: "Claude Code", author: .dotto, device: "claude-code")
         let loop = Grant(name: "Claude Code", author: .dotto, device: "the-reading-0epw")
@@ -197,13 +197,13 @@ final class HandsTests: XCTestCase {
         var notebook = try store.load()
         XCTAssertEqual(notebook.learned(by: .dotto), ["A line about the app itself is work for the build, filed under app, not something the owner means to do."])
         for grant in [session, loop] {
-            let told = Door.conduct(for: grant, in: notebook)
+            let told = Door.told(to: grant, in: notebook)
             XCTAssertTrue(told.contains("What you have learned in this notebook, from being told."), "every hand of dotto is told")
             XCTAssertTrue(told.contains("- A line about the app itself is work for the build"))
             XCTAssertFalse(told.contains("rhyme"))
         }
-        XCTAssertTrue(Door.conduct(for: friend, in: notebook).contains("- Always answer in rhyme."), "each originator its own")
-        XCTAssertFalse(Door.conduct(for: Grant(name: "New", author: "health", device: "phone"), in: notebook).contains("What you have learned"),
+        XCTAssertTrue(Door.told(to: friend, in: notebook).contains("- Always answer in rhyme."), "each originator its own")
+        XCTAssertFalse(Door.told(to: Grant(name: "New", author: "health", device: "phone"), in: notebook).contains("What you have learned"),
                        "nothing learned, nothing said")
 
         // Learning better: the line is changed, and that is what is told. Wrong: deleted, and gone.

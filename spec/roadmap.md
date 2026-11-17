@@ -71,6 +71,9 @@ What that takes, as problems, with no solutions chosen:
 - The weather comes from Open-Meteo, which is free for use that earns nothing. Once Dotto
   is sold it needs their paid plan or their server run by us.
 - Nothing in the folder is signed. A file's name says who wrote it, and nothing proves it.
+- A session is told what was learned ahead of its first answer. If its first turn sends a
+  read and a write together, the read is answered first and the write beside it is taken as
+  it came.
 - The home screen has one app icon. There is no set to choose from yet.
 - `MacModel.renameWhatWasKept` moves three names a home kept before 16 November 2026. It
   can be deleted once that home has opened once.

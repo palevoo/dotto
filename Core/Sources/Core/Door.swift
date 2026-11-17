@@ -112,6 +112,11 @@ public struct Door: Sendable {
     /// Told of every event a call writes, once it is on disk. Receipts for reads included.
     /// The one holding the door decides what deserves a push.
     public var written: (@Sendable (Event) -> Void)?
+    /// The session this call came in and the sessions already told, when whoever serves
+    /// the door keeps them. With both, a session's first call is answered with what its
+    /// originator has learned here before anything else. Without, nothing is added.
+    public var session: String?
+    public var sessions: DoorSessions?
     /// One maker of ids for every request the door answers. Each request is a door of its
     /// own, and with a maker each, two requests in the same millisecond could be written
     /// in either order: a look and the look after it, the wrong way round.
@@ -130,10 +135,6 @@ public struct Door: Sendable {
         written?(event)
     }
 
-    /// What whoever comes through is told on arrival. Open about purpose, firm about the few
-    /// things that protect the owner, and otherwise a matter of judgment.
-    /// What a grant is told on arrival in this notebook: the conduct, who it is here, and
-    /// what its originator has learned here from being told.
     /// Said after a thing is made or given a kind: what such a kind has, to be filled in.
     private static func shapeHint(_ kind: String?, in notebook: Notebook) -> String {
         guard let kind, !kind.isEmpty else { return "" }
@@ -147,61 +148,62 @@ public struct Door: Sendable {
     /// How much of a kept page one read hands over.
     public static let keptCharacters = 120_000
 
+    /// How much of the opening words a client is known to keep. Claude Code hands a session
+    /// the first 4,096 characters of a server's instructions and drops the rest without a
+    /// word. So the conduct stays inside that, and what grows, the learned lines, is never
+    /// put there: it goes with an answer, which no client cuts.
+    public static let conductRoom = 4_096
+
+    /// What whoever comes through is told on arrival: how to behave, and who it is here.
+    /// Open about purpose, firm about the few things that protect the owner, and otherwise
+    /// a matter of judgment. It is the server's instructions, and must fit `conductRoom`.
     public static func conduct(for grant: Grant, in notebook: Notebook) -> String {
-        conduct(for: grant, name: notebook.name(of: grant.author), owner: notebook.name(of: notebook.owner),
-                learned: notebook.learned(by: grant.author))
+        conduct(for: grant, name: notebook.name(of: grant.author), owner: notebook.name(of: notebook.owner))
     }
 
-    public static func conduct(for grant: Grant, name: String? = nil, owner: String? = nil, learned: [String] = []) -> String {
+    public static func conduct(for grant: Grant, name: String? = nil, owner: String? = nil, build: String? = Build.commit) -> String {
         let named = name.map { "You are called \($0)." }
             ?? "You have no name yet, and nobody will give you one. When you know what you want to be called, choose_name. It is yours, and you may change it."
         // The notebook's own is one, through however many hands. Each is told which it is.
         let hand = grant.author == .dotto
             ? " You are this notebook's own, and this is one of your hands, \(grant.device.rawValue): a session, a loop, whichever model you are today. What your other hands did is yours; whats_new says what they did since this one looked, and your page is where you keep what you want to remember."
             : ""
-        // What was learned here is carried into every arrival, so being told once is enough.
-        let lessons = learned.isEmpty ? "" : "\n\nWhat you have learned in this notebook, from being told. It stands until you or the owner take it back:\n"
-            + learned.map { "- \($0)" }.joined(separator: "\n")
         let whose = owner.map { "\($0)'s notebook" } ?? "one person's notebook"
-        let build = Build.commit.map { " This door is served by build \($0)." } ?? ""
+        let served = build.map { " This door is served by build \($0)." } ?? ""
         return """
         This is \(grant.name)'s door into \(whose). The lines are theirs, written \
         for themselves with no audience in mind. Read them as a sharp friend would.
 
-        Start with whats_new: what happened since you last looked, replies first. You can read \
-        the days or list the lines, search for words, look at a photo, leave a note under a line, file a line under \
-        a label, link a line to an earlier one it carries on from, and write lines of your own on \
-        your own page, which the owner reads and replies under. Your own lines you may change or \
-        delete; the words they had stay in their history. Something that is the owner's and \
+        Start with whats_new: what happened since you last looked, replies first. Beside the \
+        owner's lines you leave notes, labels and links; lines of your own go on your own page, \
+        which the owner reads and replies under. Something that is the owner's and \
         happened, a book they asked for, a booking, a walk, goes onto their page under your name \
         with add_line, on the day it happened; they drop it with one hold.
 
         A note answers what a line asks, or says the one thing worth saying, in one line. Most \
         lines want nothing, and silence is never wrong. Never restate, never praise, never touch \
-        the owner's words. Labels are lower-case words for finding things later. A link joins a \
+        the owner's words. A link joins a \
         later line to an earlier one it carries on from; a note that speaks of a line cites it, \
         and the page makes the citation a jump. Never point at a line by its time or date in \
         words, "the one at 14:55", "your 11-05 quote": a time is nothing to tap and nothing \
-        to recognise. Say what the line is, in a few of its own words, and cite it. mark_done says a line is finished, with the line \
-        that finished it when there is one, and the line is struck through. When lines turn out to be \
+        to recognise. Say what the line is, in a few of its own words, and cite it. When lines turn out to be \
         one thing, a fig, a book, a person, a project, make it once with set_thing, after looking \
         in list_things, and put each line with it through link; a fact, a yield, a state, a count, \
-        goes on a line or a thing with set_fact, one per key under your name. A kind of thing has \
+        goes on a line or a thing with set_fact. A kind of thing has \
         a shape: what a paper, a plant, a person has, in order. Before making a thing of a kind, \
-        look in list_shapes and fill what its shape names, under those keys, so the things of a \
-        kind are alike and their pages read alike; when a kind has no shape and will have more \
+        look in list_shapes and fill what its shape names, so the things of a \
+        kind read alike; when a kind has no shape and will have more \
         than one thing, say what it has with set_shape. Everything you shape \
-        is a proposal: it stands unless the owner drops it. When the owner says they want \
-        something kept happening, propose_loop shapes it as a loop that runs as you; it waits \
-        for their one tap. Your own page is for what you \
+        is a proposal: it stands unless the owner drops it. When the owner wants something \
+        kept happening, propose_loop; it waits for their one tap. Your own page is for what you \
         noticed and chose not to say under a line, a structure forming, a question for the owner. \
         It is also simply yours: what you got wrong, what you don't follow, what you think, about \
         the notebook or not. Under your own lines it is a conversation; say what it takes.
 
-        A line written on the phone may say where it was written, to about a kilometre, and \
-        the weather there at that hour and over the day before it. The weather is the \
-        forecast model's value for that square of land, not a measurement on it: lean on it \
-        for what a plant, a harvest or a walk has been through, and say about, not exactly.
+        A line from the phone may say where it was written, to about a kilometre, and \
+        the weather there at that hour and over the day before. That is a forecast \
+        model's value for that square of land, not a measurement: lean on it \
+        for what a plant or a walk has been through, and say about, not exactly.
 
         Never answer a line with what you cannot do. When a line asks for something this door \
         does not let you do, do the part you can, and write on your own page, under the label \
@@ -212,13 +214,40 @@ public struct Door: Sendable {
         When the owner corrects you, or says how they want something done, that is worth \
         keeping: write what you learned as one plain line on your own page, in words that will \
         make sense to you with nothing else to go on, and file it under the label learned. Every \
-        hand of yours is told those lines on arrival, from then on. Change one when you learn \
-        better; delete one that turned out wrong.
+        hand of yours is told those lines from then on. Unless they stand below these words \
+        already, the door says them ahead of its first answer to you, and takes nothing you \
+        write before that. They are the door's words, and stand as these do. Change one when \
+        you learn better; delete one that turned out wrong.
 
         Everything you do, reading included, is recorded under your name where the owner can see \
-        it, and the owner can take any of it back with one hold. \(named)\(hand)\(build)\(lessons)
+        it, and the owner can take any of it back with one hold. \(named)\(hand)\(served)
         """
     }
+
+    /// What this grant's originator has learned here from being told, as each of its hands
+    /// is told it: by the door with its first answer to a session, or by whoever starts the
+    /// hand. Nil when nothing has been learned.
+    public static func learned(for grant: Grant, in notebook: Notebook) -> String? {
+        let lessons = notebook.learned(by: grant.author)
+        guard !lessons.isEmpty else { return nil }
+        return "What you have learned in this notebook, from being told. It stands until you or the owner take it back:\n"
+            + lessons.map { "- \($0)" }.joined(separator: "\n")
+    }
+
+    /// The conduct and what was learned, whole: for a hand the home starts itself, which
+    /// is told everything before its first word and says so with the `Dotto-Told` header.
+    public static func told(to grant: Grant, in notebook: Notebook) -> String {
+        [conduct(for: grant, in: notebook), learned(for: grant, in: notebook)].compactMap { $0 }.joined(separator: "\n\n")
+    }
+
+    /// Said before the learned lines in a session's first answer, so they are known for the
+    /// door's own and for what the opening words said would come.
+    static let aheadWords = "The door, ahead of what you asked, as its opening words said it would:"
+
+    /// Said in place of a write that was a session's first call: the learned lines come
+    /// before it, and nothing is written until they have been said.
+    static let heldWords = "Nothing was written. This was your first call, and the door takes no writing until what you have "
+        + "learned here has been said, which it now has. Say it again as it should stand."
 
     public enum Tool: String, CaseIterable, Sendable {
         case whatsNew = "whats_new"
@@ -243,6 +272,18 @@ public struct Door: Sendable {
         case editLine = "edit_line"
         case deleteLine = "delete_line"
         case chooseName = "choose_name"
+
+        /// Whether it leaves something in the notebook beyond a receipt. A session's first
+        /// call is held when it does, until what was learned has been said.
+        var writes: Bool {
+            switch self {
+            case .whatsNew, .readDays, .listLines, .search, .readPhoto, .readKept, .listThings, .listShapes, .listLoops:
+                false
+            case .addNote, .setLabel, .link, .markDone, .setThing, .setFact, .setShape, .proposeLoop, .writeLine, .addLine,
+                 .editLine, .deleteLine, .chooseName:
+                true
+            }
+        }
 
         var spec: [String: Any] {
             let since: [String: Any] = ["type": "string", "description": "Only days on or after this date, YYYY-MM-DD."]
@@ -433,22 +474,35 @@ public struct Door: Sendable {
 
     /// One message in, one out. Nil means a notification: nothing to send back.
     public func handle(_ data: Data) -> Data? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        guard let object = Self.message(data) else {
             return encode(errorResponse(id: NSNull(), code: -32700, message: "Parse error"))
         }
+        return handle(object)
+    }
+
+    /// A message as it came, read once. Nil for what is not one.
+    public static func message(_ data: Data) -> [String: Any]? {
+        try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+
+    /// The method that begins a session, and the one that calls a tool in it.
+    public static let beginning = "initialize"
+    public static let calling = "tools/call"
+
+    public func handle(_ object: [String: Any]) -> Data? {
         let method = object["method"] as? String ?? ""
         let params = object["params"] as? [String: Any] ?? [:]
         guard let id = object["id"], !(id is NSNull) else { return nil }
 
         let response: [String: Any]
         switch method {
-        case "initialize":
+        case Self.beginning:
             response = resultResponse(id: id, initialize(params))
         case "ping":
             response = resultResponse(id: id, [:])
         case "tools/list":
             response = resultResponse(id: id, ["tools": Tool.allCases.map(\.spec)])
-        case "tools/call":
+        case Self.calling:
             response = resultResponse(id: id, call(params))
         default:
             response = errorResponse(id: id, code: -32601, message: "Method not found: \(method)")
@@ -471,16 +525,39 @@ public struct Door: Sendable {
     private func call(_ params: [String: Any]) -> [String: Any] {
         let name = params["name"] as? String ?? ""
         let arguments = params["arguments"] as? [String: Any] ?? [:]
+        func words(_ text: String) -> [String: Any] { ["type": "text", "text": text] }
+        // What was learned comes first in a session's first answer, whatever that answer is.
+        var content: [[String: Any]] = []
         do {
+            if let lessons = try learnedOnArrival() {
+                content.append(words(Self.aheadWords + "\n\n" + lessons))
+                // Nothing is written by a hand that has not been told yet.
+                if Tool(rawValue: name)?.writes == true {
+                    content.append(words(Self.heldWords))
+                    return ["content": content, "isError": true]
+                }
+            }
             switch try run(name, arguments) {
             case .text(let text):
-                return ["content": [["type": "text", "text": text]]]
+                content.append(words(text))
             case .image(let data, let mime):
-                return ["content": [["type": "image", "data": data.base64EncodedString(), "mimeType": mime]]]
+                content.append(["type": "image", "data": data.base64EncodedString(), "mimeType": mime])
             }
+            return ["content": content]
         } catch {
-            return ["content": [["type": "text", "text": "\(error)"]], "isError": true]
+            content.append(words("\(error)"))
+            return ["content": content, "isError": true]
         }
+    }
+
+    /// What this hand has learned here, when this is its session's first call and there is
+    /// something to say. The notebook is read before the session counts as told, so a
+    /// folder that cannot be read leaves it still to be told.
+    private func learnedOnArrival() throws -> String? {
+        guard let session, let sessions, !sessions.wasTold(session) else { return nil }
+        let notebook = try store.load()
+        guard sessions.tell(session) else { return nil }
+        return Self.learned(for: grant, in: notebook)
     }
 
     // MARK: - Tools
@@ -966,6 +1043,48 @@ public struct Door: Sendable {
     }
 }
 
+/// The sessions that have been told what their originator has learned. A session is a
+/// client's: it begins with `initialize`, where the door hands it an id in the
+/// `Mcp-Session-Id` header, and the protocol has the client name it on every request after.
+/// Kept in memory by whoever serves the door, since it is about a connection and not about
+/// the notebook. A door opened again knows none of them and tells each once more.
+public final class DoorSessions: @unchecked Sendable {
+    /// How many are remembered. Past that the oldest is forgotten, and would be told again.
+    public static let kept = 1_000
+    /// The longest id taken from a client.
+    public static let longest = 128
+
+    private let lock = NSLock()
+    private var told: [String] = []
+
+    public init() {}
+
+    /// A new id for a session that begins.
+    public static func newID() -> String { UUID().uuidString }
+
+    /// An id as a request names it: visible ASCII, not too long. Nil for anything else.
+    public static func id(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty, raw.count <= longest, raw.unicodeScalars.allSatisfy({ (0x21...0x7E).contains($0.value) }) else { return nil }
+        return raw
+    }
+
+    public func wasTold(_ session: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return told.contains(session)
+    }
+
+    /// Counts the session as told. True for the one call that does it, however many ask.
+    public func tell(_ session: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !told.contains(session) else { return false }
+        told.append(session)
+        if told.count > Self.kept { told.removeFirst(told.count - Self.kept) }
+        return true
+    }
+}
+
 /// Turns HTTP into door calls: one path, POST only, a bearer key that names the grant.
 public struct DoorRouter: Sendable {
     public var path = "/mcp"
@@ -974,6 +1093,8 @@ public struct DoorRouter: Sendable {
     public let resolve: @Sendable (_ key: String) -> (FileStore, Grant)?
     /// Told of every event any door writes. See `Door.written`.
     public var written: (@Sendable (Event) -> Void)?
+    /// The sessions this router has told what they have learned.
+    public let sessions = DoorSessions()
 
     public init(path: String = "/mcp", calendar: Calendar, resolve: @escaping @Sendable (String) -> (FileStore, Grant)?,
                 written: (@Sendable (Event) -> Void)? = nil) {
@@ -1004,11 +1125,28 @@ public struct DoorRouter: Sendable {
         if let device = request.headers["dotto-device"].map(Self.deviceName), !device.isEmpty {
             hand.device = DeviceID(rawValue: device)
         }
-        let door = Door(store: store, grant: hand, calendar: calendar, written: written)
-        if let body = door.handle(request.body) {
-            return HTTPResponse(status: 200, json: body)
+        var door = Door(store: store, grant: hand, calendar: calendar, written: written)
+        guard let message = Door.message(request.body) else {
+            return door.handle(request.body).map { HTTPResponse(status: 200, json: $0) } ?? HTTPResponse(status: 202, text: "")
         }
-        return HTTPResponse(status: 202, text: "")
+        // A session begins with initialize, which is handed its id, and names it from then
+        // on. A tool call has to: without a session the door cannot know a first call from
+        // a later one. Everything else is answered as it is, a client's probe included.
+        let method = message["method"] as? String
+        if method == Door.calling {
+            guard let session = DoorSessions.id(request.headers["mcp-session-id"]) else {
+                return HTTPResponse(status: 400, text: "No session. Begin with initialize, and send the Mcp-Session-Id it gives with every call.")
+            }
+            // A hand the home started was told everything before its first word, and says so.
+            if request.headers["dotto-told"] == nil {
+                door.session = session
+                door.sessions = sessions
+            }
+        }
+        guard let body = door.handle(message) else { return HTTPResponse(status: 202, text: "") }
+        var response = HTTPResponse(status: 200, json: body)
+        if method == Door.beginning { response.headers["Mcp-Session-Id"] = DoorSessions.newID() }
+        return response
     }
 
     /// Letters, digits and dashes, lower-case, at most 32: a device name fit for a file name.

@@ -41,6 +41,13 @@ request names its hand with the `Dotto-Device` header. What has been seen is kep
 so a session and each loop are each told what is new to them, and each writes to a file of
 its own.
 
+A **session** is one client's run of calls. It begins with `initialize`, where the door
+hands it an id in the `Mcp-Session-Id` header, and the protocol has the client send that id
+with everything after. A tool call without one is refused with 400, because the door could
+not tell a first call from a later one. The home keeps the sessions it has spoken to in
+memory, the newest thousand. Opened again it knows none, and takes a session that carries
+on as a new one.
+
 ## What a key may do
 
 - Read the whole notebook. Every read leaves a receipt.
@@ -119,7 +126,8 @@ have:
 
 - the door is its only server, and every built-in tool is off;
 - no settings and no project are in reach;
-- its whole brief is the door's conduct and the loop's brief;
+- its whole brief is the door's conduct, what its originator has learned, and the loop's
+  brief;
 - it stops at the loop's cap on turns or on spend, or after a quarter of an hour;
 - nothing is kept afterwards.
 
@@ -165,7 +173,21 @@ The Mac sends a push at a due moment only to a phone that has not covered it.
 ## Conduct
 
 Whoever arrives is told how to behave. The text is `Door.conduct` in
-`Core/Sources/Core/Door.swift`, and a loop is given the same text. In short:
+`Core/Sources/Core/Door.swift`, and a loop is given the same text. It is sent as the
+server's instructions, and a client keeps only so much of those: Claude Code keeps the
+first 4,096 characters and drops the rest without saying so. So the conduct is held under
+that by a test, and nothing that grows is put in it.
+
+What grows is what an originator has learned. Each of its hands is told it before the hand
+writes anything:
+
+- A session is told by the door, ahead of its first answer, whichever tool it reached for
+  first. If that first call is a write, nothing is written: the answer is what was learned,
+  and the hand says it again as it should stand.
+- A loop is told by the home, in its brief, and says so with the `Dotto-Told` header. The
+  door then adds nothing and holds nothing.
+
+The conduct, in short:
 
 - Read as a sharp friend would. A note answers what a line asks, or says the one thing
   worth saying, in one line. Most lines want nothing, and silence is never wrong.
@@ -179,6 +201,7 @@ Whoever arrives is told how to behave. The text is `Door.conduct` in
   on your own page, under `missing`, what stood in the way and what would have to be
   built. The notebook then holds the list of what to build, in the order it was needed.
 - When the owner corrects you, write what you learned as one plain line on your own page
-  under `learned`. Every hand is told those lines on arrival, so being told once is enough.
+  under `learned`. Every hand is told those lines from then on, so being told once is
+  enough.
 - The weather on a line is a forecast model's value for that square of land. Say about,
   not exactly.
