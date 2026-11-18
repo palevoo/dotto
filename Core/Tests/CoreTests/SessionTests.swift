@@ -30,8 +30,9 @@ final class SessionTests: XCTestCase {
     }
 
     private func makeRouter() -> DoorRouter {
-        DoorRouter(calendar: utc) { [store, hand, friend] key in
-            [hand, friend].first { $0.key == key }.map { (store!, $0) }
+        let keeper = NotebookKeeper(store: store)
+        return DoorRouter(calendar: utc) { [hand, friend] key in
+            [hand, friend].first { $0.key == key }.map { (keeper, $0) }
         }
     }
 

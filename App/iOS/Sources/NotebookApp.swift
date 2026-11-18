@@ -37,7 +37,7 @@ struct NotebookApp: App {
                     // A line left unsent keeps its words and takes this sitting's moment.
                     if wasAway { model?.comeBackToLine() }
                     wasAway = false
-                    model?.reload()
+                    model?.reloadAside()
                     model?.takeInbox()
                     Pushes.shared.refresh()
                     model?.photos.refresh()

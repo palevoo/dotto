@@ -171,10 +171,14 @@ public struct FileStore: Sendable {
     /// cannot be opened at all still throws.
     public func loadFiles() throws -> [EventFile] {
         try eventFiles().map { url in
-            let data = try coordinated(reading: url) { try Data(contentsOf: $0) }
-            let read = JSONLines.read(data)
+            let read = JSONLines.read(try bytes(of: url))
             return EventFile(name: url.lastPathComponent, events: read.events, unreadable: read.unreadable)
         }
+    }
+
+    /// One file's bytes as they stand, read with the sync daemon kept out of the way.
+    func bytes(of url: URL) throws -> Data {
+        try coordinated(reading: url) { try Data(contentsOf: $0) }
     }
 
     /// The event files on disk. In iCloud Drive a file not pulled down yet shows as

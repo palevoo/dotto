@@ -150,6 +150,14 @@ door, the keys, the pushes, the loops. The apps are for writing and looking. Tod
 home is inside the Mac app. What it does lives in Core wherever it can, so it can be
 tested without a screen and one day run by itself on a machine that stays on.
 
+**The fold, held once.** The home and the phone each hold the fold in memory and bring it
+up to date by what was added. An event file only grows, so it is read on from where it was
+read to, and what is newer than everything held is folded onto it. When that would not
+give what folding everything gives, a file that changed before that place, an older event
+arriving late, a word that two originators are one, the fold is made again from the events
+held. The door, the window and the loops all ask that one copy, and the reading is done
+away from the main thread, so writing a line costs that line and not the notebook.
+
 **One reading.** An originator reads what lands once, with every sentence woken by a line
 kept in mind and the whole notebook in view. The reading is handed what it needs as it
 starts: what is new to its hand, the days those lines are on, and the beginning of

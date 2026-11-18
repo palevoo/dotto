@@ -99,14 +99,18 @@ public struct Grant: Hashable, Sendable, Identifiable {
 }
 
 /// The door: the notebook as seen by one grant holder, spoken as the Model Context Protocol.
-/// Every call reads the folder fresh and every write lands in the grant's own author file.
+/// Every call sees the folder as it is at that moment, through the keeper, and every write
+/// lands in the grant's own author file.
 public struct Door: Sendable {
     public static let protocolVersions = ["2025-06-18", "2025-03-26", "2024-11-05"]
     public static let serverName = "dotto"
     /// The commit the app serving the door was built from, when stamped.
     public static var serverVersion: String { Build.commit ?? "dev" }
 
-    public let store: FileStore
+    /// The reading of the folder this door asks. Whoever serves the door for long hands
+    /// every door the same one, so the folder is read on, not read again.
+    public let keeper: NotebookKeeper
+    public var store: FileStore { keeper.store }
     public let grant: Grant
     public let calendar: Calendar
     /// Told of every event a call writes, once it is on disk. Receipts for reads included.
@@ -123,8 +127,13 @@ public struct Door: Sendable {
     private static let ids = ULIDGenerator()
     private var generator: ULIDGenerator { Self.ids }
 
+    /// A door onto a folder nobody is keeping a reading of: it keeps its own.
     public init(store: FileStore, grant: Grant, calendar: Calendar, written: (@Sendable (Event) -> Void)? = nil) {
-        self.store = store
+        self.init(keeper: NotebookKeeper(store: store), grant: grant, calendar: calendar, written: written)
+    }
+
+    public init(keeper: NotebookKeeper, grant: Grant, calendar: Calendar, written: (@Sendable (Event) -> Void)? = nil) {
+        self.keeper = keeper
         self.grant = grant
         self.calendar = calendar
         self.written = written
@@ -513,7 +522,7 @@ public struct Door: Sendable {
     private func initialize(_ params: [String: Any]) -> [String: Any] {
         let asked = params["protocolVersion"] as? String ?? ""
         let version = Self.protocolVersions.contains(asked) ? asked : Self.protocolVersions[0]
-        let notebook = try? store.load()
+        let notebook = try? keeper.current().notebook
         return [
             "protocolVersion": version,
             "capabilities": ["tools": [:]],
@@ -555,7 +564,7 @@ public struct Door: Sendable {
     /// folder that cannot be read leaves it still to be told.
     private func learnedOnArrival() throws -> String? {
         guard let session, let sessions, !sessions.wasTold(session) else { return nil }
-        let notebook = try store.load()
+        let notebook = try keeper.current().notebook
         guard sessions.tell(session) else { return nil }
         return Self.learned(for: grant, in: notebook)
     }
@@ -564,11 +573,12 @@ public struct Door: Sendable {
 
     public func run(_ name: String, _ arguments: [String: Any]) throws -> Answer {
         guard let tool = Tool(rawValue: name) else { throw Failure.unknownTool(name) }
-        let notebook = try store.load()
+        let standing = try keeper.current()
+        let notebook = standing.notebook
 
         switch tool {
         case .whatsNew:
-            let files = try store.loadEventsByFile()
+            let files = standing.files
             let report = Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
             try receipt(.init(what: .inbox, count: report.count, seen: Dictionary(uniqueKeysWithValues: files.map { ($0.file, $0.events.count) })))
             return .text(report.text)
@@ -1089,14 +1099,15 @@ public final class DoorSessions: @unchecked Sendable {
 public struct DoorRouter: Sendable {
     public var path = "/mcp"
     public let calendar: Calendar
-    /// Looks a key up. Nil means no such grant, and the request is refused.
-    public let resolve: @Sendable (_ key: String) -> (FileStore, Grant)?
+    /// Looks a key up: the grant it names, and the reading of the folder it opens. Nil
+    /// means no such grant, and the request is refused.
+    public let resolve: @Sendable (_ key: String) -> (NotebookKeeper, Grant)?
     /// Told of every event any door writes. See `Door.written`.
     public var written: (@Sendable (Event) -> Void)?
     /// The sessions this router has told what they have learned.
     public let sessions = DoorSessions()
 
-    public init(path: String = "/mcp", calendar: Calendar, resolve: @escaping @Sendable (String) -> (FileStore, Grant)?,
+    public init(path: String = "/mcp", calendar: Calendar, resolve: @escaping @Sendable (String) -> (NotebookKeeper, Grant)?,
                 written: (@Sendable (Event) -> Void)? = nil) {
         self.path = path
         self.calendar = calendar
@@ -1114,7 +1125,7 @@ public struct DoorRouter: Sendable {
         guard let authorization = request.headers["authorization"],
               authorization.lowercased().hasPrefix("bearer "),
               case let key = String(authorization.dropFirst(7)).trimmingCharacters(in: .whitespaces),
-              let (store, grant) = resolve(key)
+              let (keeper, grant) = resolve(key)
         else {
             return HTTPResponse(status: 401, text: "No grant for that key.")
         }
@@ -1125,7 +1136,7 @@ public struct DoorRouter: Sendable {
         if let device = request.headers["dotto-device"].map(Self.deviceName), !device.isEmpty {
             hand.device = DeviceID(rawValue: device)
         }
-        var door = Door(store: store, grant: hand, calendar: calendar, written: written)
+        var door = Door(keeper: keeper, grant: hand, calendar: calendar, written: written)
         guard let message = Door.message(request.body) else {
             return door.handle(request.body).map { HTTPResponse(status: 200, json: $0) } ?? HTTPResponse(status: 202, text: "")
         }

@@ -952,18 +952,78 @@ public enum JSONLines {
 }
 
 enum ISO8601 {
-    static func string(from date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
+    /// One formatter of each kind, made once: making one costs far more than using it, and
+    /// a notebook is read a date at a time. One thread at a time uses them.
+    private final class Formatters: @unchecked Sendable {
+        private let lock = NSLock()
+        private let withFraction = ISO8601DateFormatter()
+        private let plain = ISO8601DateFormatter()
+
+        init() {
+            withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            plain.formatOptions = [.withInternetDateTime]
+        }
+
+        func string(from date: Date) -> String {
+            lock.lock()
+            defer { lock.unlock() }
+            return withFraction.string(from: date)
+        }
+
+        func date(from string: String) -> Date? {
+            lock.lock()
+            defer { lock.unlock() }
+            return withFraction.date(from: string) ?? plain.date(from: string)
+        }
     }
 
+    private static let formatters = Formatters()
+
+    static func string(from date: Date) -> String {
+        formatters.string(from: date)
+    }
+
+    /// A date as this log writes it is read by `written`, which is arithmetic. Any other
+    /// spelling another program may have used goes to the formatters, as it always did.
     static func date(from string: String) -> Date? {
-        let withFraction = ISO8601DateFormatter()
-        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = withFraction.date(from: string) { return date }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return plain.date(from: string)
+        written(string) ?? formatters.date(from: string)
+    }
+
+    /// The moment in `YYYY-MM-DDTHH:MM:SS.mmmZ`, the one spelling `string(from:)` writes,
+    /// when the text is exactly that and names a real moment from 1970 on. Nil for anything
+    /// else. The value is the formatter's own for the same text, to the last bit, which
+    /// `FormatTests` holds it to.
+    static func written(_ string: String) -> Date? {
+        var string = string
+        return string.withUTF8 { bytes -> Date? in
+            guard bytes.count == 24, bytes[4] == UInt8(ascii: "-"), bytes[7] == UInt8(ascii: "-"), bytes[10] == UInt8(ascii: "T"),
+                  bytes[13] == UInt8(ascii: ":"), bytes[16] == UInt8(ascii: ":"), bytes[19] == UInt8(ascii: "."),
+                  bytes[23] == UInt8(ascii: "Z") else { return nil }
+            func number(_ from: Int, _ count: Int) -> Int? {
+                var value = 0
+                for index in from..<(from + count) {
+                    let digit = Int(bytes[index]) - 0x30
+                    guard digit >= 0, digit <= 9 else { return nil }
+                    value = value * 10 + digit
+                }
+                return value
+            }
+            guard let year = number(0, 4), let month = number(5, 2), let day = number(8, 2), let hour = number(11, 2),
+                  let minute = number(14, 2), let second = number(17, 2), let milli = number(20, 3),
+                  year >= 1970, (1...12).contains(month), hour <= 23, minute <= 59, second <= 59 else { return nil }
+            let leap = (year % 4 == 0 && year % 100 != 0) || year % 400 == 0
+            let longest = month == 2 ? (leap ? 29 : 28) : ([4, 6, 9, 11].contains(month) ? 30 : 31)
+            guard day >= 1, day <= longest else { return nil }
+            // Days since 1 January 1970 by the civil calendar, counting years from March so
+            // the leap day falls at the end of one.
+            let counted = month <= 2 ? year - 1 : year
+            let era = counted / 400
+            let yearOfEra = counted - era * 400
+            let dayOfYear = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1
+            let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
+            let days = era * 146_097 + dayOfEra - 719_468
+            let seconds = days * 86_400 + hour * 3600 + minute * 60 + second
+            return Date(timeIntervalSince1970: Double(seconds) + Double(milli) / 1000)
+        }
     }
 }

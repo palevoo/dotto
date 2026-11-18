@@ -409,7 +409,7 @@ public struct Day: Hashable, Sendable, Identifiable {
 /// The one rule it enforces: a line belongs to whoever wrote it. Only its author edits it,
 /// deletes it or puts media behind it. Anyone may write lines of their own, which make up
 /// their own page; the owner's page is the notebook. Notes, labels and links go anywhere.
-public struct Notebook: Sendable {
+public struct Notebook: Sendable, Equatable {
     public let owner: Author
 
     private var table: [ULID: Entry] = [:]
@@ -515,8 +515,11 @@ public struct Notebook: Sendable {
         // Who is the same as whom is known before anything is folded, so it holds for an
         // event however early it was written and whatever order the files came in.
         for event in events { remember(event) }
-        for event in events.sorted(by: { $0.id < $1.id }) {
-            apply(event)
+        // By id, and where two have the same id, in the order given. Their places are
+        // sorted and not the events themselves, which are large to move about.
+        let order = events.indices.sorted { (events[$0].id, $0) < (events[$1].id, $1) }
+        for index in order {
+            apply(events[index])
         }
     }
 
@@ -1101,26 +1104,44 @@ public struct Notebook: Sendable {
     /// and on the thing as incoming; the line's trail says so, under the thing's name, or
     /// under the word when the thing is a tag.
     private mutating func belong(_ event: Event, line: End, thing id: ULID, mark: Newest<LinkMark>) {
-        guard var entry = table[line.entry], var thing = things[id] else { return }
-        entry.outgoing.removeAll { $0.from == entry.id && $0.to == id }
-        thing.incoming.removeAll { $0.from == entry.id && $0.to == id }
+        // What is needed of the thing is read off it, and its list of lines is then changed
+        // where it is kept. Held as a whole while its list changed, the list would be copied
+        // first, every time: for a tag with many lines, the square of them over a fold.
+        guard var entry = table[line.entry],
+              let (name, isTag, createdAt) = things[id].map({ ($0.name, $0.isTag, $0.createdAt) }) else { return }
+        // A link sits on its line and on its thing, both or neither. The line's list is
+        // short: only when the link is there is the thing's, which may be long, gone through.
+        if entry.outgoing.contains(where: { $0.from == entry.id && $0.to == id }) {
+            entry.outgoing.removeAll { $0.from == entry.id && $0.to == id }
+            things[id]?.incoming.removeAll { $0.from == entry.id && $0.to == id }
+        }
         if mark.on {
             let link = Link(id: mark.id, from: entry.id, to: id, fromKind: .line, toKind: .thing,
                             fromEntry: entry.id, toEntry: id, author: mark.author, at: mark.at,
-                            fromAt: line.at, toAt: thing.createdAt)
+                            fromAt: line.at, toAt: createdAt)
             entry.outgoing.append(link)
             entry.outgoing.sort { $0.id < $1.id }
-            thing.incoming.append(link)
-            thing.incoming.sort { $0.id < $1.id }
+            Self.add(link, to: &things[id]!.incoming)
         }
-        let what = thing.isTag
-            ? (mark.on ? "filed under #\(thing.name)" : "took #\(thing.name) off")
-            : (mark.on ? "put this with \(thing.name)" : "took this out of \(thing.name)")
+        let what = isTag
+            ? (mark.on ? "filed under #\(name)" : "took #\(name) off")
+            : (mark.on ? "put this with \(name)" : "took this out of \(name)")
         record(&entry, event, what)
         trace(event, what, entry: entry.id)
-        things[id] = thing
         refreshLabels(&entry)
         table[entry.id] = entry
+    }
+
+    /// Adds a link to a list kept in id order: after any with the same id, which is where
+    /// adding it at the end and sorting would leave it. Almost always the end.
+    private static func add(_ link: Link, to list: inout [Link]) {
+        guard let last = list.last, link.id < last.id else { return list.append(link) }
+        var low = 0, high = list.count
+        while low < high {
+            let middle = (low + high) / 2
+            if link.id < list[middle].id { high = middle } else { low = middle + 1 }
+        }
+        list.insert(link, at: low)
     }
 
     /// The words of the tags a line is under, from its links, so they are at hand without the things.

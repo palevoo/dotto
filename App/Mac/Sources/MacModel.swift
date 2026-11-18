@@ -20,6 +20,9 @@ final class MacModel {
 
     private(set) var folderURL: URL?
     private(set) var store: FileStore?
+    /// The one reading of the folder this Mac keeps. The window, the door and the loops
+    /// all ask it, so the folder is read on from where it was read to, not read again.
+    private var keeper: NotebookKeeper?
     private(set) var summary = ""
     /// The fold as last read, for the log and the words of the lines it names.
     private(set) var notebook: Notebook?
@@ -71,7 +74,11 @@ final class MacModel {
     private var server: DoorServer?
     private var watcher: FolderWatcher?
     private var cloud: CloudWatcher?
-    private var summaryTask: Task<Void, Never>?
+    /// A reading of the folder is under way; and something changed since it began.
+    private var refreshing = false
+    private var refreshAgain = false
+    /// The keys read from the keychain, by grant, so each is asked for once.
+    private var heldKeys: [ULID: String] = [:]
 
     init() {
         renameWhatWasKept()
@@ -141,10 +148,12 @@ final class MacModel {
                 let bookmark = try url.bookmarkData(options: [], includingResourceValuesForKeys: nil, relativeTo: nil)
                 UserDefaults.standard.set(bookmark, forKey: bookmarkKey)
             }
+            let keeper = NotebookKeeper(store: store)
             folderURL = url
             self.store = store
+            self.keeper = keeper
             problem = nil
-            shared.update(store: store)
+            shared.update(keeper: keeper)
             keepFresh(store)
             refreshSummary()
         } catch {
@@ -157,24 +166,85 @@ final class MacModel {
     /// and the bytes are pulled down the moment it does.
     private func keepFresh(_ store: FileStore) {
         watcher = FolderWatcher(directory: store.eventsDirectory) { [weak self] in
-            self?.refreshSummarySoon()
+            self?.refreshSummary()
         }
         cloud = CloudWatcher(store: store) { [weak self] in
-            self?.refreshSummarySoon()
-        }
-    }
-
-    private func refreshSummarySoon() {
-        summaryTask?.cancel()
-        summaryTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
             self?.refreshSummary()
         }
     }
 
+    /// The folder as the keeper has it now, with everything the home works out from it,
+    /// all of it read and worked out away from the main thread, which only takes it.
+    private struct Reading: Sendable {
+        let standing: Standing
+        let inbox: [InboxItem]
+        let grants: [Grant]
+        /// The loops that run, the sentences woken by a line as one reading.
+        let running: [Loop]
+        let addresses: [PushAddress]
+        /// The lines with a due moment still ahead and not done, and the key of every due
+        /// moment the notebook holds.
+        let due: [Entry]
+        let dueKeys: Set<String>
+        /// The addresses in the owner's lines of the last day that nothing was kept from.
+        let unopened: [(entry: ULID, url: URL)]
+        let lines: Int
+        let days: Int
+        let lastDay: DayKey?
+    }
+
+    nonisolated private static func dueKey(_ entry: ULID, _ moment: Date) -> String {
+        "\(entry)|\(Int(moment.timeIntervalSince1970))"
+    }
+
+    nonisolated private static func read(_ keeper: NotebookKeeper) async -> Reading? {
+        await Task.detached(priority: .userInitiated) {
+            guard let standing = try? keeper.current() else { return nil }
+            let notebook = standing.notebook, now = Date()
+            let entries = notebook.entries
+            let days = Notebook.days(of: entries, calendar: .current)
+            let dueKeys = Set(entries.flatMap { entry in
+                entry.facts("due").compactMap { fact -> String? in
+                    guard case .moment(let at) = fact.value else { return nil }
+                    return dueKey(entry.id, at)
+                }
+            })
+            return Reading(standing: standing,
+                           inbox: Core.Inbox.items(files: standing.files, notebook: notebook, calendar: .current),
+                           grants: notebook.grants, running: notebook.running,
+                           addresses: (try? keeper.store.pushAddresses()) ?? [],
+                           due: notebook.due(after: now), dueKeys: dueKeys,
+                           unopened: notebook.unopened(since: now.addingTimeInterval(-86_400)),
+                           lines: entries.count, days: days.count, lastDay: days.last?.key)
+        }.value
+    }
+
+    /// Something may have changed in the folder: what the window, the loops and the pushes
+    /// know is brought up to date. The reading is done away from the main thread, which
+    /// never waits on the disk. Asked while a reading is under way, one more follows it,
+    /// so a burst of changes is two readings and not one for each.
     func refreshSummary() {
-        guard let store, let read = try? store.loadFiles() else {
+        guard let keeper else { return take(nil, from: nil) }
+        guard !refreshing else {
+            refreshAgain = true
+            return
+        }
+        refreshing = true
+        Task { [weak self] in
+            let reading = await Self.read(keeper)
+            guard let self else { return }
+            self.refreshing = false
+            // The folder may have been changed for another while this one was read.
+            if self.keeper === keeper { self.take(reading, from: keeper) }
+            if self.refreshAgain {
+                self.refreshAgain = false
+                self.refreshSummary()
+            }
+        }
+    }
+
+    private func take(_ reading: Reading?, from keeper: NotebookKeeper?) {
+        guard let reading, let keeper else {
             summary = ""
             self.notebook = nil
             inbox = []
@@ -182,41 +252,46 @@ final class MacModel {
             keysRefused = nil
             return
         }
-        let files = read.map { (file: $0.name, events: $0.events) }
-        let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
+        let store = keeper.store
+        let notebook = reading.standing.notebook
         self.notebook = notebook
-        inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: .current)
+        inbox = reading.inbox
         var refused: OSStatus?
-        grants = notebook.grants.map { grant in
+        grants = reading.grants.map { grant in
             var held = grant
+            if let key = heldKeys[grant.id] {
+                held.key = key
+                return held
+            }
             switch GrantKeys.look(for: grant.id) {
-            case .key(let key): held.key = key
+            case .key(let key): held.key = key; heldKeys[grant.id] = key
             case .none: held.key = ""
             case .refused(let status): held.key = ""; refused = status
             }
             return held
         }
+        // A key is kept in mind only while its grant opens the door.
+        heldKeys = heldKeys.filter { held in grants.contains { $0.id == held.key } }
         keysRefused = refused.map { status in
             let why = SecCopyErrorMessageString(status, nil) as String? ?? "keychain \(status)"
             return "The keychain would not let this app read its keys: \(why). The keys are still there. Quit \(Identity.name) and open it again; an app built again while it runs is refused like this."
         }
         // The loops as the notebook has them now; then something changed in the folder, so
         // each one woken by lines looks, a moment later.
-        syncLoops(store, notebook)
-        for runner in runners.values { runner.wake(store) }
-        pushAddresses = (try? store.pushAddresses()) ?? []
-        scheduleDuePushes(notebook)
-        openWhatLinesPointAt(store, notebook)
-        let days = notebook.days(calendar: .current)
-        var text = "\(notebook.entries.count) lines over \(days.count) days"
-        if let last = days.last?.key { text += " · last \(last)" }
+        syncLoops(keeper, running: reading.running)
+        for runner in runners.values { runner.wake(keeper) }
+        pushAddresses = reading.addresses
+        scheduleDuePushes(reading.due, all: reading.dueKeys)
+        openWhatLinesPointAt(store, reading.unopened)
+        var text = "\(reading.lines) lines over \(reading.days) days"
+        if let last = reading.lastDay { text += " · last \(last)" }
         // Photos the door would refuse until iCloud brings them.
         if let arriving = cloud?.state?.arriving, arriving > 0 { text += " · \(arriving) media files not yet on this Mac" }
         if let trouble = cloud?.state?.trouble { text += " · iCloud: \(trouble)" }
         // Damage is passed over, never hidden: which file, which lines.
-        for file in read where !file.unreadable.isEmpty {
-            let lines = file.unreadable.map(String.init).joined(separator: ", ")
-            text += " · \(file.name): line\(file.unreadable.count == 1 ? "" : "s") \(lines) could not be read and \(file.unreadable.count == 1 ? "was" : "were") passed over"
+        for file in reading.standing.unreadable where !file.lines.isEmpty {
+            let lines = file.lines.map(String.init).joined(separator: ", ")
+            text += " · \(file.file): line\(file.lines.count == 1 ? "" : "s") \(lines) could not be read and \(file.lines.count == 1 ? "was" : "were") passed over"
         }
         summary = text
     }
@@ -262,8 +337,8 @@ final class MacModel {
     /// that address and keeps its words beside the line, as the owner's event from here.
     /// Only the owner's own lines, only the last day's, each address once. What is kept
     /// wakes the reading like anything that lands, and it reads the page as part of the line.
-    private func openWhatLinesPointAt(_ store: FileStore, _ notebook: Notebook) {
-        for (entry, url) in notebook.unopened(since: Date().addingTimeInterval(-86_400)) {
+    private func openWhatLinesPointAt(_ store: FileStore, _ unopened: [(entry: ULID, url: URL)]) {
+        for (entry, url) in unopened {
             guard opened.insert("\(entry)|\(url.absoluteString)").inserted else { continue }
             Task { [weak self] in
                 guard let page = await Opener.open(url), let self, self.store?.root == store.root else { return }
@@ -540,14 +615,14 @@ final class MacModel {
     /// with the line's words. Rescheduled from the fold each time the folder changes, so a
     /// moment moved or taken off never fires; what was sent is remembered across launches so
     /// nothing fires twice. A moment already past when the Mac wakes is not sent late.
-    private func scheduleDuePushes(_ notebook: Notebook) {
+    private func scheduleDuePushes(_ ahead: [Entry], all: Set<String>) {
         for item in dueTimers.values { item.cancel() }
         dueTimers = [:]
         let now = Date()
         var sent = Set(UserDefaults.standard.stringArray(forKey: dueSentKey) ?? [])
-        for entry in notebook.due(after: now) {
-            guard let due = entry.due else { continue }
-            let key = "\(entry.id)|\(Int(due.timeIntervalSince1970))"
+        for entry in ahead {
+            guard let due = entry.due, due > now else { continue }
+            let key = Self.dueKey(entry.id, due)
             guard !sent.contains(key) else { continue }
             let item = DispatchWorkItem { [weak self] in
                 Task { @MainActor in
@@ -567,14 +642,9 @@ final class MacModel {
             DispatchQueue.main.asyncAfter(wallDeadline: .now() + due.timeIntervalSince(now), execute: item)
         }
         // What was sent is kept only while its moment is still in the notebook.
-        let alive = Set(notebook.entries.flatMap { entry in
-            entry.facts("due").compactMap { fact -> String? in
-                guard case .moment(let at) = fact.value else { return nil }
-                return "\(entry.id)|\(Int(at.timeIntervalSince1970))"
-            }
-        })
-        sent.formIntersection(alive)
-        UserDefaults.standard.set(Array(sent), forKey: dueSentKey)
+        let before = sent
+        sent.formIntersection(all)
+        if sent != before { UserDefaults.standard.set(Array(sent), forKey: dueSentKey) }
     }
 
     // MARK: - Loops
@@ -654,8 +724,9 @@ final class MacModel {
     /// Runners follow the notebook: one per loop that runs, made when the loop appears or is
     /// set again, gone when it is stopped. A loop whose grant has no key on this Mac waits,
     /// and the window says so.
-    private func syncLoops(_ store: FileStore, _ notebook: Notebook) {
+    private func syncLoops(_ keeper: NotebookKeeper, running: [Loop]) {
         guard Identity.runsLoops else { return }
+        let store = keeper.store
         // A loop reads through this app's own door. While that is not open nothing runs:
         // the port may be another home's, and the lines would be answered twice.
         guard case .open = door else {
@@ -665,7 +736,6 @@ final class MacModel {
             return
         }
         // What runs is not the loops one by one: the sentences woken by a line are one reading.
-        let running = notebook.running
         let wanted = Dictionary(uniqueKeysWithValues: running.map { ($0.id, $0) })
         for (id, runner) in runners where wanted[id].map({ !$0.sameWork(as: runner.loop) }) ?? true {
             runner.stop()
@@ -683,7 +753,7 @@ final class MacModel {
                                         payload: .loopRan(.init(loop: runner.loop.id, run: run.id, ok: run.ok ?? false, turns: run.turns,
                                                                 cost: run.costUSD, summary: run.summary, startedAt: run.startedAt, endedAt: endedAt))))
             }
-            runner.remember(store)
+            runner.remember(keeper)
             runners[loop.id] = runner
         }
         loopTick += 1
@@ -707,24 +777,25 @@ final class MacModel {
     }
 }
 
-/// What the server thread may see: the current store, behind a lock. A key is looked up in
-/// the fold of that store, so the grants are whatever the notebook says at that moment.
+/// What the server thread may see: the reading of the current folder, behind a lock. A key
+/// is looked up in the fold as it is at that moment, so the grants are whatever the
+/// notebook says then.
 final class DoorState: @unchecked Sendable {
     private let lock = NSLock()
-    private var store: FileStore?
+    private var keeper: NotebookKeeper?
 
-    func update(store: FileStore?) {
+    func update(keeper: NotebookKeeper?) {
         lock.lock()
-        self.store = store
+        self.keeper = keeper
         lock.unlock()
     }
 
-    func resolve(_ key: String) -> (FileStore, Grant)? {
+    func resolve(_ key: String) -> (NotebookKeeper, Grant)? {
         lock.lock()
-        let store = self.store
+        let keeper = self.keeper
         lock.unlock()
-        guard let store, let grant = try? store.load().grant(forKey: key) else { return nil }
-        return (store, grant)
+        guard let keeper, let grant = try? keeper.current().notebook.grant(forKey: key) else { return nil }
+        return (keeper, grant)
     }
 }
 

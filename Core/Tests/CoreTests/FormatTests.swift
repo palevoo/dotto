@@ -74,6 +74,53 @@ final class FormatTests: XCTestCase {
 
     // MARK: - Making the sample
 
+    /// A date as the log writes it is read by arithmetic, and has to be the very value the
+    /// system's own reading of the same text gives, or a line read is not the line written.
+    func testADateAsWrittenReadsAsTheFormatterReadsIt() throws {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var moments: [Double] = []
+        var random = SystemRandomNumberGenerator()
+        // From 1970 to 2100; then these years; then every millisecond of two seconds.
+        for _ in 0..<4_000 { moments.append(Double(Int.random(in: 0...4_102_444_800_000, using: &random)) / 1000) }
+        for _ in 0..<4_000 { moments.append(Double(Int.random(in: 1_760_000_000_000...1_900_000_000_000, using: &random)) / 1000) }
+        for milli in 0..<2_000 { moments.append(1_793_613_600 + Double(milli) / 1000) }
+        // The last millisecond of 28 February and of the day after, every year.
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        for year in 1970...2100 {
+            if let march = calendar.date(from: DateComponents(year: year, month: 3, day: 1)) {
+                moments.append(march.timeIntervalSince1970 - 0.001)
+                moments.append(march.timeIntervalSince1970 - 86_400.001)
+            }
+        }
+        for seconds in moments {
+            let text = formatter.string(from: Date(timeIntervalSince1970: seconds))
+            let read = try XCTUnwrap(ISO8601.written(text), text)
+            XCTAssertEqual(read, formatter.date(from: text), text)
+            XCTAssertEqual(ISO8601.string(from: read), text, "written again as it was")
+        }
+    }
+
+    /// Any other spelling is not the log's own, and is left to the formatters as before.
+    func testOtherSpellingsOfADateAreReadAsBefore() {
+        let plain = ISO8601DateFormatter()
+        for text in ["2026-03-02T08:01:00Z", "2026-03-02T10:01:00.000+02:00", "2026-03-02T10:01:00+02:00", "2026-03-02T08:01:00.5Z",
+                     "2026-03-02T08:01:00.123456Z", "2026-03-02 08:01:00Z"] {
+            XCTAssertNil(ISO8601.written(text), text)
+        }
+        XCTAssertEqual(ISO8601.date(from: "2026-03-02T08:01:00Z"), plain.date(from: "2026-03-02T08:01:00Z"))
+        XCTAssertEqual(ISO8601.date(from: "2026-03-02T10:01:00+02:00"), plain.date(from: "2026-03-02T08:01:00Z"))
+        XCTAssertEqual(ISO8601.date(from: "2026-03-02T10:01:00.250+02:00")?.timeIntervalSince1970, 1_772_438_460.25)
+        // Not a moment at all, whatever it looks like.
+        for text in ["2026-02-30T08:01:00.000Z", "2026-13-02T08:01:00.000Z", "2026-03-02T24:00:00.000Z", "2026-03-02T08:61:00.000Z",
+                     "2026-03-0\u{0968}T08:01:00.000Z", "garbage", ""] {
+            XCTAssertNil(ISO8601.written(text), text)
+        }
+        XCTAssertNil(ISO8601.date(from: "garbage"))
+        XCTAssertNil(ISO8601.date(from: "2026-13-02T08:01:00.000Z"))
+    }
+
     private func at(_ moment: String) -> Date {
         ISO8601DateFormatter().date(from: moment + ":00Z")!
     }

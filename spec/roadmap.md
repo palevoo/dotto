@@ -74,6 +74,9 @@ What that takes, as problems, with no solutions chosen:
 - A session is told what was learned ahead of its first answer. If its first turn sends a
   read and a write together, the read is answered first and the write beside it is taken as
   it came.
+- Opening an app reads every event file once, from its start. After that only what is
+  added is read. Nothing of the fold is kept on disk between launches.
+- An answer through the door that lists or searches still goes over every line.
 - The home screen has one app icon. There is no set to choose from yet.
 - `MacModel.renameWhatWasKept` moves three names a home kept before 16 November 2026. It
   can be deleted once that home has opened once.

@@ -19,8 +19,8 @@ final class LoopRunner {
     let runsDirectory: URL
     let logURL: URL
     var model: String
-    /// Where the claude command is, or nil when the Mac has none.
-    let claude: String?
+    /// Where the claude command is, once it has been looked for; nil when the Mac has none.
+    private(set) var claude: String?
     private(set) var status: LoopStatus
     private(set) var runs: [RunRecord] = []
     /// Told whenever the status or a run changes, so the window follows.
@@ -37,6 +37,12 @@ final class LoopRunner {
     private let calendar = Calendar.current
     /// A line and its photo land a moment apart; one run takes both.
     private let grace: TimeInterval = 5
+    /// The reading of the folder the loop looks through, as last handed to it.
+    private var lastKeeper: NotebookKeeper?
+    /// Set when the loop is stopped: whatever was still on its way then comes to nothing.
+    private var stopped = false
+    /// How many looks have been scheduled, so one that comes back late knows it.
+    private var looks = 0
 
     init(loop: Loop, grant: Grant, door: String, model: String, runsDirectory: URL, logURL: URL) {
         self.loop = loop
@@ -48,38 +54,41 @@ final class LoopRunner {
         self.model = model
         self.runsDirectory = runsDirectory
         self.logURL = logURL
-        claude = Self.findClaude()
         status = LoopStatus(startedAt: Date())
-        if claude == nil { status.trouble = "the claude command was not found on this Mac" }
         try? FileManager.default.createDirectory(at: runsDirectory, withIntermediateDirectories: true)
-        runs = RunFiles.runs(in: runsDirectory, limit: 200).filter { $0.loop == loop.id }.prefix(8).map { $0 }
-        log("\(loop.name) on as \(grant.name), \(loop.wake.words), claude at \(claude ?? "nowhere")")
+        log("\(loop.name) on as \(grant.name), \(loop.wake.words)")
         if case .clock = loop.wake { scheduleClock() }
+        // The runs kept from before and where the command is are found away from the main
+        // thread: the first is many files, the second starts the person's shell.
+        let id = loop.id
+        Task { [weak self] in
+            let (kept, claude) = await Task.detached(priority: .utility) {
+                (RunFiles.runs(in: runsDirectory, limit: 200).filter { $0.loop == id }.prefix(8).map { $0 }, ClaudeCommand.shared.path)
+            }.value
+            guard let self, !self.stopped else { return }
+            // A run begun in the meantime is newer than any of them.
+            self.runs += kept.filter { old in !self.runs.contains { $0.id == old.id } }
+            self.know(claude)
+            self.onChange()
+        }
     }
 
     deinit {
         clock?.invalidate()
     }
 
-    /// The command, wherever the person's shell keeps it.
-    private static func findClaude() -> String? {
-        let shell = Process()
-        shell.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        shell.arguments = ["-l", "-c", "command -v claude"]
-        let pipe = Pipe()
-        shell.standardOutput = pipe
-        shell.standardError = FileHandle.nullDevice
-        if (try? shell.run()) != nil {
-            shell.waitUntilExit()
-            let found = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            if !found.isEmpty, FileManager.default.isExecutableFile(atPath: found) { return found }
+    private static let noClaude = "the claude command was not found on this Mac"
+
+    /// Where the command is, as last found. Said in the log when it changes, and in the
+    /// window when there is none.
+    private func know(_ path: String?) {
+        if path != claude || (path == nil && status.trouble != Self.noClaude) { log("claude at \(path ?? "nowhere")") }
+        claude = path
+        if path == nil {
+            status.trouble = Self.noClaude
+        } else if status.trouble == Self.noClaude {
+            status.trouble = nil
         }
-        for candidate in ["~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"] {
-            let path = NSString(string: candidate).expandingTildeInPath
-            if FileManager.default.isExecutableFile(atPath: path) { return path }
-        }
-        return nil
     }
 
     private func log(_ text: String) {
@@ -93,25 +102,25 @@ final class LoopRunner {
         }
     }
 
-    private var lastStore: FileStore?
-
     /// The loop was stopped, set again, or the app is quitting: nothing more is scheduled
-    /// and a session under way is ended, so no claude process outlives its loop.
+    /// and a session under way is ended, so no claude process outlives its loop. A look or
+    /// a run still being readied comes to nothing.
     func stop() {
+        stopped = true
         pendingWake?.cancel()
         clock?.invalidate()
         current?.end()
         current = nil
     }
 
-    func remember(_ store: FileStore) {
-        lastStore = store
+    func remember(_ keeper: NotebookKeeper) {
+        lastKeeper = keeper
     }
 
     /// Something changed in the folder. A loop woken by lines looks a moment later; one woken
-    /// by the clock only remembers the store for its hour.
-    func wake(_ store: FileStore) {
-        lastStore = store
+    /// by the clock only remembers the folder for its hour.
+    func wake(_ keeper: NotebookKeeper) {
+        lastKeeper = keeper
         guard loop.wake == .line else { return }
         carry(machine.woke())
     }
@@ -128,56 +137,78 @@ final class LoopRunner {
             break
         case .scheduleLook:
             pendingWake?.cancel()
+            looks += 1
             let item = DispatchWorkItem { [weak self] in self?.lookAfterGrace() }
             pendingWake = item
             DispatchQueue.main.asyncAfter(deadline: .now() + grace, execute: item)
         case .startRun:
-            if let store = lastStore { start(store) } else { carry(machine.finished()) }
+            if let keeper = lastKeeper { start(keeper) } else { carry(machine.finished()) }
         case .lookAgain:
             carry(machine.woke())
         }
     }
 
-    /// The grace passed: is there anything new for this loop's grant?
+    /// What a look finds, read away from the main thread.
+    private struct Look: Sendable {
+        /// How many new things the grant has not seen, and which.
+        let pending: Int
+        let waiting: Set<ULID>
+        let claude: String?
+    }
+
+    nonisolated private static func look(_ keeper: NotebookKeeper, grant: Grant, calendar: Calendar) throws -> Look {
+        let standing = try keeper.current()
+        let pending = Core.Inbox.pending(files: standing.files, notebook: standing.notebook, grant: grant, calendar: calendar)
+        return Look(pending: pending.count, waiting: waiting(files: standing.files, notebook: standing.notebook, grant: grant),
+                    claude: ClaudeCommand.shared.path)
+    }
+
+    /// The grace passed: is there anything new for this loop's grant? The folder is read
+    /// away from the main thread. A look that comes back after a newer one was scheduled
+    /// gives way to it.
     private func lookAfterGrace() {
-        guard let store = lastStore else { carry(machine.looked(found: false)); return }
+        guard let keeper = lastKeeper else { carry(machine.looked(found: false)); return }
+        let mine = looks, grant = grant, calendar = calendar
+        Task { [weak self] in
+            let seen = await Task.detached(priority: .utility) { Result { try Self.look(keeper, grant: grant, calendar: calendar) } }.value
+            guard let self, !self.stopped, mine == self.looks else { return }
+            self.looked(seen)
+        }
+    }
+
+    private func looked(_ seen: Result<Look, Error>) {
         let now = Date()
-        let found: Bool
-        do {
-            let files = try store.loadEventsByFile()
-            let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
-            let pending = Core.Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
-            let waiting = Self.waiting(files: files, notebook: notebook, grant: grant)
-            let able = pending.count > 0 && claude != nil
+        switch seen {
+        case .success(let look):
+            know(look.claude)
+            let able = look.pending > 0 && claude != nil
             // What the last run was started for and did not take is not run for again; the
             // machine decides, and the window says why nothing is running.
-            let leftOver = able && waiting.isSubset(of: machine.offered)
-            found = able && !leftOver
-            status.lastWake = LoopStatus.Wake(at: now, new: pending.count, ran: found)
+            let leftOver = able && look.waiting.isSubset(of: machine.offered)
+            let found = able && !leftOver
+            status.lastWake = LoopStatus.Wake(at: now, new: look.pending, ran: found)
             if leftOver {
                 status.trouble = Self.leftWaiting
-                log("woke: \(pending.count) still waiting from the last run, which did not take them; not running again until something new lands")
+                log("woke: \(look.pending) still waiting from the last run, which did not take them; not running again until something new lands")
             } else {
-                log(found ? "woke: \(pending.count) new, running" : "woke: \(pending.count) new")
+                log(found ? "woke: \(look.pending) new, running" : "woke: \(look.pending) new")
             }
             onChange()
-            carry(able ? machine.looked(waiting: waiting) : machine.looked(found: false))
-            return
-        } catch {
-            found = false
+            carry(able ? machine.looked(waiting: look.waiting) : machine.looked(found: false))
+        case .failure(let error):
             status.lastWake = LoopStatus.Wake(at: now, new: 0, ran: false)
             status.trouble = "could not read the notebook: \(error)"
             log("woke: \(status.trouble!)")
+            onChange()
+            carry(machine.looked(found: false))
         }
-        onChange()
-        carry(machine.looked(found: found))
     }
 
     /// Said in the window while the last run's things still wait.
     private static let leftWaiting = "the last run did not take what was waiting; it runs again when something new lands, or with Look Now"
 
     /// Everything this loop's grant has not seen, by id: what a run would be started for.
-    private static func waiting(files: [(file: String, events: [Event])], notebook: Notebook, grant: Grant) -> Set<ULID> {
+    nonisolated private static func waiting(files: [(file: String, events: [Event])], notebook: Notebook, grant: Grant) -> Set<ULID> {
         Set(Core.Inbox.fresh(files: files, notebook: notebook, grant: grant).events.map(\.id))
     }
 
@@ -200,53 +231,86 @@ final class LoopRunner {
         onChange()
     }
 
-    /// A session begins. The machine has already said so; this only sets it going.
-    private func start(_ store: FileStore) {
-        let now = Date()
-        guard let claude else {
+    /// What a run is started with, made away from the main thread: what waits, the brief
+    /// and the first words.
+    private struct Prepared: Sendable {
+        let waiting: Set<ULID>
+        let pending: Int
+        let brief: String
+        let prompt: String
+        let claude: String?
+    }
+
+    nonisolated private static func prepare(_ keeper: NotebookKeeper, loop: Loop, grant: Grant, calendar: Calendar, now: Date) throws -> Prepared {
+        let standing = try keeper.current()
+        let files = standing.files, notebook = standing.notebook
+        // The home starts this hand, so it tells it everything before its first word:
+        // the conduct and what was learned, whole.
+        var brief = Door.told(to: grant, in: notebook) + """
+
+
+        You are running on your own, as the loop called \(loop.name), \(loop.wake.words). Nobody \
+        is at the keyboard and nobody reads your final answer: everything you have to say goes \
+        through the door, or stays unsaid. Do what this moment asks, and stop.
+        """
+        if let words = loop.brief?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty {
+            // The owner set it; the words may be the owner's or a proposer's they agreed to.
+            // The reading's are every sentence kept in mind, and say so themselves.
+            brief += loop.wake == .line ? "\n\n\(words)" : "\n\nThe brief the owner set for this loop: \(words)"
+        }
+        let prompt = loop.wake == .line
+            // Handed what it would otherwise go and find, so it starts at the thinking.
+            ? "Look at what is new and do what the lines want. Then stop.\n\n"
+                + Core.Inbox.upFront(files: files, notebook: notebook, grant: grant, store: keeper.store, calendar: calendar)
+            : "It is \(Projector.time(now, calendar: calendar)). Do what this loop is for, reading through the door as needed. Then stop."
+        return Prepared(waiting: waiting(files: files, notebook: notebook, grant: grant),
+                        pending: Core.Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar).count,
+                        brief: brief, prompt: prompt, claude: ClaudeCommand.shared.path)
+    }
+
+    /// A session begins. The machine has already said so; this readies it, away from the
+    /// main thread, and sets it going.
+    private func start(_ keeper: NotebookKeeper) {
+        let now = Date(), loop = loop, grant = grant, calendar = calendar
+        Task { [weak self] in
+            let made = await Task.detached(priority: .utility) {
+                Result { try Self.prepare(keeper, loop: loop, grant: grant, calendar: calendar, now: now) }
+            }.value
+            guard let self, !self.stopped else { return }
+            self.begin(made, at: now)
+        }
+    }
+
+    private func begin(_ made: Result<Prepared, Error>, at now: Date) {
+        switch made {
+        case .failure(let error):
             status.lastWake = LoopStatus.Wake(at: now, new: 0, ran: false)
+            status.trouble = "could not read the notebook: \(error)"
+            log("start: \(status.trouble!)")
             onChange()
             carry(machine.finished())
-            return
-        }
-        do {
-            let files = try store.loadEventsByFile()
-            let notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
+        case .success(let prepared):
+            know(prepared.claude)
+            guard let claude else {
+                status.lastWake = LoopStatus.Wake(at: now, new: 0, ran: false)
+                onChange()
+                carry(machine.finished())
+                return
+            }
             // The run is for what waits now, however it was started.
-            machine.began(with: Self.waiting(files: files, notebook: notebook, grant: grant))
+            machine.began(with: prepared.waiting)
             if status.trouble == Self.leftWaiting { status.trouble = nil }
             if status.lastWake == nil || status.lastWake?.ran == false {
-                let pending = Core.Inbox.pending(files: files, notebook: notebook, grant: grant, calendar: calendar)
-                status.lastWake = LoopStatus.Wake(at: now, new: pending.count, ran: true)
-                log("looking now: \(pending.count) new, running")
-            }
-
-            // The home starts this hand, so it tells it everything before its first word:
-            // the conduct and what was learned, whole.
-            var brief = Door.told(to: grant, in: notebook) + """
-
-
-            You are running on your own, as the loop called \(loop.name), \(loop.wake.words). Nobody \
-            is at the keyboard and nobody reads your final answer: everything you have to say goes \
-            through the door, or stays unsaid. Do what this moment asks, and stop.
-            """
-            if let words = loop.brief?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty {
-                // The owner set it; the words may be the owner's or a proposer's they agreed to.
-                // The reading's are every sentence kept in mind, and say so themselves.
-                brief += loop.wake == .line ? "\n\n\(words)" : "\n\nThe brief the owner set for this loop: \(words)"
+                status.lastWake = LoopStatus.Wake(at: now, new: prepared.pending, ran: true)
+                log("looking now: \(prepared.pending) new, running")
             }
             status.state = .running
             let run = RunRecord(loop: loop.id, startedAt: now)
             status.lastRun = run
             runs.insert(run, at: 0)
             onChange()
-            let session = Session(claude: claude, door: door, grant: grant, model: model, runsDirectory: runsDirectory, brief: brief,
-                                  prompt: loop.wake == .line
-                                      // Handed what it would otherwise go and find, so it starts at the thinking.
-                                      ? "Look at what is new and do what the lines want. Then stop.\n\n"
-                                          + Core.Inbox.upFront(files: files, notebook: notebook, grant: grant, store: store, calendar: calendar)
-                                      : "It is \(Projector.time(now, calendar: calendar)). Do what this loop is for, reading through the door as needed. Then stop.",
-                                  maxTurns: loop.turns, maxBudgetUSD: loop.budget)
+            let session = Session(claude: claude, door: door, grant: grant, model: model, runsDirectory: runsDirectory, brief: prepared.brief,
+                                  prompt: prepared.prompt, maxTurns: loop.turns, maxBudgetUSD: loop.budget)
             let running = RunningSession()
             current = running
             Task.detached(priority: .utility) {
@@ -255,12 +319,6 @@ final class LoopRunner {
                 }
                 await MainActor.run { self.finish(finished) }
             }
-        } catch {
-            status.lastWake = LoopStatus.Wake(at: now, new: 0, ran: false)
-            status.trouble = "could not read the notebook: \(error)"
-            log("start: \(status.trouble!)")
-            onChange()
-            carry(machine.finished())
         }
     }
 
@@ -445,5 +503,43 @@ struct Session: Sendable {
         }
         write(run)
         return run
+    }
+}
+
+/// Where the claude command is on this Mac. Looked for the first time a loop needs it, by
+/// whoever asks, which is never the main thread; once found it is not looked for again.
+/// Not found, it is looked for the next time, so a command put on later is met.
+final class ClaudeCommand: @unchecked Sendable {
+    static let shared = ClaudeCommand()
+
+    private let lock = NSLock()
+    private var found: String?
+
+    var path: String? {
+        lock.lock()
+        defer { lock.unlock() }
+        if found == nil { found = Self.find() }
+        return found
+    }
+
+    /// The command, wherever the person's shell keeps it.
+    private static func find() -> String? {
+        let shell = Process()
+        shell.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        shell.arguments = ["-l", "-c", "command -v claude"]
+        let pipe = Pipe()
+        shell.standardOutput = pipe
+        shell.standardError = FileHandle.nullDevice
+        if (try? shell.run()) != nil {
+            shell.waitUntilExit()
+            let found = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !found.isEmpty, FileManager.default.isExecutableFile(atPath: found) { return found }
+        }
+        for candidate in ["~/.local/bin/claude", "/opt/homebrew/bin/claude", "/usr/local/bin/claude"] {
+            let path = NSString(string: candidate).expandingTildeInPath
+            if FileManager.default.isExecutableFile(atPath: path) { return path }
+        }
+        return nil
     }
 }

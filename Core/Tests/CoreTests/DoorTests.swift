@@ -166,7 +166,8 @@ final class DoorTests: XCTestCase {
     }
 
     func testTheSameGrantFromAnotherHand() throws {
-        let router = DoorRouter(calendar: utc, resolve: { [store, grant] key in key == grant!.key ? (store!, grant!) : nil })
+        let keeper = NotebookKeeper(store: store)
+        let router = DoorRouter(calendar: utc, resolve: { [grant] key in key == grant!.key ? (keeper, grant!) : nil })
         let session = try XCTUnwrap(router.begin(key: grant.key))
         func call(_ headers: [String: String]) -> Int {
             let request: [String: Any] = ["jsonrpc": "2.0", "id": 1, "method": "tools/call",
@@ -547,8 +548,9 @@ final class DoorTests: XCTestCase {
     }
 
     func testRouterRefusesWithoutTheKey() throws {
-        let router = DoorRouter(calendar: utc) { [store, grant] key in
-            key == grant!.key ? (store!, grant!) : nil
+        let keeper = NotebookKeeper(store: store)
+        let router = DoorRouter(calendar: utc) { [grant] key in
+            key == grant!.key ? (keeper, grant!) : nil
         }
         let body = try JSONSerialization.data(withJSONObject: ["jsonrpc": "2.0", "id": 1, "method": "ping"])
 
@@ -568,8 +570,9 @@ final class DoorTests: XCTestCase {
     }
 
     func testServerOverLoopback() async throws {
-        let router = DoorRouter(calendar: utc) { [store, grant] key in
-            key == grant!.key ? (store!, grant!) : nil
+        let keeper = NotebookKeeper(store: store)
+        let router = DoorRouter(calendar: utc) { [grant] key in
+            key == grant!.key ? (keeper, grant!) : nil
         }
         let server = try DoorServer { router.respond($0) }
         let port = try await server.start()
@@ -623,8 +626,9 @@ final class DoorTests: XCTestCase {
         }
         try store.append(Event(id: generator.next(), author: "me", device: "mac", at: Date(), payload: .grantRevoke(.init(grant: revoked.id))))
 
-        let router = DoorRouter(calendar: utc) { [store] key in
-            (try? store!.load().grant(forKey: key)).map { (store!, $0) }
+        let keeper = NotebookKeeper(store: store)
+        let router = DoorRouter(calendar: utc) { key in
+            (try? keeper.current().notebook.grant(forKey: key)).map { (keeper, $0) }
         }
         func call(_ key: String) -> HTTPResponse {
             let request: [String: Any] = ["jsonrpc": "2.0", "id": 1, "method": "tools/call",

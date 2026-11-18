@@ -10,8 +10,19 @@ final class NotebookModel {
     let store: FileStore
     let device: DeviceID
     let calendar: Calendar
+    /// The one reading of the folder this phone keeps, read on from where it was read to
+    /// each time something is added, and never from the start again.
+    private let keeper: NotebookKeeper
 
     private(set) var notebook: Notebook
+    /// Every event, file by file, as last read: what the inbox on screen was made from.
+    private var files: [(file: String, events: [Event])] = []
+    /// How many times the notebook here has changed from this side: a line written, a
+    /// reading taken. A reading made aside that comes back to find it moved is out of date.
+    private var changes = 0
+    /// A reading aside is under way; and something changed since it began.
+    private var readingAside = false
+    private var readAgain = false
     private(set) var days: [Day] = []
 
     /// The live line, as Core keeps its rules. Nothing stores it but Return; it is written
@@ -49,7 +60,6 @@ final class NotebookModel {
     private(set) var taken: [ULID: Author] = [:]
     /// Lines in the event files that could not be read and were passed over.
     private(set) var unreadable = 0
-    private var reloadTask: Task<Void, Never>?
     private var noticeTask: Task<Void, Never>?
     /// The moments this phone has set its own notices for.
     private var noticed: [String]?
@@ -61,6 +71,7 @@ final class NotebookModel {
         var calendar = Calendar.autoupdatingCurrent
         calendar.locale = Locale.autoupdatingCurrent
         self.calendar = calendar
+        self.keeper = NotebookKeeper(store: store)
         self.notebook = Notebook(owner: store.manifest.owner)
         weather = WeatherKeeper(device: device)
         locationStatus = location.status
@@ -74,12 +85,12 @@ final class NotebookModel {
         Pushes.shared.onToken = { [weak self] token in self?.savePushAddress(token) }
         if let token = Pushes.shared.token { savePushAddress(token) }
         watcher = FolderWatcher(directory: store.eventsDirectory) { [weak self] in
-            self?.reloadSoon()
+            self?.reloadAside()
         }
         cloudWatcher = CloudWatcher(store: store) { [weak self] in
             guard let self else { return }
             cloud = cloudWatcher?.state
-            reloadSoon()
+            reloadAside()
         }
         walks.resume { [weak self] walks in self?.add(walks) ?? false }
         weather.resume()
@@ -156,8 +167,10 @@ final class NotebookModel {
         do {
             let events = try Inbox.take(into: store)
             guard !events.isEmpty else { return }
+            changes += 1
             for event in events { notebook.apply(event) }
             days = notebook.days(calendar: calendar)
+            reloadAside()
             projectSoon()
         } catch {
             NSLog("inbox failed: \(error)")
@@ -185,21 +198,65 @@ final class NotebookModel {
 
     // MARK: - Reading
 
-    /// Re-folds the whole folder. Cheap for years of a notebook.
+    /// The folder as the keeper has it now, with what the page shows worked out from it.
+    private struct Reading: Sendable {
+        let standing: Standing
+        let days: [Day]
+        let inbox: [InboxItem]
+        let taken: [ULID: Author]
+    }
+
+    nonisolated private static func read(_ keeper: NotebookKeeper, calendar: Calendar) throws -> Reading {
+        let standing = try keeper.current()
+        return Reading(standing: standing, days: standing.notebook.days(calendar: calendar),
+                       inbox: Core.Inbox.items(files: standing.files, notebook: standing.notebook, calendar: calendar),
+                       taken: Core.Inbox.taken(files: standing.files, notebook: standing.notebook))
+    }
+
+    private func take(_ reading: Reading) {
+        changes += 1
+        notebook = reading.standing.notebook
+        files = reading.standing.files
+        days = reading.days
+        inbox = reading.inbox
+        taken = reading.taken
+        unreadable = reading.standing.unreadable.reduce(0) { $0 + $1.lines.count }
+        setNotices()
+        // Lines that arrived with a place, from here or another device, get their weather.
+        weather.fill()
+    }
+
+    /// Reads the folder now, on this thread: at launch, when the page waits for it anyway.
     func reload() {
         do {
-            let read = try store.loadFiles()
-            let files = read.map { (file: $0.name, events: $0.events) }
-            notebook = Notebook(owner: store.manifest.owner, events: files.flatMap(\.events))
-            days = notebook.days(calendar: calendar)
-            inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: calendar)
-            taken = Core.Inbox.taken(files: files, notebook: notebook)
-            unreadable = read.reduce(0) { $0 + $1.unreadable.count }
-            setNotices()
-            // Lines that arrived with a place, from here or another device, get their weather.
-            weather.fill()
+            take(try Self.read(keeper, calendar: calendar))
         } catch {
             NSLog("reload failed: \(error)")
+        }
+    }
+
+    /// The same away from the main thread, for whenever the folder may have changed: a
+    /// file grew, iCloud brought something, a line was written here. Asked while a reading
+    /// is under way, one more follows it. A reading that comes back after the notebook
+    /// here has moved on, a line written meanwhile, is not taken, so a line just written
+    /// never leaves the page; the reading after it has that line.
+    func reloadAside() {
+        guard !readingAside else {
+            readAgain = true
+            return
+        }
+        readingAside = true
+        let mine = changes
+        Task { [weak self, keeper, calendar] in
+            let reading = try? await Task.detached(priority: .userInitiated) { try Self.read(keeper, calendar: calendar) }.value
+            guard let self else { return }
+            readingAside = false
+            let current = mine == changes
+            if current, let reading { take(reading) }
+            if readAgain || !current {
+                readAgain = false
+                reloadAside()
+            }
         }
     }
 
@@ -219,18 +276,13 @@ final class NotebookModel {
         }
     }
 
-    /// The inbox again, after something was written: a reply of yours answers an ask.
-    private func refreshInbox() {
-        guard let files = try? store.loadEventsByFile() else { return }
-        inbox = Core.Inbox.items(files: files, notebook: notebook, calendar: calendar)
-    }
-
     /// You opened the inbox. What is about no one line, labels folded together, a name, is
-    /// read from here: the receipt records how long every event file was, so the same holds
-    /// on every device. What is about a line stays until you open the line. Nothing is
-    /// written when there was nothing of that kind new.
+    /// read from here: the receipt records how long every event file was when the inbox
+    /// you are looking at was made, so the same holds on every device and nothing that
+    /// landed since is counted as seen. What is about a line stays until you open the
+    /// line. Nothing is written when there was nothing of that kind new.
     func lookAtInbox() {
-        guard inbox.contains(where: { $0.entry == nil && $0.unread }), let files = try? store.loadEventsByFile() else { return }
+        guard inbox.contains(where: { $0.entry == nil && $0.unread }) else { return }
         record(.visit(Core.Inbox.look(files: files, unread: unread)))
     }
 
@@ -238,15 +290,6 @@ final class NotebookModel {
     func lookAt(_ entry: ULID) {
         guard inbox.contains(where: { $0.entry == entry && $0.unread }) else { return }
         record(.visit(Core.Inbox.look(at: entry)))
-    }
-
-    private func reloadSoon() {
-        reloadTask?.cancel()
-        reloadTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            guard !Task.isCancelled else { return }
-            self?.reload()
-        }
     }
 
     // MARK: - The live line
@@ -538,9 +581,12 @@ final class NotebookModel {
             NSLog("append failed: \(error)")
             return false
         }
+        // On the page at once; the inbox, where a reply of yours answers an ask, and
+        // whatever else follows from the folder, with the reading that comes after.
+        changes += 1
         for event in events { notebook.apply(event) }
         days = notebook.days(calendar: calendar)
-        refreshInbox()
+        reloadAside()
         projectSoon()
         return true
     }
