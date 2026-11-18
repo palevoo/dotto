@@ -14,8 +14,8 @@
 <meta property="og:description" content="Capture anything. Dotto takes it from there.">
 <meta property="og:url" content="https://dotto.works/">
 <meta property="og:image" content="https://dotto.works/card.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
+<meta property="og:image:width" content="2400">
+<meta property="og:image:height" content="1260">
 <meta property="og:image:alt" content="dotto, the name written by hand, its full stop a dot in orange, and beside it a scatter of dots.">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="favicon.ico" sizes="48x48">
@@ -88,26 +88,33 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { height: 100%; }
+/* The page was drawn for a screen 1440 by 900. On a larger one all of it grows together,
+   by the lesser of how much wider and how much taller the screen is. */
+@media (min-width: 90rem) and (min-height: 56.25rem) {
+  html { font-size: clamp(16px, min(1.1111vw, 1.7778vh), 26px); }
+}
 body {
   margin: 0;
   background: var(--ground);
   color: var(--text);
   font-family: var(--system);
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
 .page {
   min-height: 100%;
+  min-height: 100svh;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto clamp(15rem, 42svh, 24rem) auto auto;
+  /* The field takes what the words leave, so the page is one screen where it can be. */
+  grid-template-rows: auto minmax(11rem, 1fr) auto auto;
   grid-template-areas: "mark" "field" "say" "foot";
   row-gap: 1.25rem;
   padding-block: 1.25rem 1.5rem;
-  padding-left: max(clamp(16px, 4.5vw, 64px), env(safe-area-inset-left, 0px));
-  padding-right: max(clamp(16px, 4.5vw, 64px), env(safe-area-inset-right, 0px));
+  padding-left: max(clamp(16px, 4.5vw, 4rem), env(safe-area-inset-left, 0px));
+  padding-right: max(clamp(16px, 4.5vw, 4rem), env(safe-area-inset-right, 0px));
   overflow-x: clip;
 }
 @media (min-width: 56rem) {
@@ -133,12 +140,12 @@ body {
 }
 .o {
   display: inline-block;
-  width: calc(10px * var(--own-w, 1)); height: calc(10px * var(--own-h, 1));
+  width: calc(0.625rem * var(--own-w, 1)); height: calc(0.625rem * var(--own-h, 1));
   border-radius: var(--own-r, 50%);
   transform: rotate(var(--own-turn, 0deg));
   background: var(--dot);
 }
-.mark .o { margin-left: 4px; }
+.mark .o { margin-left: 0.25rem; }
 
 /* The words. */
 .say { grid-area: say; align-self: end; min-width: 0; display: flex; flex-direction: column; gap: 1.5rem; container-type: inline-size; }
@@ -161,7 +168,7 @@ h1 {
 .said .t { margin-right: 0.6em; }
 .said .by { font-family: var(--system); font-size: 0.78rem; color: var(--health); margin-left: 0.5em; }
 .did { font-size: 0.92rem; color: var(--soft); display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 0.55rem; align-items: baseline; }
-.did .o { width: calc(7px * var(--own-w, 1)); height: calc(7px * var(--own-h, 1)); transform: translateY(-1px) rotate(var(--own-turn, 0deg)); }
+.did .o { width: calc(0.4375rem * var(--own-w, 1)); height: calc(0.4375rem * var(--own-h, 1)); transform: translateY(-1px) rotate(var(--own-turn, 0deg)); }
 .hint { font-size: 0.92rem; color: var(--muted); }
 
 /* The live line, written on its rule as on ruled paper. */
@@ -200,6 +207,7 @@ h1 {
 .foot .three { color: var(--soft); }
 .foot a { color: inherit; text-underline-offset: 3px; text-decoration-color: var(--rule-strong); }
 .foot .addr { color: var(--soft); user-select: all; }
+.foot .ask { white-space: nowrap; }
 
 /* The field. */
 .field { grid-area: field; position: relative; min-width: 0; min-height: 0; }
@@ -216,7 +224,7 @@ h1 {
 .dot {
   position: absolute;
   left: calc(var(--x) * 100%); top: calc(var(--y) * 100%);
-  width: 26px; height: 26px; margin: -13px 0 0 -13px;
+  width: 1.625rem; height: 1.625rem; margin: -0.8125rem 0 0 -0.8125rem;
   padding: 0; border: 0; border-radius: 50%;
   background: transparent; cursor: pointer;
   transition: left 1.5s var(--ease), top 1.5s var(--ease);
@@ -226,7 +234,7 @@ h1 {
    how much wider and shorter than round it is. */
 .dot::before {
   content: ""; position: absolute; inset: 0; margin: auto;
-  width: calc(10px * var(--w, 1)); height: calc(10px * var(--h, 1));
+  width: calc(0.625rem * var(--w, 1)); height: calc(0.625rem * var(--h, 1));
   border-radius: var(--r, 50%);
   background: var(--text);
   transform: rotate(var(--turn, 0deg)) scale(var(--grown, 1));
@@ -246,13 +254,13 @@ h1 {
 
 .label, .extra { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); pointer-events: none; }
 .label { font-size: 0.8rem; font-weight: 500; color: var(--soft); white-space: nowrap; line-height: 1; }
-.label.r { transform: translate(16px, -50%); }
-.label.b { transform: translate(-5px, 15px); }
+.label.r { transform: translate(1rem, -50%); }
+.label.b { transform: translate(-0.3125rem, 0.9375rem); }
 .extra { border-radius: 50%; transform: translate(-50%, -50%); }
-.extra.ring { width: 24px; height: 24px; border: 1px solid var(--text); }
-.extra.today { width: 10px; height: 10px; border: 1.5px solid var(--dot); }
+.extra.ring { width: 1.5rem; height: 1.5rem; border: 1px solid var(--text); }
+.extra.today { width: 0.625rem; height: 0.625rem; border: 1.5px solid var(--dot); }
 .extra.answer {
-  width: calc(7px * var(--own-w, 1)); height: calc(7px * var(--own-h, 1));
+  width: calc(0.4375rem * var(--own-w, 1)); height: calc(0.4375rem * var(--own-h, 1));
   border-radius: var(--own-r, 50%);
   transform: translate(-50%, -50%) rotate(var(--own-turn, 0deg));
   background: var(--dot);
@@ -260,10 +268,10 @@ h1 {
 
 /* What moves between the words and the field: a line on its way in, and Dotto on its way
    round. Each is carried by a still box and drawn inside it, so its turn does not bend its way. */
-.fly { position: fixed; left: 0; top: 0; width: 10px; height: 10px; margin: -5px 0 0 -5px; pointer-events: none; z-index: 5; }
+.fly { position: fixed; left: 0; top: 0; width: 0.625rem; height: 0.625rem; margin: -0.3125rem 0 0 -0.3125rem; pointer-events: none; z-index: 5; }
 .fly::before {
   content: ""; position: absolute; left: 50%; top: 50%;
-  width: calc(10px * var(--w, 1)); height: calc(10px * var(--h, 1));
+  width: calc(0.625rem * var(--w, 1)); height: calc(0.625rem * var(--h, 1));
   border-radius: var(--r, 50%);
   transform: translate(-50%, -50%) rotate(var(--turn, 0deg));
   background: var(--text);
@@ -303,7 +311,7 @@ h1 {
 
   <footer class="foot">
     <p class="three">Writing costs nothing. Your words are yours. Meaning comes later.</p>
-    <p>For iPhone, with a Mac at home that does the reading. By invitation for now: <span class="addr">hi@dotto.works</span></p>
+    <p>For iPhone, with a Mac at home that does the reading. <span class="ask">By invitation for now: <span class="addr">hi@dotto.works</span></span></p>
     <p><a href="privacy/">Privacy</a> · November 2026</p>
   </footer>
 </div>
