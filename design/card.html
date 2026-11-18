@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The card</title>
+<!-- The picture a link to dotto.works shows where it is pasted, 1200 by 630. design/card.sh
+     takes it into site/card.png. Dotto's dot leads, too large for the card to hold; the
+     site's sentence is said quietly above and the name stands in the corner below. -->
+<style>
+@font-face { font-family: "Newsreader"; font-weight: 400; src: url(../site/fonts/newsreader-400.e09ad385.woff2) format("woff2"); }
+@font-face { font-family: "Shantell Sans"; font-weight: 700; font-display: block; src: url(data:font/woff2;base64,d09GMgABAAAAAAU4ABEAAAAACmQAAATbAAEC0QAAAAAAAAAAAAAAAAAAAAAAAAAAGhYbgTYcMAZgP1NUQVSBBgBEEQgKg2SDPAE2AiQDEAsKAAQgBYhIByAXJBgKGwkJKB6FTZkrPvJhJElGPHQ3J9fdcIaNIKyDqs5kQfAg4eXXaj67/JlIWMba2LPCzb3duSQfqsT2/55FRZQsSqJzAfxf3etrNh2kYlvxYDRmdy/1km6lYq/UClAoHJCAduCMlw8e/lQ6IDdV2XC/lGWoPKBAeUASQiEEymqrSfDwkaOzIGXZLtcGKesR8YEUIfB3dK1b4fpABLlKVkadlFWVtGRUhoZQHnBAOCT7UNJaCLrqECzzByllq//++Vfg87c1l/k5UwqRSwgB9W1zN26PEuRJ8ryKwzmXSU8rQTozzQaMa90BYqHVaA8wDcM/ZTDA85YjxeGjd4H8XCoQEEfSTTTGgUJpJVBdKPoL2rVKJzAzdGJvPywljZk4MAZLKqZN7u6FpeU125ENSwhl1VSE0gJCVEhPI4QUvQGEJEU/AKGQYgCAQpZiEIAACQWqCxaoLkRnQGmlJSyHkWNTYuYuPv80BwiGgNyVzvkMKI2Mu/A1IKM0SwO7l6SiY58WW+LQZ5+VO/7JC46/veyZtxakmvzY8Q88IyFSosGec4LTP34lbvrknstXOP7ux7VS7774aaNZKeUwOdSU3nJH6v7uNz9+N0z7B+LQh1Hy9tYX335zo+jOOOGh996SrXzyieOJZY2uu7HeCfcNEbr8+utd+xsC32231dgduom5jz8bQKLXba99JvwRP3GP429v/vDHrzcq3Xtebc9EsdYitNlOq9AwlnepXY2quHKlxvyW1auLqiq8tjuJG9tf8/1aactcih8JHpWGVBbj5vdpjxu9Un2dXJvrzcxLMpNHI6bVTpsZk5aqwUy5WaeMGN09wVevDQhzVZWJH2tWL3n07pxJS+nNI/1dDb39LdyFTrXedft2yuiEpKut6n/odLhgbqetE4+ND+zZGQSV5WevG6GOzOUiJ5YZVabMslJ1/i+m6AE4vfyas0uMbNea0R/botbT1RVr78ujhM7bi8683KzB+p0nvh1SqmHLl11rZX664P7wsh+AzSAifTDvr2fbi+L7/x8RXPwOXzX+8xD8eELYv8eK/4MVz+YzUFICwU33r1iI8A4uEYrvltPTZqYHtUhnahu/6gUiu1b5fBBHMgtPVfNRIXIZPIkAQ0vXManoeyx093Uyg1hC12iKJTWP6VghmsZuXUU905U1kZVP75tQQvQ1llQz/c5KmaKjWFrFoixWULqojb0lFY2xn5SiKxtAEo285CBRxXS9ML9dXAaNjijAYXA4BWbpFAVm6BAfQmGzxZzHPJtNMlRiJoXkH+4WQOgwl6dABfchws/TgkbTGNjhABFFgjloiMt3/zZiFz8FzRsdbbW8xStn5h1d0/eeptAE2BAXi8JgsVp1aWWyevq1MM+tJ2jAwHSB/bavkNRTSCQsnky2xq2epTPCBQZ8J1lFJaYitmccVRRgzG6FJQpTUCGLWUAAMrheclJBwWgrNMFPmMI/PcoDNX3XRmvmk+8/unVOKWQLElTaEJGtdm+fK0VMo4e7TQnWEy0KboEbz9Otej1G2wwK5tKo8QXKTucEBILdAj3qchTcXQv3wDsKUnCGXw2SykdD0aBsvDVdkE6Pczl3n8vhPgoVEmAjpmHoEX2CgWOHbVY8cVQG/zsaE/x7ibZj3u/zoYcRUlorfz9C4p/gAA==) format("woff2"); }
+/* The dots. Written by `swift run --package-path design dot` from design/dots.json. Change them there. */
+/* Dotto's own dot. */
+:root { --own-r: 58% 42% 47% 53% / 46% 55% 45% 54%; --own-turn: -8deg; --own-w: 1.044; --own-h: 0.9578; }
+/* The dots end. */
+html, body { margin: 0; }
+body { width: 1200px; height: 630px; position: relative; overflow: hidden; background: #f6f6f4; color: #141618; }
+.big { position: absolute; left: 560px; top: 89px; width: calc(900px * var(--own-w)); height: calc(900px * var(--own-h)); border-radius: var(--own-r); transform: rotate(var(--own-turn)); background: #e4572e; }
+.mark { position: absolute; left: 78px; bottom: 71px; font: 700 64px/1 "Shantell Sans"; letter-spacing: -0.02em; white-space: nowrap; }
+.mark i { display: inline-block; margin-left: 9px; width: calc(21px * var(--own-w)); height: calc(21px * var(--own-h)); border-radius: var(--own-r); transform: rotate(var(--own-turn)); background: #e4572e; }
+.say { position: absolute; left: 78px; top: 77px; margin: 0; font: 400 46px/1.16 "Newsreader"; letter-spacing: -0.012em; }
+.say span { display: block; }
+.say span + span { color: #8a8f93; }
+</style>
+</head>
+<body>
+<i class="big"></i>
+<div class="mark">dotto<i></i></div>
+<p class="say"><span>Capture anything.</span><span>Dotto takes it from there.</span></p>
+</body>
+</html>

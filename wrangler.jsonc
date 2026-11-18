@@ -4,5 +4,5 @@
 {
   "name": "dotto-works",
   "compatibility_date": "2026-11-01",
-  "assets": { "directory": "./site" }
+  "assets": { "directory": "./site", "not_found_handling": "404-page" }
 }

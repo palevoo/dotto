@@ -141,8 +141,7 @@ func canvas(_ pixels: Int, alpha: Bool) -> CGContext {
 ///
 /// A sheet filled edge to edge is written with no alpha channel at all: the store refuses
 /// one on an app's main icon, even when every pixel is solid.
-func phoneIcon(_ dot: Dot, colour: CGColor, sheet: CGColor?, share: Double) -> CGImage {
-    let pixels = 1024
+func phoneIcon(_ dot: Dot, colour: CGColor, sheet: CGColor?, share: Double, pixels: Int = 1024) -> CGImage {
     let side = CGFloat(pixels)
     let context = canvas(pixels, alpha: sheet == nil)
     if let sheet {
@@ -181,6 +180,30 @@ func macIcon(_ dot: Dot, colour: CGColor, sheet: CGColor, share: Double, pixels:
     context.setFillColor(colour)
     context.fillPath()
     return context.makeImage()!
+}
+
+/// The site's icon where a browser takes no SVG: the sheet with its corners rounded as
+/// site/icon.svg has them, and the dot in the middle of it.
+func webIcon(_ dot: Dot, colour: CGColor, sheet: CGColor, share: Double, pixels: Int) -> CGImage {
+    let side = CGFloat(pixels)
+    let context = canvas(pixels, alpha: true)
+    context.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: side, height: side), cornerWidth: side * 0.22, cornerHeight: side * 0.22, transform: nil))
+    context.setFillColor(sheet)
+    context.fillPath()
+    context.addPath(path(dot, size: side * share, centre: CGPoint(x: side / 2, y: side / 2)))
+    context.setFillColor(colour)
+    context.fillPath()
+    return context.makeImage()!
+}
+
+/// One PNG as an .ico file, which is the name browsers ask a site for when told nothing:
+/// a six-byte head, one sixteen-byte entry, and the picture as it is.
+func ico(_ png: Data, pixels: Int) -> Data {
+    func little(_ value: Int, _ bytes: Int) -> [UInt8] { (0..<bytes).map { UInt8((value >> (8 * $0)) & 0xFF) } }
+    var data = Data(little(0, 2) + little(1, 2) + little(1, 2))
+    data.append(contentsOf: [UInt8(pixels), UInt8(pixels), 0, 0] + little(1, 2) + little(32, 2) + little(png.count, 4) + little(22, 4))
+    data.append(png)
+    return data
 }
 
 func png(_ image: CGImage) throws -> Data {
@@ -380,7 +403,13 @@ do {
     try put(swift(dots), "Core/Sources/Core/Dots.swift")
     try desk.place(css(dots, all: true), in: "site/index.html")
     try desk.place(css(dots, all: false), in: "site/privacy/index.html")
+    try desk.place(css(dots, all: false), in: "site/404.html")
+    try desk.place(css(dots, all: false), in: "design/card.html")
     try put(svg(own, fill: persimmon, size: 100 * share, sheet: try tokens.hex("icon-sheet", "light")), "site/icon.svg")
+    // And for what takes no SVG: a phone's home screen, and a browser asking for favicon.ico.
+    let light = (colour: try tokens.colour(dots.dotto.colour, "light"), sheet: try tokens.colour("icon-sheet", "light"))
+    try put(png(phoneIcon(own, colour: light.colour, sheet: light.sheet, share: share, pixels: 180)), "site/apple-touch-icon.png")
+    try put(ico(png(webIcon(own, colour: light.colour, sheet: light.sheet, share: share, pixels: 48)), pixels: 48), "site/favicon.ico")
 
     for path in desk.changed { print("wrote \(path)") }
     print("\(desk.changed.count) written, \(desk.same) already the same")

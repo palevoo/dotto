@@ -1,4 +1,13 @@
-# Read by Cloudflare, not served. A font's name changes when the font does, so a browser
-# may keep one for a year without asking again. Pages are asked for afresh each time.
+# Read by Cloudflare, not served.
+
+# Everything: a browser that has been here keeps to https for a year, takes a file for the
+# kind it is said to be, and tells another site only that it came from dotto.works.
+/*
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# A font's name changes when the font does, so a browser may keep one for a year without
+# asking again. Pages are asked for afresh each time.
 /fonts/*.woff2
   Cache-Control: public, max-age=31536000, immutable
