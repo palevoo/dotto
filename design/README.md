@@ -50,9 +50,16 @@ That writes:
 - `assets/icon.svg` and `assets/icon-dark.svg`, the dot on its sheet;
 - `assets/dots/01.svg` to `12.svg`, each dot, in the colour of the text around it;
 - `Core/Sources/Core/Dots.swift`, the dots for the apps;
-- `site/look.css` and `site/icon.svg`, the dots and the icon for the site.
+- the dots inside `site/index.html` and `site/privacy/index.html`, where their style marks a
+  place for them, and `site/icon.svg`.
 
 A file that already says the same is left alone, so a run with nothing new changes nothing.
+
+The site's fonts are made apart, by `design/fonts.sh`, which needs `fonttools` and `brotli`
+from pip. It cuts Newsreader, Geist and Geist Mono down to the weights and letters the pages
+use, writes them into `site/fonts/` under names that carry their hash, and prints the three
+letters of the name's face for the pages to hold inside themselves. The pages name the files,
+so a font that changes is a change to the pages too.
 
 The program is built on Core, and Core needs its `Dots.swift` to build. If that file is
 lost, take it back from git before running.

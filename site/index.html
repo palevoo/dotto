@@ -6,13 +6,36 @@
 <title>Dotto</title>
 <meta name="description" content="Capture anything. Dotto takes it from there.">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap">
-<!-- The name's own hand: only its three letters, and nothing shown in another face while it loads. -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@700&text=dotto&display=block">
-<!-- The dots, as design/ draws them. -->
-<link rel="stylesheet" href="look.css">
+<link rel="preload" href="fonts/newsreader-400.e09ad385.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/geist.ec42a21e.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+/* The faces, served from here; design/fonts.sh makes the files. Words show at once in a face
+   the device has, sized to take the same room, and change when their own arrives. The name
+   is three letters of its face, inside this page, so it is never waited for. */
+@font-face { font-family: "Newsreader"; font-weight: 400; font-display: swap; src: url(fonts/newsreader-400.e09ad385.woff2) format("woff2"); unicode-range: U+0020-007E, U+2010-2014, U+2018-201D, U+2022, U+2026; }
+@font-face { font-family: "Newsreader"; font-weight: 400; font-display: swap; src: url(fonts/newsreader-400-more.601c2080.woff2) format("woff2"); unicode-range: U+00A0-00FF, U+2212; }
+@font-face { font-family: "Geist"; font-weight: 400 500; font-display: swap; src: url(fonts/geist.ec42a21e.woff2) format("woff2"); }
+@font-face { font-family: "Geist Mono"; font-weight: 400; font-display: swap; src: url(fonts/geist-mono-400.a8ca955b.woff2) format("woff2"); }
+@font-face { font-family: "Shantell Sans"; font-weight: 700; font-display: block; src: url(data:font/woff2;base64,d09GMgABAAAAAAU4ABEAAAAACmQAAATbAAEC0QAAAAAAAAAAAAAAAAAAAAAAAAAAGhYbgTYcMAZgP1NUQVSBBgBEEQgKg2SDPAE2AiQDEAsKAAQgBYhIByAXJBgKGwkJKB6FTZkrPvJhJElGPHQ3J9fdcIaNIKyDqs5kQfAg4eXXaj67/JlIWMba2LPCzb3duSQfqsT2/55FRZQsSqJzAfxf3etrNh2kYlvxYDRmdy/1km6lYq/UClAoHJCAduCMlw8e/lQ6IDdV2XC/lGWoPKBAeUASQiEEymqrSfDwkaOzIGXZLtcGKesR8YEUIfB3dK1b4fpABLlKVkadlFWVtGRUhoZQHnBAOCT7UNJaCLrqECzzByllq//++Vfg87c1l/k5UwqRSwgB9W1zN26PEuRJ8ryKwzmXSU8rQTozzQaMa90BYqHVaA8wDcM/ZTDA85YjxeGjd4H8XCoQEEfSTTTGgUJpJVBdKPoL2rVKJzAzdGJvPywljZk4MAZLKqZN7u6FpeU125ENSwhl1VSE0gJCVEhPI4QUvQGEJEU/AKGQYgCAQpZiEIAACQWqCxaoLkRnQGmlJSyHkWNTYuYuPv80BwiGgNyVzvkMKI2Mu/A1IKM0SwO7l6SiY58WW+LQZ5+VO/7JC46/veyZtxakmvzY8Q88IyFSosGec4LTP34lbvrknstXOP7ux7VS7774aaNZKeUwOdSU3nJH6v7uNz9+N0z7B+LQh1Hy9tYX335zo+jOOOGh996SrXzyieOJZY2uu7HeCfcNEbr8+utd+xsC32231dgduom5jz8bQKLXba99JvwRP3GP429v/vDHrzcq3Xtebc9EsdYitNlOq9AwlnepXY2quHKlxvyW1auLqiq8tjuJG9tf8/1aactcih8JHpWGVBbj5vdpjxu9Un2dXJvrzcxLMpNHI6bVTpsZk5aqwUy5WaeMGN09wVevDQhzVZWJH2tWL3n07pxJS+nNI/1dDb39LdyFTrXedft2yuiEpKut6n/odLhgbqetE4+ND+zZGQSV5WevG6GOzOUiJ5YZVabMslJ1/i+m6AE4vfyas0uMbNea0R/botbT1RVr78ujhM7bi8683KzB+p0nvh1SqmHLl11rZX664P7wsh+AzSAifTDvr2fbi+L7/x8RXPwOXzX+8xD8eELYv8eK/4MVz+YzUFICwU33r1iI8A4uEYrvltPTZqYHtUhnahu/6gUiu1b5fBBHMgtPVfNRIXIZPIkAQ0vXManoeyx093Uyg1hC12iKJTWP6VghmsZuXUU905U1kZVP75tQQvQ1llQz/c5KmaKjWFrFoixWULqojb0lFY2xn5SiKxtAEo285CBRxXS9ML9dXAaNjijAYXA4BWbpFAVm6BAfQmGzxZzHPJtNMlRiJoXkH+4WQOgwl6dABfchws/TgkbTGNjhABFFgjloiMt3/zZiFz8FzRsdbbW8xStn5h1d0/eeptAE2BAXi8JgsVp1aWWyevq1MM+tJ2jAwHSB/bavkNRTSCQsnky2xq2epTPCBQZ8J1lFJaYitmccVRRgzG6FJQpTUCGLWUAAMrheclJBwWgrNMFPmMI/PcoDNX3XRmvmk+8/unVOKWQLElTaEJGtdm+fK0VMo4e7TQnWEy0KboEbz9Otej1G2wwK5tKo8QXKTucEBILdAj3qchTcXQv3wDsKUnCGXw2SykdD0aBsvDVdkE6Pczl3n8vhPgoVEmAjpmHoEX2CgWOHbVY8cVQG/zsaE/x7ibZj3u/zoYcRUlorfz9C4p/gAA==) format("woff2"); }
+@font-face { font-family: "Newsreader wait"; src: local("Georgia"); size-adjust: 91.5%; ascent-override: 80.33%; descent-override: 28.96%; line-gap-override: 0%; }
+@font-face { font-family: "Geist wait"; src: local("Arial"); size-adjust: 105.53%; ascent-override: 95.24%; descent-override: 27.95%; line-gap-override: 0%; }
+/* The dots. Written by `swift run --package-path design dot` from design/dots.json. Change them there. */
+/* Dotto's own dot. */
+:root { --own-r: 58% 42% 47% 53% / 46% 55% 45% 54%; --own-turn: -8deg; --own-w: 1.044; --own-h: 0.9578; }
+/* The dots there are: a shape, a turn, and how much wider and shorter than round. */
+.d1 { --r: 58% 42% 47% 53% / 46% 55% 45% 54%; --turn: -8deg; --w: 1.044; --h: 0.9578; }
+.d2 { --r: 44% 56% 61% 39% / 52% 41% 59% 48%; --turn: 12deg; --w: 0.9327; --h: 1.072; }
+.d3 { --r: 51% 49% 38% 62% / 60% 47% 53% 40%; --turn: 4deg; --w: 1.049; --h: 0.9535; }
+.d4 { --r: 50% 50% 50% 50% / 62% 62% 38% 38%; --turn: -10deg; --w: 0.9274; --h: 1.078; }
+.d5 { --r: 64% 36% 64% 36% / 40% 60% 40% 60%; --turn: 18deg; --w: 1.049; --h: 0.9535; }
+.d6 { --r: 52% 48% 51% 49% / 51% 47% 53% 49%; --turn: 0deg; --w: 1; --h: 1; }
+.d7 { --r: 36% 64% 52% 48% / 36% 50% 50% 64%; --turn: 30deg; --w: 1; --h: 1; }
+.d8 { --r: 45% 55% 45% 55% / 50% 50% 50% 50%; --turn: -12deg; --w: 1.105; --h: 0.9054; }
+.d9 { --r: 55% 45% 58% 42% / 44% 58% 42% 56%; --turn: 6deg; --w: 0.9055; --h: 1.104; }
+.d10 { --r: 38% 62% 56% 44% / 58% 36% 64% 42%; --turn: -20deg; --w: 1.02; --h: 0.9806; }
+.d11 { --r: 62% 38% 42% 58% / 38% 52% 48% 62%; --turn: 14deg; --w: 0.9747; --h: 1.026; }
+.d12 { --r: 47% 53% 43% 57% / 34% 66% 34% 66%; --turn: 24deg; --w: 1.03; --h: 0.9713; }
+/* The dots end. */
 :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 /* Layout: one screen. The words stand at the left edge, read bottom up from the live line.
    The rest is a field. Every line written becomes a dot in it, its own full stop; Dotto's
@@ -28,8 +51,8 @@
   --rule-strong: rgba(20, 22, 24, 0.26);
   --dot: #e4572e;
   --health: #3b5bdb;
-  --words: "Newsreader", "Iowan Old Style", Georgia, serif;
-  --system: "Geist", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --words: "Newsreader", "Newsreader wait", "Iowan Old Style", Georgia, serif;
+  --system: "Geist", "Geist wait", -apple-system, "Helvetica Neue", Arial, sans-serif;
   --time: "Geist Mono", "SF Mono", Menlo, monospace;
   --ease: cubic-bezier(0.22, 0.72, 0.12, 1);
 }
@@ -115,11 +138,6 @@ h1 {
 .ph { display: block; color: var(--unlit); transition: color 0.9s ease; }
 .ph.on { color: var(--text); }
 
-/* What "from there" is, one word for each thing the field then does. */
-.steps { margin: 0; display: flex; flex-wrap: wrap; gap: 0.3rem 1.15rem; font-size: 0.95rem; font-weight: 500; }
-.steps span { color: var(--unlit); transition: color 0.7s ease; }
-.steps span.on { color: var(--soft); }
-
 /* What a dot says, and what was done about it. */
 .note { min-height: 3.4rem; display: flex; flex-direction: column; gap: 0.3rem; justify-content: flex-end; }
 .note p { margin: 0; }
@@ -131,14 +149,14 @@ h1 {
 .did .o { width: calc(7px * var(--own-w, 1)); height: calc(7px * var(--own-h, 1)); transform: translateY(-1px) rotate(var(--own-turn, 0deg)); }
 .hint { font-size: 0.92rem; color: var(--muted); }
 
-/* The live line. */
+/* The live line, written on its rule as on ruled paper. */
 .live {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: baseline;
   column-gap: 0.9rem;
-  border-top: 1px solid var(--rule-strong);
-  padding-top: 0.95rem;
+  border-bottom: 1px solid var(--rule-strong);
+  padding-bottom: 0.55rem;
 }
 .live input {
   min-width: 0; width: 100%;
@@ -208,8 +226,8 @@ h1 {
 }
 .dot.health[aria-pressed="true"]::after, .dot.health:focus-visible::after { border-color: var(--health); }
 .dot.waiting { visibility: hidden; }
-.dot.seen::before { animation: seen 0.5s var(--ease); }
-@keyframes seen { 40% { transform: rotate(var(--turn, 0deg)) scale(2.1); } }
+.dot.seen::before { animation: seen 0.8s var(--ease); }
+@keyframes seen { 40% { transform: rotate(var(--turn, 0deg)) scale(1.9); } }
 
 .label, .extra { position: absolute; left: calc(var(--x) * 100%); top: calc(var(--y) * 100%); pointer-events: none; }
 .label { font-size: 0.8rem; font-weight: 500; color: var(--soft); white-space: nowrap; line-height: 1; }
@@ -239,7 +257,7 @@ h1 {
 .fly.dotto::before { background: var(--dot); }
 
 @media (prefers-reduced-motion: reduce) {
-  .dot, .dot::before, .ph, .steps span, .links, .label, .label .n, .extra { transition: none; }
+  .dot, .dot::before, .ph, .links, .label, .label .n, .extra { transition: none; }
   .dot.seen::before { animation: none; }
 }
 </style>
@@ -254,14 +272,6 @@ h1 {
       <span class="ph on">Capture anything.</span>
       <span class="ph" id="p2">Dotto takes it from there.</span>
     </h1>
-
-    <p class="steps" aria-label="What Dotto does with what you capture">
-      <span id="s1">Observes</span>
-      <span id="s2">Identifies</span>
-      <span id="s3">Organises</span>
-      <span id="s4">Adds up</span>
-      <span id="s5">Completes</span>
-    </p>
 
     <div class="note" id="note" aria-live="polite"></div>
 
@@ -359,7 +369,7 @@ h1 {
   function at(node, x, y) { node.style.setProperty("--x", x); node.style.setProperty("--y", y); }
   function centre(node) { var r = node.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }
 
-  // A dot is a button: touch it and it says its line. Each is one of the dots look.css has,
+  // A dot is a button: touch it and it says its line. Each is one of the dots this page's style has,
   // from the second on; the first is Dotto's own.
   var drawn = 0;
   function makeDot(line) {
@@ -485,7 +495,8 @@ h1 {
     return fly("line " + b.shape, from, centre(b), 850).then(function (f) { b.classList.remove("waiting"); f.remove(); });
   }
 
-  // Dotto leaves the name, goes to each line in turn, and comes home.
+  // Dotto leaves the name, goes to each line in turn, stays a moment with each, and comes
+  // home. Without hurry: it is reading.
   function read(list) {
     if (still || !list.length) return Promise.resolve();
     var here = centre(home);
@@ -495,10 +506,10 @@ h1 {
       chain = chain.then(function () {
         var there = b ? centre(b) : centre(home);
         var first = i === 0, last = b === null;
-        return fly("dotto", here, there, first || last ? 620 : 210, first || last ? null : "cubic-bezier(0.4, 0, 0.3, 1)").then(function (f) {
+        return fly("dotto", here, there, first || last ? 900 : 480, first || last ? null : "cubic-bezier(0.45, 0, 0.25, 1)").then(function (f) {
           here = there;
           if (b) pulse(b);
-          return (b ? wait(70) : Promise.resolve()).then(function () { f.remove(); });
+          return (b ? wait(260) : Promise.resolve()).then(function () { f.remove(); });
         });
       });
     });
@@ -514,7 +525,7 @@ h1 {
     ["fig", "streak", "coming", "question", "walks"].forEach(function (thing) {
       chain = chain.then(function () {
         LINES.forEach(function (l) { if (l.thing === thing) pulse(dots[l.id]); });
-        return wait(300);
+        return wait(520);
       });
     });
     return chain.then(function () { return wait(300); });
@@ -525,7 +536,7 @@ h1 {
     var last = dots.a13;
     if (still) {
       last.classList.remove("waiting");
-      ["p2", "s1", "s2", "s3", "s4", "s5"].forEach(light);
+      light("p2");
       gathered = true; settled = true; place(); field.classList.add("counted", "done"); say(null);
       return Promise.resolve();
     }
@@ -541,11 +552,11 @@ h1 {
         return key();
       })
       .then(function () { return wait(500); })
-      .then(function () { light("p2"); light("s1"); return read(LINES.map(function (l) { return dots[l.id]; })); })
-      .then(function () { light("s2"); return identify(); })
-      .then(function () { light("s3"); gathered = true; place(); return wait(2200); })
-      .then(function () { light("s4"); field.classList.add("counted"); return wait(1000); })
-      .then(function () { light("s5"); field.classList.add("done"); return wait(1100); })
+      .then(function () { light("p2"); return read(LINES.map(function (l) { return dots[l.id]; })); })
+      .then(identify)
+      .then(function () { gathered = true; place(); return wait(2200); })
+      .then(function () { field.classList.add("counted"); return wait(1000); })
+      .then(function () { field.classList.add("done"); return wait(1100); })
       .then(function () { settled = true; if (!pinned) say(null); });
   }
 

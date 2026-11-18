@@ -53,7 +53,7 @@ Write to hi@dotto.works.
     Core/            the Swift package both apps stand on, with its tests
     design/          the look: the dot, the colours, and the program that draws the icons
     spec/            the format with a sample notebook, the door, the design, the roadmap
-    site/            dotto.works
+    site/            dotto.works, served as it stands; wrangler.jsonc says so to Cloudflare
 
 ## Build
 

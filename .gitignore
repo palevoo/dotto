@@ -18,5 +18,8 @@ DerivedData/
 # macOS
 .DS_Store
 
+# Cloudflare's tool, when the site is served or checked from here
+.wrangler/
+
 # xcodebuild run without a scheme drops its output here
 App/build/

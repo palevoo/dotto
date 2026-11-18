@@ -1,0 +1,8 @@
+// dotto.works. Cloudflare serves the folder site/ as it is, from wherever is nearest to
+// whoever asks. No code runs: there are only files. Cloudflare reads this file when main
+// is pushed, and its name here must be the Worker's name there.
+{
+  "name": "dotto-works",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "./site" }
+}

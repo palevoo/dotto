@@ -262,8 +262,8 @@ func swift(_ dots: Dots) throws -> Data {
 }
 
 /// The dots as CSS, for the site: a shape, a turn, and how much wider and shorter than
-/// round, each as a variable a rule can use.
-func css(_ dots: Dots) throws -> Data {
+/// round, each as a variable a rule can use. Dotto's own dot always; the rest when `all`.
+func css(_ dots: Dots, all: Bool) throws -> String {
     func number(_ value: Double) -> String { String(format: "%g", value) }
     func variables(_ entry: Dots.Entry, _ prefix: String) -> String {
         let (top, right, bottom, left) = (entry.meets[0], entry.meets[1], entry.meets[2], entry.meets[3])
@@ -273,17 +273,16 @@ func css(_ dots: Dots) throws -> Data {
     }
     _ = try dots.dot(dots.dotto.dot)
     var lines = [
-        "/* Written by `swift run --package-path design dot` from design/dots.json. Change it there. */",
-        "",
         "/* Dotto's own dot. */",
         ":root { \(variables(dots.dots[dots.dotto.dot - 1], "own-")) }",
-        "",
-        "/* The dots there are: a shape, a turn, and how much wider and shorter than round. */",
     ]
-    for (index, entry) in dots.dots.enumerated() {
-        lines.append(".d\(index + 1) { \(variables(entry, "")) }")
+    if all {
+        lines.append("/* The dots there are: a shape, a turn, and how much wider and shorter than round. */")
+        for (index, entry) in dots.dots.enumerated() {
+            lines.append(".d\(index + 1) { \(variables(entry, "")) }")
+        }
     }
-    return Data((lines.joined(separator: "\n") + "\n").utf8)
+    return lines.joined(separator: "\n")
 }
 
 // MARK: Writing
@@ -314,6 +313,22 @@ final class Desk {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try data.write(to: url, options: .atomic)
         changed.append(path)
+    }
+
+    /// Where the dots stand in a page of the site: between these two lines of its style.
+    static let dotsBegin = "/* The dots. Written by `swift run --package-path design dot` from design/dots.json. Change them there. */"
+    static let dotsEnd = "/* The dots end. */"
+
+    /// Puts the dots into a page of the site, in the place its style marks for them, so
+    /// the page draws them with no second file to fetch.
+    func place(_ dots: String, in path: String) throws {
+        let url = repository.appendingPathComponent(path)
+        guard let page = try? String(contentsOf: url, encoding: .utf8) else { throw Problem("\(path): not there") }
+        guard let begin = page.range(of: Self.dotsBegin),
+              let end = page.range(of: Self.dotsEnd, range: begin.upperBound..<page.endIndex) else {
+            throw Problem("\(path): no place marked for the dots")
+        }
+        try put(Data(page.replacingCharacters(in: begin.upperBound..<end.lowerBound, with: "\n" + dots + "\n").utf8), path)
     }
 }
 
@@ -363,7 +378,8 @@ do {
 
     // The same dots where the apps and the site draw their own: Core, and the site's folder.
     try put(swift(dots), "Core/Sources/Core/Dots.swift")
-    try put(css(dots), "site/look.css")
+    try desk.place(css(dots, all: true), in: "site/index.html")
+    try desk.place(css(dots, all: false), in: "site/privacy/index.html")
     try put(svg(own, fill: persimmon, size: 100 * share, sheet: try tokens.hex("icon-sheet", "light")), "site/icon.svg")
 
     for path in desk.changed { print("wrote \(path)") }

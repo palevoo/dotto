@@ -6,16 +6,27 @@
 <title>Privacy · Dotto</title>
 <meta name="description" content="What Dotto keeps, where it keeps it, and what leaves your phone.">
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shantell+Sans:wght@700&text=dotto&display=block">
-<link rel="stylesheet" href="../look.css">
+<link rel="preload" href="../fonts/newsreader-400.e09ad385.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+/* The faces, served from here; design/fonts.sh makes the files. Words show at once in a face
+   the device has, sized to take the same room, and change when their own arrives. The name
+   is three letters of its face, inside this page, so it is never waited for. */
+@font-face { font-family: "Newsreader"; font-weight: 400; font-display: swap; src: url(../fonts/newsreader-400.e09ad385.woff2) format("woff2"); unicode-range: U+0020-007E, U+2010-2014, U+2018-201D, U+2022, U+2026; }
+@font-face { font-family: "Newsreader"; font-weight: 400; font-display: swap; src: url(../fonts/newsreader-400-more.601c2080.woff2) format("woff2"); unicode-range: U+00A0-00FF, U+2212; }
+@font-face { font-family: "Newsreader"; font-weight: 500; font-display: swap; src: url(../fonts/newsreader-500.e473c680.woff2) format("woff2"); }
+@font-face { font-family: "Geist"; font-weight: 400 500; font-display: swap; src: url(../fonts/geist.ec42a21e.woff2) format("woff2"); }
+@font-face { font-family: "Shantell Sans"; font-weight: 700; font-display: block; src: url(data:font/woff2;base64,d09GMgABAAAAAAU4ABEAAAAACmQAAATbAAEC0QAAAAAAAAAAAAAAAAAAAAAAAAAAGhYbgTYcMAZgP1NUQVSBBgBEEQgKg2SDPAE2AiQDEAsKAAQgBYhIByAXJBgKGwkJKB6FTZkrPvJhJElGPHQ3J9fdcIaNIKyDqs5kQfAg4eXXaj67/JlIWMba2LPCzb3duSQfqsT2/55FRZQsSqJzAfxf3etrNh2kYlvxYDRmdy/1km6lYq/UClAoHJCAduCMlw8e/lQ6IDdV2XC/lGWoPKBAeUASQiEEymqrSfDwkaOzIGXZLtcGKesR8YEUIfB3dK1b4fpABLlKVkadlFWVtGRUhoZQHnBAOCT7UNJaCLrqECzzByllq//++Vfg87c1l/k5UwqRSwgB9W1zN26PEuRJ8ryKwzmXSU8rQTozzQaMa90BYqHVaA8wDcM/ZTDA85YjxeGjd4H8XCoQEEfSTTTGgUJpJVBdKPoL2rVKJzAzdGJvPywljZk4MAZLKqZN7u6FpeU125ENSwhl1VSE0gJCVEhPI4QUvQGEJEU/AKGQYgCAQpZiEIAACQWqCxaoLkRnQGmlJSyHkWNTYuYuPv80BwiGgNyVzvkMKI2Mu/A1IKM0SwO7l6SiY58WW+LQZ5+VO/7JC46/veyZtxakmvzY8Q88IyFSosGec4LTP34lbvrknstXOP7ux7VS7774aaNZKeUwOdSU3nJH6v7uNz9+N0z7B+LQh1Hy9tYX335zo+jOOOGh996SrXzyieOJZY2uu7HeCfcNEbr8+utd+xsC32231dgduom5jz8bQKLXba99JvwRP3GP429v/vDHrzcq3Xtebc9EsdYitNlOq9AwlnepXY2quHKlxvyW1auLqiq8tjuJG9tf8/1aactcih8JHpWGVBbj5vdpjxu9Un2dXJvrzcxLMpNHI6bVTpsZk5aqwUy5WaeMGN09wVevDQhzVZWJH2tWL3n07pxJS+nNI/1dDb39LdyFTrXedft2yuiEpKut6n/odLhgbqetE4+ND+zZGQSV5WevG6GOzOUiJ5YZVabMslJ1/i+m6AE4vfyas0uMbNea0R/botbT1RVr78ujhM7bi8683KzB+p0nvh1SqmHLl11rZX664P7wsh+AzSAifTDvr2fbi+L7/x8RXPwOXzX+8xD8eELYv8eK/4MVz+YzUFICwU33r1iI8A4uEYrvltPTZqYHtUhnahu/6gUiu1b5fBBHMgtPVfNRIXIZPIkAQ0vXManoeyx093Uyg1hC12iKJTWP6VghmsZuXUU905U1kZVP75tQQvQ1llQz/c5KmaKjWFrFoixWULqojb0lFY2xn5SiKxtAEo285CBRxXS9ML9dXAaNjijAYXA4BWbpFAVm6BAfQmGzxZzHPJtNMlRiJoXkH+4WQOgwl6dABfchws/TgkbTGNjhABFFgjloiMt3/zZiFz8FzRsdbbW8xStn5h1d0/eeptAE2BAXi8JgsVp1aWWyevq1MM+tJ2jAwHSB/bavkNRTSCQsnky2xq2epTPCBQZ8J1lFJaYitmccVRRgzG6FJQpTUCGLWUAAMrheclJBwWgrNMFPmMI/PcoDNX3XRmvmk+8/unVOKWQLElTaEJGtdm+fK0VMo4e7TQnWEy0KboEbz9Otej1G2wwK5tKo8QXKTucEBILdAj3qchTcXQv3wDsKUnCGXw2SykdD0aBsvDVdkE6Pczl3n8vhPgoVEmAjpmHoEX2CgWOHbVY8cVQG/zsaE/x7ibZj3u/zoYcRUlorfz9C4p/gAA==) format("woff2"); }
+@font-face { font-family: "Newsreader wait"; src: local("Georgia"); size-adjust: 91.5%; ascent-override: 80.33%; descent-override: 28.96%; line-gap-override: 0%; }
+@font-face { font-family: "Geist wait"; src: local("Arial"); size-adjust: 105.53%; ascent-override: 95.24%; descent-override: 27.95%; line-gap-override: 0%; }
+/* The dots. Written by `swift run --package-path design dot` from design/dots.json. Change them there. */
+/* Dotto's own dot. */
+:root { --own-r: 58% 42% 47% 53% / 46% 55% 45% 54%; --own-turn: -8deg; --own-w: 1.044; --own-h: 0.9578; }
+/* The dots end. */
 /* The palette and type of the main page: a cool near-white ground, black text, one colour. */
 :root {
   --ground: #f6f6f4; --text: #141618; --muted: #6b7075; --line: rgba(20, 22, 24, 0.12); --dot: #e4572e;
-  --words: "Newsreader", "Iowan Old Style", Georgia, serif;
-  --system: "Geist", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --words: "Newsreader", "Newsreader wait", "Iowan Old Style", Georgia, serif;
+  --system: "Geist", "Geist wait", -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
   :root { --ground: #111213; --text: #ecedea; --muted: #9ea3a1; --line: rgba(236, 237, 234, 0.14); --dot: #ff6a3d; color-scheme: dark; }
